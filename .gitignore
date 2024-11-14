@@ -1,0 +1,10 @@
+# Keep environment variables out of version control
+.env
+# keep these out!
+**/node_modules/
+# misc stuff
+test*
+# generated .js files
+*.js
+# Keep all in submodules
+!submodules/**/*
