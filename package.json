@@ -1,0 +1,23 @@
+{
+  "name": "rank-extension-ts",
+  "version": "0.1.0",
+  "description": "Browser extension to engage in the Lotus RANK economy",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/LotusiaStewardship/rank-extension-ts.git"
+  },
+  "author": "Lotusia Stewardship",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/LotusiaStewardship/rank-extension-ts/issues"
+  },
+  "homepage": "https://github.com/LotusiaStewardship/rank-extension-ts#readme",
+  "dependencies": {
+    "jquery": "3.7.1",
+    "jsdom": "25.0.1"
+  }
+}
