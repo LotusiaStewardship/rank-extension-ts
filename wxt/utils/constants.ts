@@ -1,0 +1,1 @@
+export const RANK_API = 'https://rank.lotusia.org/api/v1'

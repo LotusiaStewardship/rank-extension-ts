@@ -11,8 +11,8 @@ export namespace Parser {
     public static postTextFromElement = (postTextElement: Cheerio<Element>) =>
       postTextElement.children('span').first().text()
     public static userNameFromElement = (userNameLinkElement: Cheerio<Element>) =>
-      userNameLinkElement.attr('href').split('/').pop().toLowerCase()
+      userNameLinkElement.attr('href')?.split('/')?.pop()?.toLowerCase()
     public static postIdFromElement = (postIdElement: Cheerio<Element>) =>
-      postIdElement.attr('href').split('/').pop()
+      postIdElement.attr('href')?.split('/').pop()
   }
 }
