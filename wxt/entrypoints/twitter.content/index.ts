@@ -18,7 +18,7 @@ type Post = Profile & {
   postId: string
 }
 /** https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver */
-const observers: Map<'root', MutationObserver> = new Map()
+const observers: Map<'react-root', MutationObserver> = new Map()
 /** https://wxt.dev/guide/essentials/content-scripts.html#dealing-with-spas */
 const urlPatterns: Map<
   'home' | 'notifications' | 'timeline' | 'post' | 'bookmarks',
@@ -41,10 +41,10 @@ const rootObserve = () => {
   // Query the root container for observation
   const root = document.body.querySelector(Selector.TwitterContainer.div.root)
   // Set up root container observer instance
-  observers.set('root', new MutationObserver(handleRootMutations))
+  observers.set('react-root', new MutationObserver(handleRootMutations))
   // Begin observing root node to find the timeline node
-  console.log('connecting root observer')
-  observers.get('root')?.observe(root as Node, {
+  console.log('connecting react-root observer')
+  observers.get('react-root')?.observe(root as Node, {
     childList: true,
     subtree: true,
   })
@@ -69,7 +69,6 @@ const handleRootMutations = (mutations: MutationRecord[]) => {
 /** Parse the provided `CheerioAPI` element for tweet data and process accordingly */
 const processTweet = async ($: CheerioAPI) => {
   const t0 = performance.now()
-  //const $ = load(tweet.html() as string)
   // Select elements
   const tweetTextDiv = $(Selector.TwitterArticle.div.tweetText)
   const tweetUserNameLink = $(Selector.TwitterArticle.a.tweetUserName)
@@ -83,9 +82,8 @@ const processTweet = async ($: CheerioAPI) => {
     console.log(`parsed ${postId} from profile ${userName} in ${t1}ms`)
   }
   // remove ads :)
-  const ad = $(Selector.TwitterArticle.div.ad)
-  if (ad.length == 1) {
-    console.log(`hiding tweet ID ${postId} from profile ${userName} (Ad)`)
+  if ($(Selector.TwitterArticle.div.ad).length == 1) {
+    console.log(`hiding post ID ${postId} from profile ${userName} (Ad)`)
     hideTimelinePost(postId as string)
     return
   }
@@ -94,12 +92,12 @@ const processTweet = async ($: CheerioAPI) => {
   if (userName) {
     try {
       const profile = await fetch(`${DEFAULT_RANK_API}/twitter/${userName}`)
-      const parsed: Profile = await profile.json()
+      const parsed = await profile.json() as Profile
       const ranking = BigInt(parsed.ranking)
       // hide the post if the profile is below rank threshold
       if (ranking < DEFAULT_RANK_THRESHOLD) {
         console.log(
-          `hiding tweet ID ${postId} (profile ${userName} below rank threshold)`,
+          `hiding post ID ${postId} from profile ${userName} (profile below rank threshold)`,
         )
         hideTimelinePost(postId as string)
         return
@@ -115,10 +113,10 @@ const processTweet = async ($: CheerioAPI) => {
   if (postId) {
     try {
       const post = await fetch(`${DEFAULT_RANK_API}/twitter/${userName}/${postId}`)
-      const parsed: Post = await post.json()
+      const parsed = await post.json() as Post
       const ranking = BigInt(parsed.ranking)
       if (ranking < DEFAULT_RANK_THRESHOLD) {
-        console.log(`hiding tweet ID ${postId} (tweet below rank threshold)`)
+        console.log(`hiding post ID ${postId} from profile ${userName} (post below rank threshold)`)
         hideTimelinePost(postId as string)
         return
       }
@@ -145,38 +143,12 @@ const processTweet = async ($: CheerioAPI) => {
   */
 }
 
-/*
-const initContext = (url: string) => {
-  // disconnect observers before reconnecting them
-  //console.log('disconnecting root observer')
-  //observers.get('root')?.disconnect()
-  // disable the observer for these URLs
-  if (urlPatterns.get('bookmarks')?.includes(url)) {
-    return
-    // enable the observer for URLs with tweet containers
-  } else if (
-    urlPatterns.get('post')?.includes(url) ||
-    urlPatterns.get('home')?.includes(url) ||
-    urlPatterns.get('timeline')?.includes(url) ||
-    urlPatterns.get('notifications')?.includes(url)
-  ) {
-    console.log(`observing ${url}`)
-    rootObserve()
-  }
-}
-*/
-
 export default defineContentScript({
   matches: ['*://*.x.com/*', '*://x.com/*'],
   // https://developer.chrome.com/docs/extensions/reference/api/extensionTypes#type-RunAt
   runAt: 'document_start',
   async main(ctx) {
-    // Set up URL change handler
-    //ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) =>
-    //  initContext(newUrl.toString()),
-    //)
-    // Initial page load observer
-    //initContext(document.URL)
+    // Start observing Twitter's `react-node` for mutations
     rootObserve()
   },
 })
