@@ -1,4 +1,4 @@
-.hidden-downranked {
-  display: none;
+.lotus-rank-below-threshold {
+  display: none !important;
   opacity: 0;
 }

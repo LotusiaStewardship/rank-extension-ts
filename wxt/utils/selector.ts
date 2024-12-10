@@ -3,8 +3,8 @@ export namespace Selector {
   /** Twitter containers are where we find TwitterArticle elements */
   export namespace TwitterContainer {
     export enum attr {
-      timeline = 'aria-label*="Timeline:"',
-      root = `react-root`
+      timeline = 'aria-label*="timeline"',
+      root = `react-root`,
     }
     export enum div {
       timeline = `div[${attr.timeline}]`,
@@ -21,13 +21,15 @@ export namespace Selector {
       tweetId = 'href*="/status/"',
     }
     export enum div {
+      ad = `span:contains("Ad")`,
+      innerDiv = `div[${attr.innerDiv}]`,
       tweet = `div[${attr.innerDiv}]:has(article)`,
       tweetText = `div[${attr.tweetText}]`,
       tweetUserName = `div[${attr.tweetUserName}]`,
     }
     export enum a {
       tweetId = `a[${attr.tweetId}]`,
-      tweetUserName = `a[role="link"]`,
+      tweetUserName = `a[role="link"]:not(:has(span))`,
     }
   }
 }
