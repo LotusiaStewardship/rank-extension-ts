@@ -15,21 +15,25 @@ export namespace Selector {
   export namespace TwitterArticle {
     export enum attr {
       innerDiv = 'data-testid="cellInnerDiv"',
+      notification = 'data-testid="notification"',
+      tweet = 'data-testid="tweet"',
       tweetComplete = 'data-testid="tweet-text-show-more-link"',
       tweetText = 'data-testid="tweetText"',
       tweetUserName = 'data-testid="User-Name"',
       tweetId = 'href*="/status/"',
     }
     export enum div {
-      ad = `span:contains("Ad")`,
       innerDiv = `div[${attr.innerDiv}]`,
-      tweet = `div[${attr.innerDiv}]:has(article)`,
-      tweetText = `div[${attr.tweetText}]`,
-      tweetUserName = `div[${attr.tweetUserName}]`,
+      tweet = `div[${attr.innerDiv}]:has(article[${attr.tweet}])`,
+      notification = `div[${attr.innerDiv}]:has(article[${attr.notification}])`,
+      ad = `${div.tweet} span:contains("Ad")`,
+      tweetText = `${div.tweet} div[${attr.tweetText}]`,
+      tweetUserName = `${div.tweet} div[${attr.tweetUserName}]`,
     }
     export enum a {
-      tweetId = `a[${attr.tweetId}]`,
-      tweetUserName = `a[role="link"]:not(:has(span))`,
+      tweetId = `${div.tweet} a[${attr.tweetId}]`,
+      retweetUserName = `${div.tweet} a[role="link"][dir="ltr"], ${div.notification} a[role="link"][dir="ltr"]`,
+      tweetUserName = `${div.tweet} a[role="link"]:not([dir="ltr"]), ${div.notification} a[role="link"]:not([dir="ltr"])`,
     }
   }
 }
