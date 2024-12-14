@@ -17,138 +17,145 @@ type Profile = {
 type Post = Profile & {
   postId: string
 }
-/** https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver */
-const observers: Map<'react-root', MutationObserver> = new Map()
-/** https://wxt.dev/guide/essentials/content-scripts.html#dealing-with-spas */
-const urlPatterns: Map<
-  'home' | 'notifications' | 'timeline' | 'post' | 'bookmarks',
-  MatchPattern
-> = new Map()
-urlPatterns.set('home', new MatchPattern(`${ROOT_URL}/home`))
-urlPatterns.set('notifications', new MatchPattern(`${ROOT_URL}/notifications`))
-urlPatterns.set('timeline', new MatchPattern(`${ROOT_URL}/*`))
-urlPatterns.set('post', new MatchPattern(`${ROOT_URL}/*/status/*`))
-urlPatterns.set('bookmarks', new MatchPattern(`${ROOT_URL}/*/bookmarks`))
-/** Hide the provided `postId` from view */
-const hideTimelinePost = async (postId: string) => {
-  const domElement = document.body.querySelector(
-    `${Selector.TwitterArticle.div.tweet}:has(a[href*="/status/${postId}"])`,
-  )
-  domElement?.classList.add('lotus-rank-below-threshold')
-}
-/** Observe mutations to the root node */
-const rootObserve = () => {
-  // Query the root container for observation
-  const root = document.body.querySelector(Selector.TwitterContainer.div.root)
-  // Set up root container observer instance
-  observers.set('react-root', new MutationObserver(handleRootMutations))
-  // Begin observing root node to find the timeline node
-  console.log('connecting react-root observer')
-  observers.get('react-root')?.observe(root as Node, {
-    childList: true,
-    subtree: true,
-  })
-}
-/** Handle all mutations to the root node */
-const handleRootMutations = (mutations: MutationRecord[]) => {
-  const timeline = document.body.querySelector(Selector.TwitterContainer.div.timeline)
-  // only process mutations if a timeline is available
-  if (timeline) {
+/** Observe the configured root node of the document and enforce profile/post rankings in the DOM */
+class DOM {
+  /** https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver */
+  private observers: Map<'react-root', MutationObserver>
+  /** https://wxt.dev/guide/essentials/content-scripts.html#dealing-with-spas */
+  private urlPatterns: Map<
+    'home' | 'notifications' | 'timeline' | 'post' | 'bookmarks',
+    MatchPattern
+  >
+  /** The root node of the DOM that is observed for mutations */
+  private root: Element
+  /** Initial runtime setup */
+  constructor() {
+    // set up react-root observer
+    this.observers = new Map()
+    this.observers.set('react-root', new MutationObserver(this.handleRootMutations))
+    // set URL patterns
+    this.urlPatterns = new Map()
+    this.urlPatterns.set('home', new MatchPattern(`${ROOT_URL}/home`))
+    this.urlPatterns.set('notifications', new MatchPattern(`${ROOT_URL}/notifications`))
+    this.urlPatterns.set('timeline', new MatchPattern(`${ROOT_URL}/*`))
+    this.urlPatterns.set('post', new MatchPattern(`${ROOT_URL}/*/status/*`))
+    this.urlPatterns.set('bookmarks', new MatchPattern(`${ROOT_URL}/*/bookmarks`))
+    // set the root node for observation
+    const root = document.body.querySelector(Selector.TwitterContainer.div.root)
+    if (!root) {
+      throw new Error(`could not find ${Selector.TwitterContainer.div.root} in document body`)
+    }
+    this.root = root
+  }
+  /** Begin observing the root node of the DOM for mutations */
+  public startMutationObserver = () => {
+    // Begin observing root node to find the timeline node
+    console.log('connecting react-root observer')
+    this.observers.get('react-root')?.observe(this.root as Node, {
+      childList: true,
+      subtree: true,
+      attributes: false,
+      characterData: false,
+    })
+  }
+  /** Handle all mutations to the root node */
+  private handleRootMutations = (mutations: MutationRecord[]) => {
     mutations.forEach(async mutation => {
       for (const node of mutation.addedNodes) {
-        const $ = load((node as HTMLElement).outerHTML)
-        // only process elements with a single tweet; avoids duplicate processing
+        const element = node as Element
+        const $ = load(element.outerHTML)
+        let elementType: 'post' | 'notification' | null = null
+        // element is from tweet timeline (home, bookmarks, etc.)
         if ($(Selector.TwitterArticle.div.tweet).length == 1) {
-          // HTML is already loaded so pass the `CheerioAPI` instance
-          processTweet($)
+          elementType = 'post'
+        }
+        // element is from notification timeline
+        if ($(Selector.TwitterArticle.div.notification).length == 1) {
+          elementType = 'notification'
+        }
+        if (elementType !== null) {
+          const isBelowThreshold = await this.isBelowThreshold($)
+          if (isBelowThreshold) {
+            element.classList.add('lotus-rank-below-threshold')
+          }
         }
       }
     })
   }
-}
-/** Parse the provided `CheerioAPI` element for tweet data and process accordingly */
-const processTweet = async ($: CheerioAPI) => {
-  const t0 = performance.now()
-  // Select elements
-  const tweetTextDiv = $(Selector.TwitterArticle.div.tweetText)
-  const tweetUserNameLink = $(Selector.TwitterArticle.a.tweetUserName)
-  const postIdLink = $(Selector.TwitterArticle.a.tweetId)
-  // Parse elements for text data
-  const postText = Parser.TwitterArticle.postTextFromElement(tweetTextDiv)
-  const userName = Parser.TwitterArticle.userNameFromElement(tweetUserNameLink)
-  const postId = Parser.TwitterArticle.postIdFromElement(postIdLink)
-  const t1 = (performance.now() - t0).toFixed(3)
-  if (postId) {
-    console.log(`parsed ${postId} from profile ${userName} in ${t1}ms`)
-  }
-  // remove ads :)
-  if ($(Selector.TwitterArticle.div.ad).length == 1) {
-    console.log(`hiding post ID ${postId} from profile ${userName} (Ad)`)
-    hideTimelinePost(postId as string)
-    return
-  }
-  // fetch profile data from RANK API
-  // If no data, continue to next tweet
-  if (userName) {
-    try {
-      const profile = await fetch(`${DEFAULT_RANK_API}/twitter/${userName}`)
-      const parsed = await profile.json() as Profile
-      const ranking = BigInt(parsed.ranking)
-      // hide the post if the profile is below rank threshold
-      if (ranking < DEFAULT_RANK_THRESHOLD) {
-        console.log(
-          `hiding post ID ${postId} from profile ${userName} (profile below rank threshold)`,
-        )
-        hideTimelinePost(postId as string)
+  /** Parse the provided `CheerioAPI` as a post check if ranking is below threshold */
+  private isBelowThreshold = async ($: CheerioAPI) => {
+    const t0 = performance.now()
+    // Select elements
+    const tweetTextDiv = $(Selector.TwitterArticle.div.tweetText)
+    const tweetUserNameLink = $(Selector.TwitterArticle.a.tweetUserName)
+    const retweetUserNameLink = $(Selector.TwitterArticle.a.retweetUserName)
+    const postIdLink = $(Selector.TwitterArticle.a.tweetId)
+    // Parse elements for text data
+    const postText = Parser.TwitterArticle.postTextFromElement(tweetTextDiv)
+    const profileId = Parser.TwitterArticle.profileIdFromElement(tweetUserNameLink)
+    const retweetProfileId = Parser.TwitterArticle.profileIdFromElement(retweetUserNameLink)
+    const postId = Parser.TwitterArticle.postIdFromElement(postIdLink)
+    const t1 = (performance.now() - t0).toFixed(3)
+    console.log(`processed post from ${profileId} in ${t1}ms`)
+    // remove ads :)
+    if ($(Selector.TwitterArticle.div.ad).length == 1) {
+      console.log(`hiding post ID ${postId} from profile ${profileId} (Ad)`)
+      return true
+    }
+    // check if post element is reposted and check the reposter's ranking
+    if (retweetProfileId) {
+      
+    }
+    // TODO: Do some caching or something
+    // fetch profile data from RANK API
+    // If no data, continue to next tweet
+    if (profileId) {
+      try {
+        const profile = await fetch(`${DEFAULT_RANK_API}/twitter/${profileId}`)
+        const parsed = await profile.json() as Profile
+        const ranking = BigInt(parsed.ranking)
+        // hide the post if the profile is below rank threshold
+        // TODO: use user's threshold settings
+        if (ranking < DEFAULT_RANK_THRESHOLD) {
+          console.log(
+            `hiding post ID ${postId} from profile ${profileId} (profile below rank threshold)`,
+          )
+          return true
+        }
+      } catch (e) {
+        // if no username, return here
+        // no postId will be indexed if the profileId is also not indexed
         return
       }
-    } catch (e) {
-      // if no username, return here
-      // no postId will be indexed if the profileId is also not indexed
-      return
     }
-  }
-  // fetch tweet data from RANK API
-  // If no data, continue to next tweet
-  if (postId) {
-    try {
-      const post = await fetch(`${DEFAULT_RANK_API}/twitter/${userName}/${postId}`)
-      const parsed = await post.json() as Post
-      const ranking = BigInt(parsed.ranking)
-      if (ranking < DEFAULT_RANK_THRESHOLD) {
-        console.log(`hiding post ID ${postId} from profile ${userName} (post below rank threshold)`)
-        hideTimelinePost(postId as string)
+    // fetch tweet data from RANK API
+    // If no data, continue to next tweet
+    if (postId) {
+      try {
+        const post = await fetch(`${DEFAULT_RANK_API}/twitter/${profileId}/${postId}`)
+        const parsed = await post.json() as Post
+        const ranking = BigInt(parsed.ranking)
+        // TODO: use user's threshold settings
+        if (ranking < DEFAULT_RANK_THRESHOLD) {
+          console.log(`hiding post ID ${postId} from profile ${profileId} (post below rank threshold)`)
+          return true
+        }
+      } catch (e) {
+        // ignore; postId is not indexed (i.e. neutral ranking)
         return
       }
-    } catch (e) {
-      // ignore; postId is not indexed (i.e. neutral ranking)
-      return
     }
   }
-
-  /**
-   * TODO: Use some form of storage to minimize required API calls for recently fetched Profile/Post
-   * Use a short timeout (10s? 15s? 30s?) so that we are always displaying recent data
-  // fetch post from storage if available
-  let storedPost: Post
-  try {
-    const post = await storage.getItem(`local:${userName}::${postId}`)
-    console.assert(post, `post ID not found in storage ${postId}`)
-    storedPost = post as Post
-  } catch (e) {
-    // add post if not found in local cache
-    await storage.setItem(`local:${userName}::${postId}`, posts[0])
-    storedPost = posts[0]
-  } 
-  */
 }
-
+/** Browser runs this when the configured `runAt` stage is reached */
 export default defineContentScript({
   matches: ['*://*.x.com/*', '*://x.com/*'],
+  world: "ISOLATED",
   // https://developer.chrome.com/docs/extensions/reference/api/extensionTypes#type-RunAt
-  runAt: 'document_start',
+  runAt: 'document_idle',
   async main(ctx) {
     // Start observing Twitter's `react-node` for mutations
-    rootObserve()
+    const dom = new DOM()
+    dom.startMutationObserver()
   },
 })
