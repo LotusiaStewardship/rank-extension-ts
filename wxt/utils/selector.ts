@@ -26,7 +26,7 @@ export namespace Selector {
       innerDiv = `div[${attr.innerDiv}]`,
       tweet = `div[${attr.innerDiv}]:has(article[${attr.tweet}])`,
       notification = `div[${attr.innerDiv}]:has(article[${attr.notification}])`,
-      ad = `${div.tweet} span:contains("Ad")`,
+      ad = `${div.tweet} div[dir="ltr"]:first-child span:contains("Ad")`,
       tweetText = `${div.tweet} div[${attr.tweetText}]`,
       tweetUserName = `${div.tweet} div[${attr.tweetUserName}]`,
     }
