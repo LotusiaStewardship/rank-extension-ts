@@ -43,7 +43,9 @@ class DOM {
     // set the root node for observation
     const root = document.body.querySelector(Selector.TwitterContainer.div.root)
     if (!root) {
-      throw new Error(`could not find ${Selector.TwitterContainer.div.root} in document body`)
+      throw new Error(
+        `could not find ${Selector.TwitterContainer.div.root} in document body`,
+      )
     }
     this.root = root
   }
@@ -73,8 +75,8 @@ class DOM {
         if ($(Selector.TwitterArticle.div.notification).length == 1) {
           elementType = 'notification'
         }
-        if (elementType !== null) {
-          const isBelowThreshold = await this.isBelowThreshold($)
+        if (elementType) {
+          const isBelowThreshold = await this.isBelowThreshold($, elementType)
           if (isBelowThreshold) {
             element.classList.add('lotus-rank-below-threshold')
           }
@@ -83,7 +85,10 @@ class DOM {
     })
   }
   /** Parse the provided `CheerioAPI` as a post check if ranking is below threshold */
-  private isBelowThreshold = async ($: CheerioAPI) => {
+  private isBelowThreshold = async (
+    $: CheerioAPI,
+    elementType: 'post' | 'notification',
+  ) => {
     const t0 = performance.now()
     // Select elements
     const tweetTextDiv = $(Selector.TwitterArticle.div.tweetText)
@@ -93,32 +98,41 @@ class DOM {
     // Parse elements for text data
     const postText = Parser.TwitterArticle.postTextFromElement(tweetTextDiv)
     const profileId = Parser.TwitterArticle.profileIdFromElement(tweetUserNameLink)
-    const retweetProfileId = Parser.TwitterArticle.profileIdFromElement(retweetUserNameLink)
+    const retweetProfileId =
+      Parser.TwitterArticle.profileIdFromElement(retweetUserNameLink)
     const postId = Parser.TwitterArticle.postIdFromElement(postIdLink)
     const t1 = (performance.now() - t0).toFixed(3)
-    console.log(`processed post from ${profileId} in ${t1}ms`)
+    console.log(`processed ${elementType} from ${profileId} in ${t1}ms`)
     // remove ads :)
     if ($(Selector.TwitterArticle.div.ad).length == 1) {
-      console.log(`hiding post ID ${postId} from profile ${profileId} (Ad)`)
+      console.log(
+        `hiding ${elementType} with ID ${postId} from profile ${profileId} (Ad)`,
+      )
       return true
     }
     // check if post element is reposted and check the reposter's ranking
     if (retweetProfileId) {
-      
     }
-    // TODO: Do some caching or something
+    /**
+     * TODO: implement some form of the following for caching:
+     * 1. save Profile/Post metadata to local storage
+     * 2. background fetches updates on timer or event loop
+     * 3. updates are fetched in batches; small enough for latency and large enough for reducing total number of requests
+     * 4. relevant updates are made to the local cache
+     * 5. content script only applies DOM updates based on cache
+     */
     // fetch profile data from RANK API
     // If no data, continue to next tweet
     if (profileId) {
       try {
         const profile = await fetch(`${DEFAULT_RANK_API}/twitter/${profileId}`)
-        const parsed = await profile.json() as Profile
+        const parsed = (await profile.json()) as Profile
         const ranking = BigInt(parsed.ranking)
         // hide the post if the profile is below rank threshold
         // TODO: use user's threshold settings
         if (ranking < DEFAULT_RANK_THRESHOLD) {
           console.log(
-            `hiding post ID ${postId} from profile ${profileId} (profile below rank threshold)`,
+            `hiding ${elementType} with ID ${postId} from profile ${profileId} (profile below rank threshold)`,
           )
           return true
         }
@@ -133,11 +147,13 @@ class DOM {
     if (postId) {
       try {
         const post = await fetch(`${DEFAULT_RANK_API}/twitter/${profileId}/${postId}`)
-        const parsed = await post.json() as Post
+        const parsed = (await post.json()) as Post
         const ranking = BigInt(parsed.ranking)
         // TODO: use user's threshold settings
         if (ranking < DEFAULT_RANK_THRESHOLD) {
-          console.log(`hiding post ID ${postId} from profile ${profileId} (post below rank threshold)`)
+          console.log(
+            `hiding ${elementType} with ID ${postId} from profile ${profileId} (post below rank threshold)`,
+          )
           return true
         }
       } catch (e) {
@@ -150,7 +166,7 @@ class DOM {
 /** Browser runs this when the configured `runAt` stage is reached */
 export default defineContentScript({
   matches: ['*://*.x.com/*', '*://x.com/*'],
-  world: "ISOLATED",
+  world: 'ISOLATED',
   // https://developer.chrome.com/docs/extensions/reference/api/extensionTypes#type-RunAt
   runAt: 'document_idle',
   async main(ctx) {
