@@ -3,9 +3,7 @@ import { Element } from 'domhandler'
 
 export namespace Parser {
   /** Parser methods for Twitter URL */
-  export class TwitterURL {
-
-  }
+  export class TwitterURL {}
   /** Parser methods for Tweet DOM elements */
   export class TwitterArticle {
     public static postTextFromElement = (postTextElement: Cheerio<Element>) =>
