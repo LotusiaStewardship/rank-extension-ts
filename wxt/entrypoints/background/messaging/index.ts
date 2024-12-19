@@ -1,0 +1,1 @@
+export { walletMessaging } from './wallet'
