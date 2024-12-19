@@ -1,8 +1,65 @@
 <script lang="ts" setup>
-import HelloWorld from '@/components/HelloWorld.vue'
+import { Wallet, WalletBuilder } from '@/modules/wallet'
+import { walletMessaging } from '@/entrypoints/background/messaging'
+import { WalletState, walletStore } from '@/entrypoints/background/stores'
+import { Unwatch } from 'wxt/storage'
+import { ShallowRef } from 'vue'
+
+const walletBalance = shallowRef()
+const walletSeedPhrase: ShallowRef<null, string> = shallowRef(null)
+const walletAddress: ShallowRef<null, string> = shallowRef(null)
+const walletOutpoints: Ref<{}, WalletState['utxos']> = ref({})
+const setupComplete = shallowRef(false)
+
+const watchers: Map<keyof typeof walletStore.wxtStorageItems, Unwatch> = new Map()
+
+const toAddress = (script: string | null) =>
+  WalletBuilder.scriptFromString(script as string)?.toAddress()
+
+onBeforeUnmount(() => {
+  walletMessaging.removeAllListeners()
+  for (const [, unwatch] of watchers) {
+    unwatch()
+  }
+})
+
+onBeforeMount(async () => {
+  // set up message listeners
+  walletMessaging.onMessage('walletState', ({ data: walletState }) => {
+    if (walletState) {
+      walletSeedPhrase.value = walletState.seedPhrase
+      walletAddress.value = toAddress(walletState.script)?.toXAddress()
+      walletBalance.value = walletState.balance
+      setupComplete.value = true
+    }
+  })
+  // set up storage watchers
+  watchers.set(
+    'balance',
+    walletStore.wxtStorageItems.balance.watch(
+      newValue => (walletBalance.value = newValue),
+    ),
+  )
+  // Load initial values
+  const seedPhrase = await walletStore.wxtStorageItems.seedPhrase.getValue()
+  console.log('initial seedPhrase', seedPhrase)
+  if (!seedPhrase) {
+    const mnemonic = WalletBuilder.newMnemonic()
+    await walletMessaging.sendMessage('seedPhrase', mnemonic.toString())
+    console.log('saved new mnemonic', `"${mnemonic.toString()}"`)
+    walletSeedPhrase.value = mnemonic.toString()
+  } else {
+    await walletMessaging.sendMessage('loadWalletState', undefined)
+  }
+})
 </script>
 
-<template>
+<template v-if="setupComplete">
+  <div>{{ setupComplete }}</div>
+  <div>Wallet address: {{ walletAddress }}</div>
+  <div>Wallet balance: {{ walletBalance }}</div>
+  <div>Seed Phrase: {{ walletSeedPhrase }}</div>
+  <!--
   <div>
     <a href="https://wxt.dev" target="_blank">
       <img src="/wxt.svg" class="logo" alt="WXT logo" />
@@ -10,8 +67,8 @@ import HelloWorld from '@/components/HelloWorld.vue'
     <a href="https://vuejs.org/" target="_blank">
       <img src="@/assets/vue.svg" class="logo vue" alt="Vue logo" />
     </a>
-  </div>
-  <HelloWorld msg="WXT + Vue" />
+  </div><HelloWorld msg="WXT + Vue" />
+  -->
 </template>
 
 <style scoped>
