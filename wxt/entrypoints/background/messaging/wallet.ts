@@ -1,9 +1,9 @@
-import { LoadedWalletState } from '@/entrypoints/background/stores'
+import { WalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
 
 interface WalletMessaging {
   seedPhrase: (seedPhrase: string) => void
-  walletState: (walletState: LoadedWalletState) => void
+  walletState: (walletState: WalletState) => void
   loadWalletState: () => void
 }
 

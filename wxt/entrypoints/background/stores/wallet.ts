@@ -1,32 +1,26 @@
 import { Utxo } from 'chronik-client'
-import { assert } from 'console'
-
-type WxtStorageItemKeyAddress = ReturnType<typeof storage.defineItem<string | null>>
-type WxtStorageItemUtxo = ReturnType<typeof storage.defineItem<Record<string, Utxo>>>
-type WxtStorageItemBalance = ReturnType<typeof storage.defineItem<string>>
-type WxtStorageItem =
-  | WxtStorageItemKeyAddress
-  | WxtStorageItemUtxo
-  | WxtStorageItemBalance
-
-type WxtStorageValueKeyAddress = Awaited<ReturnType<WxtStorageItemKeyAddress['getValue']>>
-type WxtStorageValueUtxos = Awaited<ReturnType<WxtStorageItemUtxo['getValue']>>
-type WxtStorageValueBalance = Awaited<ReturnType<WxtStorageItemBalance['getValue']>>
-type WxtStorageValue =
-  | WxtStorageValueKeyAddress
-  | WxtStorageValueUtxos
-  | WxtStorageValueBalance
+import assert from 'assert'
+// Storage value types
+type WxtStorageValueString = string | null
+type WxtStorageValueRecord = Record<string, Utxo>
+type WxtStorageValue = WxtStorageValueString | WxtStorageValueRecord
+// Storage item definition types
+type WxtStorageItemString = ReturnType<
+  typeof storage.defineItem<WxtStorageValueString>
+>
+type WxtStorageItemRecord = ReturnType<
+  typeof storage.defineItem<WxtStorageValueRecord>
+>
+type WxtStorageItem = WxtStorageItemString | WxtStorageItemRecord
 
 export type WalletState = {
-  seedPhrase: WxtStorageValueKeyAddress
-  xPrivkey: WxtStorageValueKeyAddress
-  signingKey: WxtStorageValueKeyAddress
-  script: WxtStorageValueKeyAddress
-  utxos: WxtStorageValueUtxos
-  balance: WxtStorageValueBalance
+  seedPhrase: WxtStorageValueString
+  xPrivkey: WxtStorageValueString
+  signingKey: WxtStorageValueString
+  script: WxtStorageValueString
+  utxos: WxtStorageValueRecord
+  balance: WxtStorageValueString
 }
-
-export type LoadedWalletState = Awaited<ReturnType<WalletStore['loadWalletState']>>
 
 export const DefaultWalletState: WalletState = {
   seedPhrase: null,
@@ -73,18 +67,31 @@ class WalletStore {
           key => this.wxtStorageItems[key],
         ),
       )
-      // Doing a shift() over getItems() is safe because order is guaranteed
-      return {
-        seedPhrase: walletStoreItems.shift()
-          ?.value as NonNullable<WxtStorageValueKeyAddress>,
-        xPrivkey: walletStoreItems.shift()
-          ?.value as NonNullable<WxtStorageValueKeyAddress>,
-        signingKey: walletStoreItems.shift()
-          ?.value as NonNullable<WxtStorageValueKeyAddress>,
-        script: walletStoreItems.shift()?.value as NonNullable<WxtStorageValueKeyAddress>,
-        utxos: walletStoreItems.shift()?.value as WxtStorageValueUtxos,
-        balance: walletStoreItems.shift()?.value as WxtStorageValueBalance,
+      const walletState: Partial<WalletState> = {}
+      while (walletStoreItems.length > 0) {
+        const item = walletStoreItems.shift()
+        assert(item, 'item is undefined.. corrupt walletStore?')
+        assert(
+          item.value,
+          `tried to get value for ${item.key}, got ${item.value}`,
+        )
+        const storeKey = item.key.split(':').pop() as keyof WalletState
+        assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
+        switch (storeKey) {
+          case 'seedPhrase':
+          case 'xPrivkey':
+          case 'signingKey':
+          case 'script':
+          case 'balance':
+            walletState[storeKey] =
+              item.value as NonNullable<WxtStorageValueString>
+            continue
+          case 'utxos':
+            walletState.utxos = item.value as WxtStorageValueRecord
+            continue
+        }
       }
+      return walletState as WalletState
     } catch (e) {
       console.error(`loadWalletState: ${e}`)
     }
