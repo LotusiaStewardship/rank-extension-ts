@@ -1,17 +1,18 @@
 <script lang="ts" setup>
-import { Wallet, WalletBuilder } from '@/modules/wallet'
+import { WalletManager, WalletBuilder } from '@/modules/wallet'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { WalletState, walletStore } from '@/entrypoints/background/stores'
 import { Unwatch } from 'wxt/storage'
 import { ShallowRef } from 'vue'
 
 const walletBalance = shallowRef()
-const walletSeedPhrase: ShallowRef<null, string> = shallowRef(null)
-const walletAddress: ShallowRef<null, string> = shallowRef(null)
-const walletOutpoints: Ref<{}, WalletState['utxos']> = ref({})
+const walletSeedPhrase = shallowRef()
+const walletAddress = shallowRef()
+const walletOutpoints = ref({})
 const setupComplete = shallowRef(false)
 
-const watchers: Map<keyof typeof walletStore.wxtStorageItems, Unwatch> = new Map()
+const watchers: Map<keyof typeof walletStore.wxtStorageItems, Unwatch> =
+  new Map()
 
 const toAddress = (script: string | null) =>
   WalletBuilder.scriptFromString(script as string)?.toAddress()
@@ -23,7 +24,7 @@ onBeforeUnmount(() => {
   }
 })
 
-onBeforeMount(async () => {
+onMounted(async () => {
   // set up message listeners
   walletMessaging.onMessage('walletState', ({ data: walletState }) => {
     if (walletState) {

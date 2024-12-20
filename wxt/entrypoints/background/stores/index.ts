@@ -1,2 +1,2 @@
 export { walletStore } from './wallet'
-export type { WalletState, LoadedWalletState } from './wallet'
+export type { WalletState, DefaultWalletState } from './wallet'
