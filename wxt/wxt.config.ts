@@ -3,6 +3,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+  entrypointLoader: 'vite-node',
   extensionApi: 'chrome',
   modules: ['@wxt-dev/module-vue'],
   runner: {
@@ -12,13 +13,22 @@ export default defineConfig({
   },
   manifestVersion: 3,
   manifest: {
-    host_permissions: ['*://rank.lotusia.org/api/v1/*', '*://chronik.lotusia.org/*'],
-    description: 'Burn Lotus to uprank and downrank social media influencers and content',
+    host_permissions: [
+      '*://rank.lotusia.org/api/v1/*',
+      'wss://chronik.lotusia.org/ws',
+      '*://chronik.lotusia.org/*',
+    ],
+    description:
+      'Burn Lotus to uprank and downrank social media influencers and content',
     permissions: ['storage', 'notifications'],
   },
   vite: () => ({
     build: {
-      modulePreload: false,
+      commonjsOptions: {
+        strictRequires: true,
+        //ignoreDynamicRequires: true,
+        //transformMixedEsModules: false,
+      },
     },
     plugins: [
       nodePolyfills({

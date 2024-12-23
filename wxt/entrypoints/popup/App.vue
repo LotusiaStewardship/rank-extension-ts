@@ -1,65 +1,76 @@
 <script lang="ts" setup>
-import { WalletManager, WalletBuilder } from '@/modules/wallet'
 import { walletMessaging } from '@/entrypoints/background/messaging'
-import { WalletState, walletStore } from '@/entrypoints/background/stores'
+import { walletStore } from '@/entrypoints/background/stores'
 import { Unwatch } from 'wxt/storage'
+import { toXPI } from '@/utils/functions'
 import { ShallowRef } from 'vue'
 
-const walletBalance = shallowRef()
-const walletSeedPhrase = shallowRef()
-const walletAddress = shallowRef()
-const walletOutpoints = ref({})
-const setupComplete = shallowRef(false)
+const walletBalance: ShallowRef<string, string> = shallowRef('')
+const walletSeedPhrase: ShallowRef<unknown, string> = shallowRef()
+const walletAddress: ShallowRef<string, string> = shallowRef('')
+const walletHistory: Ref<object, Record<string, string>> = ref({})
+const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 
 const watchers: Map<keyof typeof walletStore.wxtStorageItems, Unwatch> =
   new Map()
 
-const toAddress = (script: string | null) =>
-  WalletBuilder.scriptFromString(script as string)?.toAddress()
+const sendLotus = async (outAddress: string, outValue: number) => {
+  walletMessaging.sendMessage('popup:sendLotus', {
+    outAddress,
+    outValue,
+  })
+}
 
+// Probably won't need this? vuejs doesn't detect when the extension
+// popup is closed, so this event never triggers
+// When operating in dev, this is triggered when saving changes to vue files
 onBeforeUnmount(() => {
+  console.log('clean up, clean up')
   walletMessaging.removeAllListeners()
   for (const [, unwatch] of watchers) {
     unwatch()
   }
 })
 
-onMounted(async () => {
+onBeforeMount(() => {
+  console.log('before mount')
   // set up message listeners
-  walletMessaging.onMessage('walletState', ({ data: walletState }) => {
-    if (walletState) {
-      walletSeedPhrase.value = walletState.seedPhrase
-      walletAddress.value = toAddress(walletState.script)?.toXAddress()
-      walletBalance.value = walletState.balance
+  walletMessaging.onMessage(
+    'background:walletState',
+    ({ data: walletState }) => {
+      walletAddress.value = walletState.address
+      walletBalance.value = toXPI(walletState.balance)
       setupComplete.value = true
-    }
-  })
+    },
+  )
   // set up storage watchers
   watchers.set(
     'balance',
     walletStore.wxtStorageItems.balance.watch(
-      newValue => (walletBalance.value = newValue),
+      newValue => (walletBalance.value = toXPI(newValue as string)),
     ),
   )
-  // Load initial values
-  const seedPhrase = await walletStore.wxtStorageItems.seedPhrase.getValue()
-  console.log('initial seedPhrase', seedPhrase)
-  if (!seedPhrase) {
-    const mnemonic = WalletBuilder.newMnemonic()
-    await walletMessaging.sendMessage('seedPhrase', mnemonic.toString())
-    console.log('saved new mnemonic', `"${mnemonic.toString()}"`)
-    walletSeedPhrase.value = mnemonic.toString()
-  } else {
-    await walletMessaging.sendMessage('loadWalletState', undefined)
-  }
+  // load the required wallet data from background localStorage
+  walletMessaging.sendMessage('popup:loadWalletState', undefined)
 })
 </script>
 
-<template v-if="setupComplete">
-  <div>{{ setupComplete }}</div>
-  <div>Wallet address: {{ walletAddress }}</div>
-  <div>Wallet balance: {{ walletBalance }}</div>
-  <div>Seed Phrase: {{ walletSeedPhrase }}</div>
+<template>
+  <template v-if="setupComplete">
+    <div>Wallet address: {{ walletAddress }}</div>
+    <div>Wallet balance: {{ walletBalance }} Lotus</div>
+    <div>Seed Phrase: {{ walletSeedPhrase }}</div>
+    <button
+      @click="
+        sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)
+      "
+    >
+      Send Lotus
+    </button>
+  </template>
+  <template v-else>
+    <div>Please wait...</div>
+  </template>
   <!--
   <div>
     <a href="https://wxt.dev" target="_blank">
@@ -68,7 +79,8 @@ onMounted(async () => {
     <a href="https://vuejs.org/" target="_blank">
       <img src="@/assets/vue.svg" class="logo vue" alt="Vue logo" />
     </a>
-  </div><HelloWorld msg="WXT + Vue" />
+  </div>
+  <HelloWorld msg="WXT + Vue" />
   -->
 </template>
 
