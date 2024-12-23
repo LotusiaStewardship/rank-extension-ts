@@ -1,10 +1,16 @@
-import { WalletState } from '@/entrypoints/background/stores'
+import { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
 
 interface WalletMessaging {
-  seedPhrase: (seedPhrase: string) => void
-  walletState: (walletState: WalletState) => void
-  loadWalletState: () => void
+  'background:walletState': (walletState: UIWalletState) => void
+  'popup:loadWalletState': () => void
+  'popup:sendLotus': ({
+    outAddress,
+    outValue,
+  }: {
+    outAddress: string
+    outValue: number
+  }) => void
 }
 
 const walletMessaging = defineExtensionMessaging<WalletMessaging>()

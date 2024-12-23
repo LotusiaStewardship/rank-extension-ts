@@ -1,33 +1,34 @@
-import { Utxo } from 'chronik-client'
 import assert from 'assert'
 // Storage value types
-type WxtStorageValueString = string | null
-type WxtStorageValueRecord = Record<string, Utxo>
-type WxtStorageValue = WxtStorageValueString | WxtStorageValueRecord
+type WxtStorageValueString = string
 // Storage item definition types
 type WxtStorageItemString = ReturnType<
   typeof storage.defineItem<WxtStorageValueString>
 >
-type WxtStorageItemRecord = ReturnType<
-  typeof storage.defineItem<WxtStorageValueRecord>
->
-type WxtStorageItem = WxtStorageItemString | WxtStorageItemRecord
+type WxtStorageItem = WxtStorageItemString
 
 export type WalletState = {
   seedPhrase: WxtStorageValueString
   xPrivkey: WxtStorageValueString
   signingKey: WxtStorageValueString
+  address: WxtStorageValueString
   script: WxtStorageValueString
-  utxos: WxtStorageValueRecord
+  utxos: WxtStorageValueString
   balance: WxtStorageValueString
 }
+export type MutableWalletState = Pick<WalletState, 'utxos' | 'balance'>
+export type UIWalletState = Omit<
+  WalletState,
+  'seedPhrase' | 'xPrivkey' | 'signingKey'
+>
 
 export const DefaultWalletState: WalletState = {
-  seedPhrase: null,
-  xPrivkey: null,
-  signingKey: null,
-  script: null,
-  utxos: {},
+  seedPhrase: '',
+  xPrivkey: '',
+  signingKey: '',
+  address: '',
+  script: '',
+  utxos: '{}',
   balance: '0',
 }
 
@@ -36,24 +37,64 @@ class WalletStore {
 
   constructor() {
     this.wxtStorageItems = {
-      seedPhrase: storage.defineItem<string>('local:wallet:seedPhrase'),
-      xPrivkey: storage.defineItem<string>('local:wallet:xPrivkey'),
-      signingKey: storage.defineItem<string>('local:wallet:signingKey'),
-      script: storage.defineItem<string>('local:wallet:script'),
-      utxos: storage.defineItem<Record<string, Utxo>>('local:wallet:utxos', {
-        init: () => ({}),
+      seedPhrase: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:seedPhrase',
+        {
+          init: () => '',
+        },
+      ),
+      xPrivkey: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:xPrivkey',
+        {
+          init: () => '',
+        },
+      ),
+      signingKey: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:signingKey',
+        {
+          init: () => '',
+        },
+      ),
+      address: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:address',
+        {
+          init: () => '',
+        },
+      ),
+      script: storage.defineItem<WxtStorageValueString>('local:wallet:script', {
+        init: () => '',
       }),
-      balance: storage.defineItem<string>('local:wallet:balance', {
-        init: () => '0',
+      utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
+        init: () => '',
       }),
+      balance: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:balance',
+        {
+          init: () => '0',
+        },
+      ),
     }
   }
-  saveWalletState = async (wallet: WalletState) => {
+  saveMutableWalletState = async (state: MutableWalletState) => {
+    console.log('saving immutable wallet state to localStorage')
     try {
       await storage.setItems(
-        (Object.keys(wallet) as Array<keyof WalletState>).map(key => ({
+        (Object.keys(state) as Array<keyof MutableWalletState>).map(key => ({
           item: this.wxtStorageItems[key],
-          value: wallet[key],
+          value: state[key],
+        })),
+      )
+    } catch (e) {
+      console.error(`saveMutableWalletState: ${e}`)
+    }
+  }
+  saveWalletState = async (state: WalletState) => {
+    console.log('saving complete wallet state to localStorage')
+    try {
+      await storage.setItems(
+        (Object.keys(state) as Array<keyof WalletState>).map(key => ({
+          item: this.wxtStorageItems[key],
+          value: state[key],
         })),
       )
     } catch (e) {
@@ -69,27 +110,16 @@ class WalletStore {
       )
       const walletState: Partial<WalletState> = {}
       while (walletStoreItems.length > 0) {
+        // storage.getItems() guarantees order of data, so Array.shift() is safe
         const item = walletStoreItems.shift()
         assert(item, 'item is undefined.. corrupt walletStore?')
         assert(
           item.value,
-          `tried to get value for ${item.key}, got ${item.value}`,
+          `tried to get value for ${item.key}, got "${item.value}"`,
         )
-        const storeKey = item.key.split(':').pop() as keyof WalletState
+        const storeKey = item.key.split(':').pop()! as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
-        switch (storeKey) {
-          case 'seedPhrase':
-          case 'xPrivkey':
-          case 'signingKey':
-          case 'script':
-          case 'balance':
-            walletState[storeKey] =
-              item.value as NonNullable<WxtStorageValueString>
-            continue
-          case 'utxos':
-            walletState.utxos = item.value as WxtStorageValueRecord
-            continue
-        }
+        walletState[storeKey] = item.value as WxtStorageValueString
       }
       return walletState as WalletState
     } catch (e) {
