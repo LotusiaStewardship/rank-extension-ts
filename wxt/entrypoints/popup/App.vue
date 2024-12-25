@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { walletStore } from '@/entrypoints/background/stores'
+import { WalletBuilder } from '../background/modules/wallet'
 import { Unwatch } from 'wxt/storage'
 import { toXPI } from '@/utils/functions'
 import { ShallowRef } from 'vue'
@@ -8,11 +9,10 @@ import { ShallowRef } from 'vue'
 const walletBalance: ShallowRef<string, string> = shallowRef('')
 const walletSeedPhrase: ShallowRef<unknown, string> = shallowRef()
 const walletAddress: ShallowRef<string, string> = shallowRef('')
-const walletHistory: Ref<object, Record<string, string>> = ref({})
+//const walletHistory: Ref<object, Record<string, string>> = ref({})
 const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 
-const watchers: Map<keyof typeof walletStore.wxtStorageItems, Unwatch> =
-  new Map()
+const watchers: Map<'balance', Unwatch> = new Map()
 
 const sendLotus = async (outAddress: string, outValue: number) => {
   walletMessaging.sendMessage('popup:sendLotus', {
@@ -35,23 +35,34 @@ onBeforeUnmount(() => {
 onBeforeMount(() => {
   console.log('before mount')
   // set up message listeners
-  walletMessaging.onMessage(
-    'background:walletState',
-    ({ data: walletState }) => {
-      walletAddress.value = walletState.address
-      walletBalance.value = toXPI(walletState.balance)
-      setupComplete.value = true
-    },
-  )
+  walletMessaging.onMessage('background:walletState', ({ data: walletState }) => {
+    walletAddress.value = walletState.address
+    walletBalance.value = toXPI(walletState.balance)
+    setupComplete.value = true
+  })
   // set up storage watchers
   watchers.set(
     'balance',
-    walletStore.wxtStorageItems.balance.watch(
-      newValue => (walletBalance.value = toXPI(newValue as string)),
+    walletStore.balanceStorageItem.watch(
+      newValue => (walletBalance.value = toXPI(newValue)),
     ),
   )
-  // load the required wallet data from background localStorage
-  walletMessaging.sendMessage('popup:loadWalletState', undefined)
+})
+
+onMounted(() => {
+  // if we don't have a seed phrase then create and send to background
+  // background has no access to window.crypto so popup needs to generate
+  walletStore.hasSeedPhrase().then(boolean => {
+    if (!boolean) {
+      walletMessaging.sendMessage(
+        'popup:seedPhrase',
+        WalletBuilder.newMnemonic().toString(),
+      )
+    } else {
+      // request the ui wallet state from the background
+      walletMessaging.sendMessage('popup:loadWalletState', undefined)
+    }
+  })
 })
 </script>
 
@@ -61,9 +72,7 @@ onBeforeMount(() => {
     <div>Wallet balance: {{ walletBalance }} Lotus</div>
     <div>Seed Phrase: {{ walletSeedPhrase }}</div>
     <button
-      @click="
-        sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)
-      "
+      @click="sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)"
     >
       Send Lotus
     </button>
