@@ -1,31 +1,33 @@
 {
   "name": "rank-extension-ts",
+  "description": "manifest.json description",
+  "private": true,
   "version": "0.1.0",
-  "description": "Browser extension to engage in the Lotus RANK economy",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "vue-tsc --noEmit",
+    "postinstall": "wxt prepare"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/LotusiaStewardship/rank-extension-ts.git"
-  },
-  "author": "Lotusia Stewardship",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/LotusiaStewardship/rank-extension-ts/issues"
-  },
-  "homepage": "https://github.com/LotusiaStewardship/rank-extension-ts#readme",
   "dependencies": {
-    "@types/node": "22.9.0",
+    "@abcpros/bitcore-lib-xpi": "8.25.43",
+    "@abcpros/bitcore-mnemonic": "8.25.43",
     "cheerio": "1.0.0",
-    "cheerio-select": "2.1.0",
-    "jsdom": "25.0.1",
-    "typescript": "5.6.3"
+    "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@types/jsdom": "21.1.7",
-    "prettier": "3.3.3",
-    "typescript-eslint": "8.14.0"
+    "@types/chrome": "^0.0.280",
+    "@webext-core/messaging": "^2.1.0",
+    "@wxt-dev/module-vue": "^1.0.2",
+    "chronik-client": "0.19.0",
+    "typescript": "5.6.3",
+    "vite-plugin-node-polyfills": "^0.22.0",
+    "vue-tsc": "^2.1.10",
+    "wxt": "^0.19.22"
   }
 }
