@@ -18,8 +18,7 @@ export default defineConfig({
       'wss://chronik.lotusia.org/ws',
       '*://chronik.lotusia.org/*',
     ],
-    description:
-      'Burn Lotus to uprank and downrank social media influencers and content',
+    description: 'Burn Lotus to uprank and downrank social media influencers and content',
     permissions: ['storage', 'notifications'],
   },
   vite: () => ({

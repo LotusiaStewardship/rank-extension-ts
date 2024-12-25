@@ -72,9 +72,7 @@ onMounted(() => {
     <div>Wallet balance: {{ walletBalance }} Lotus</div>
     <div>Seed Phrase: {{ walletSeedPhrase }}</div>
     <button
-      @click="
-        sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)
-      "
+      @click="sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)"
     >
       Send Lotus
     </button>

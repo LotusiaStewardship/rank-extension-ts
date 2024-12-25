@@ -2,9 +2,7 @@ import assert from 'assert'
 // Storage value types
 type WxtStorageValueString = string
 // Storage item definition types
-type WxtStorageItemString = ReturnType<
-  typeof storage.defineItem<WxtStorageValueString>
->
+type WxtStorageItemString = ReturnType<typeof storage.defineItem<WxtStorageValueString>>
 type WxtStorageItem = WxtStorageItemString
 
 export type WalletState = {
@@ -17,10 +15,7 @@ export type WalletState = {
   balance: WxtStorageValueString
 }
 export type MutableWalletState = Pick<WalletState, 'utxos' | 'balance'>
-export type UIWalletState = Omit<
-  WalletState,
-  'seedPhrase' | 'xPrivkey' | 'signingKey'
->
+export type UIWalletState = Omit<WalletState, 'seedPhrase' | 'xPrivkey' | 'signingKey'>
 
 export const DefaultWalletState: WalletState = {
   seedPhrase: '',
@@ -33,54 +28,38 @@ export const DefaultWalletState: WalletState = {
 }
 
 class WalletStore {
-  wxtStorageItems: Record<keyof WalletState, WxtStorageItem>
+  private wxtStorageItems: Record<keyof WalletState, WxtStorageItem>
 
   constructor() {
     this.wxtStorageItems = {
-      seedPhrase: storage.defineItem<WxtStorageValueString>(
-        'local:wallet:seedPhrase',
-        {
-          init: () => '',
-        },
-      ),
-      xPrivkey: storage.defineItem<WxtStorageValueString>(
-        'local:wallet:xPrivkey',
-        {
-          init: () => '',
-        },
-      ),
-      signingKey: storage.defineItem<WxtStorageValueString>(
-        'local:wallet:signingKey',
-        {
-          init: () => '',
-        },
-      ),
-      address: storage.defineItem<WxtStorageValueString>(
-        'local:wallet:address',
-        {
-          init: () => '',
-        },
-      ),
+      seedPhrase: storage.defineItem<WxtStorageValueString>('local:wallet:seedPhrase', {
+        init: () => '',
+      }),
+      xPrivkey: storage.defineItem<WxtStorageValueString>('local:wallet:xPrivkey', {
+        init: () => '',
+      }),
+      signingKey: storage.defineItem<WxtStorageValueString>('local:wallet:signingKey', {
+        init: () => '',
+      }),
+      address: storage.defineItem<WxtStorageValueString>('local:wallet:address', {
+        init: () => '',
+      }),
       script: storage.defineItem<WxtStorageValueString>('local:wallet:script', {
         init: () => '',
       }),
       utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
         init: () => '',
       }),
-      balance: storage.defineItem<WxtStorageValueString>(
-        'local:wallet:balance',
-        {
-          init: () => '0',
-        },
-      ),
+      balance: storage.defineItem<WxtStorageValueString>('local:wallet:balance', {
+        init: () => '0',
+      }),
     }
   }
   get balanceStorageItem() {
     return this.wxtStorageItems.balance
   }
   hasSeedPhrase = async () => {
-    const seedPhrase = await this.wxtStorageItems.seedPhrase.getValue()
-    return seedPhrase ? true : false
+    return (await this.wxtStorageItems.seedPhrase.getValue()) ? true : false
   }
   saveMutableWalletState = async (state: MutableWalletState) => {
     console.log('saving immutable wallet state to localStorage')
@@ -120,10 +99,7 @@ class WalletStore {
         // storage.getItems() guarantees order of data, so Array.shift() is safe
         const item = walletStoreItems.shift()
         assert(item, 'item is undefined.. corrupt walletStore?')
-        assert(
-          item.value,
-          `tried to get value for ${item.key}, got "${item.value}"`,
-        )
+        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
         const storeKey = item.key.split(':').pop()! as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
         walletState[storeKey] = item.value as WxtStorageValueString
