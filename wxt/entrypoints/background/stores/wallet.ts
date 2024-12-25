@@ -75,6 +75,13 @@ class WalletStore {
       ),
     }
   }
+  get balanceStorageItem() {
+    return this.wxtStorageItems.balance
+  }
+  hasSeedPhrase = async () => {
+    const seedPhrase = await this.wxtStorageItems.seedPhrase.getValue()
+    return seedPhrase ? true : false
+  }
   saveMutableWalletState = async (state: MutableWalletState) => {
     console.log('saving immutable wallet state to localStorage')
     try {

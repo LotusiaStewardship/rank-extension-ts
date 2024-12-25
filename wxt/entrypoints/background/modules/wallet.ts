@@ -69,8 +69,8 @@ interface WalletBuilder {
  *
  */
 class WalletBuilder implements WalletBuilder {
-  static buildWalletState = (): WalletState => {
-    const mnemonic = new Mnemonic()
+  static buildWalletState = (seedPhrase: string): WalletState => {
+    const mnemonic = new Mnemonic(seedPhrase)
     const hdPrivkey = this.hdPrivkeyFromMnemonic(mnemonic)
     const signingKey = this.deriveSigningKey(hdPrivkey)
     const address = signingKey.toAddress()
@@ -92,9 +92,8 @@ class WalletBuilder implements WalletBuilder {
       balance: '0',
     }
   }
-  static newMnemonic = () => new Mnemonic() as Mnemonic
-  static mnemonicFromSeedPhrase = (seedPhrase: string) =>
-    new Mnemonic(seedPhrase)
+  static newMnemonic = () => new Mnemonic()
+  static mnemonicFromSeedPhrase = (seedPhrase: string) => new Mnemonic(seedPhrase)
   static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed)
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())

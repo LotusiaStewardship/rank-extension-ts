@@ -3,6 +3,7 @@ import { defineExtensionMessaging } from '@webext-core/messaging'
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void
+  'popup:seedPhrase': (seedPhrase: string) => void
   'popup:loadWalletState': () => void
   'popup:sendLotus': ({
     outAddress,
