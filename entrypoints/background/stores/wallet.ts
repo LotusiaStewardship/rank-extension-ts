@@ -55,14 +55,16 @@ class WalletStore {
       }),
     }
   }
+  /** Popup UI tracks changes to balance */
   get balanceStorageItem() {
     return this.wxtStorageItems.balance
   }
+  /** Returns `true` if a wallet has already been initialized, `false` otherwise */
   hasSeedPhrase = async () => {
     return (await this.wxtStorageItems.seedPhrase.getValue()) ? true : false
   }
   saveMutableWalletState = async (state: MutableWalletState) => {
-    console.log('saving immutable wallet state to localStorage')
+    console.log('saving mutable wallet state to localStorage')
     try {
       await storage.setItems(
         (Object.keys(state) as Array<keyof MutableWalletState>).map(key => ({
