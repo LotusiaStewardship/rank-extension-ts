@@ -48,7 +48,7 @@ class WalletStore {
         init: () => '',
       }),
       utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
-        init: () => '',
+        init: () => '{}',
       }),
       balance: storage.defineItem<WxtStorageValueString>('local:wallet:balance', {
         init: () => '0',
