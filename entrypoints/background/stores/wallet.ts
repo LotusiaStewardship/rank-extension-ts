@@ -61,7 +61,7 @@ class WalletStore {
   }
   /** Returns `true` if a wallet has already been initialized, `false` otherwise */
   hasSeedPhrase = async () => {
-    return (await this.wxtStorageItems.seedPhrase.getValue()) ? true : false
+    return Boolean(await this.wxtStorageItems.seedPhrase.getValue())
   }
   saveMutableWalletState = async (state: MutableWalletState) => {
     console.log('saving mutable wallet state to localStorage')
