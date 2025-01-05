@@ -99,9 +99,9 @@ class WalletStore {
         // storage.getItems() guarantees order of data, so Array.shift() is safe
         const item = walletStoreItems.shift()
         assert(item, 'item is undefined.. corrupt walletStore?')
-        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
-        const storeKey = item.key.split(':').pop()! as keyof WalletState
+        const storeKey = item.key.split(':').pop() as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
+        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
         walletState[storeKey] = item.value as WxtStorageValueString
       }
       return walletState as WalletState
