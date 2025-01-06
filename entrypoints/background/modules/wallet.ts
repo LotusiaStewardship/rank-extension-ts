@@ -92,9 +92,10 @@ class WalletBuilder implements WalletBuilder {
       balance: '0',
     }
   }
-  static newMnemonic = () => new Mnemonic()
-  static mnemonicFromSeedPhrase = (seedPhrase: string) => new Mnemonic(seedPhrase)
-  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed)
+  static newMnemonic = () => new Mnemonic() as Mnemonic
+  static mnemonicFromSeedPhrase = (seedPhrase: string) =>
+    new Mnemonic(seedPhrase) as Mnemonic
+  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed) as Mnemonic
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())
   static deriveSigningKey = (hdPrivkey: HDPrivateKey, path?: string) =>
