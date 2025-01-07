@@ -40,7 +40,9 @@ export default defineBackground({
             'background:walletState',
             walletManager.uiWalletState,
           )
-        } catch (e) {}
+        } catch (e) {
+          console.error(e)
+        }
       },
     )
     walletMessaging.onMessage('popup:loadWalletState', async ({ sender }) => {
