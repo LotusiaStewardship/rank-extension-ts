@@ -41,10 +41,10 @@ class DOM {
     this.urlPatterns.set('post', new MatchPattern(`${ROOT_URL}/*/status/*`))
     this.urlPatterns.set('bookmarks', new MatchPattern(`${ROOT_URL}/*/bookmarks`))
     // set the root node for observation
-    const root = document.body.querySelector(Selector.TwitterContainer.div.root)
+    const root = document.body.querySelector(Selector.Twitter.Container.div.root)
     if (!root) {
       throw new Error(
-        `could not find ${Selector.TwitterContainer.div.root} in document body`,
+        `could not find ${Selector.Twitter.Container.div.root} in document body`,
       )
     }
     this.root = root
@@ -68,11 +68,11 @@ class DOM {
         const $ = load(element.outerHTML)
         let elementType: 'post' | 'notification' | null = null
         // element is from tweet timeline (home, bookmarks, etc.)
-        if ($(Selector.TwitterArticle.div.tweet).length == 1) {
+        if ($(Selector.Twitter.Article.div.tweet).length == 1) {
           elementType = 'post'
         }
         // element is from notification timeline
-        if ($(Selector.TwitterArticle.div.notification).length == 1) {
+        else if ($(Selector.Twitter.Article.div.notification).length == 1) {
           elementType = 'notification'
         }
         if (elementType) {
@@ -91,20 +91,20 @@ class DOM {
   ) => {
     const t0 = performance.now()
     // Select elements
-    const tweetTextDiv = $(Selector.TwitterArticle.div.tweetText)
-    const tweetUserNameLink = $(Selector.TwitterArticle.a.tweetUserName)
-    const retweetUserNameLink = $(Selector.TwitterArticle.a.retweetUserName)
-    const postIdLink = $(Selector.TwitterArticle.a.tweetId)
+    const tweetTextDiv = $(Selector.Twitter.Article.div.tweetText)
+    const tweetUserNameLink = $(Selector.Twitter.Article.a.tweetUserName)
+    const retweetUserNameLink = $(Selector.Twitter.Article.a.retweetUserName)
+    const postIdLink = $(Selector.Twitter.Article.a.tweetId)
     // Parse elements for text data
-    const postText = Parser.TwitterArticle.postTextFromElement(tweetTextDiv)
-    const profileId = Parser.TwitterArticle.profileIdFromElement(tweetUserNameLink)
+    const postText = Parser.Twitter.Article.postTextFromElement(tweetTextDiv)
+    const profileId = Parser.Twitter.Article.profileIdFromElement(tweetUserNameLink)
     const retweetProfileId =
-      Parser.TwitterArticle.profileIdFromElement(retweetUserNameLink)
-    const postId = Parser.TwitterArticle.postIdFromElement(postIdLink)
+      Parser.Twitter.Article.profileIdFromElement(retweetUserNameLink)
+    const postId = Parser.Twitter.Article.postIdFromElement(postIdLink)
     const t1 = (performance.now() - t0).toFixed(3)
     console.log(`processed ${elementType} from ${profileId} in ${t1}ms`)
     // remove ads :)
-    if ($(Selector.TwitterArticle.div.ad).length == 1) {
+    if ($(Selector.Twitter.Article.div.ad).length == 1) {
       console.log(
         `hiding ${elementType} with ID ${postId} from profile ${profileId} (Ad)`,
       )
