@@ -171,7 +171,6 @@ export default defineContentScript({
   runAt: 'document_idle',
   async main(ctx) {
     // Start observing Twitter's `react-node` for mutations
-    const dom = new DOM()
-    dom.startMutationObserver()
+    new DOM().startMutationObserver()
   },
 })
