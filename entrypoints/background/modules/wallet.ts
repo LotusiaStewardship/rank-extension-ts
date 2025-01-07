@@ -180,7 +180,7 @@ class WalletManager {
     // initialize Chronik API and websocket
     this.chronik = new ChronikClient(WALLET_CHRONIK_URL)
     this.ws = this.chronik.ws({
-      onConnect: this.onWsConnect,
+      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.onWsMessage,
       onError: e => console.error('chronik websocket error', e),
       onEnd: e => console.error('chronik websocket ended abruptly', e),
@@ -193,9 +193,6 @@ class WalletManager {
     await this.fetchScriptUtxoSet()
     // subscribe for updates to primary wallet address (script)
     this.wsSubscribeP2PKH(this.scriptPayload)
-  }
-  private onWsConnect = () => {
-    console.log(`chronik websocket connected`, this.ws.ws?.url)
   }
   private onWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {
