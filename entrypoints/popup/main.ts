@@ -1,5 +1,15 @@
 import { createApp } from 'vue'
-import './style.css'
+import PrimeVue, { defaultOptions, PrimeVueConfiguration } from 'primevue/config'
 import App from './App.vue'
 
-createApp(App).mount('#app')
+const app = createApp(App)
+app.use(PrimeVue, {
+  ...defaultOptions,
+  theme: {
+    preset: 'Nora',
+    options: {
+      prefix: 'app',
+    },
+  },
+} satisfies PrimeVueConfiguration)
+app.mount('#app')
