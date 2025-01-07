@@ -7,14 +7,8 @@ let walletManager = new WalletManager()
 
 const initWalletManager = async (walletState?: WalletState) => {
   walletState ||= (await walletStore.loadWalletState()) as WalletState
-  // Initialize the WalletManager with this new wallet state
-  walletManager.init(walletState)
-  // Connect to Chronik websocket
-  await walletManager.wsWaitForOpen()
-  // Subscribe to websocket for deposits and such
-  walletManager.wsSubscribeP2PKH(walletManager.scriptPayload)
-  // Process the UTXO set for our wallet
-  walletManager.fetchScriptUtxoSet()
+  // Parse new or existing wallet state into usable wallet objects
+  await walletManager.init(walletState)
   console.log('initialized wallet manager')
 }
 

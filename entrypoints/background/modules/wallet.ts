@@ -167,7 +167,7 @@ class WalletManager {
       balance: this.wallet.balance,
     }
   }
-  init = (walletState: WalletState) => {
+  init = async (walletState: WalletState) => {
     // initialize the wallet from the existing state
     this.wallet = {
       seedPhrase: walletState.seedPhrase,
@@ -188,6 +188,12 @@ class WalletManager {
       onReconnect: e => console.warn('chronik websocket reconnected', e),
     })
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
+    // wait for websocket connection established
+    await this.wsWaitForOpen()
+    // fetch existing utxo set to bootstrap wallet
+    await this.fetchScriptUtxoSet()
+    // subscribe for updates to primary wallet address (script)
+    this.wsSubscribeP2PKH(this.scriptPayload)
   }
   private onWsConnect = () => {
     console.log(`chronik websocket connected`, this.ws.ws?.url)
