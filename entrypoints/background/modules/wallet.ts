@@ -134,10 +134,9 @@ class WalletManager {
     return this.wallet.script.toHex()
   }
   get outpoints() {
-    return Array.from(this.wallet.utxos.entries()).map(([txid, { outIdx }]) => ({
-      txid,
-      outIdx,
-    }))
+    const outpoints: OutPoint[] = []
+    this.wallet.utxos.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    return outpoints
   }
   /** Wallet state that gets saved to localStorage when changed */
   get mutableWalletState(): MutableWalletState {
