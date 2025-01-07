@@ -13,11 +13,7 @@ export default defineConfig({
   },
   manifestVersion: 3,
   manifest: {
-    host_permissions: [
-      '*://rank.lotusia.org/api/v1/*',
-      'wss://chronik.lotusia.org/ws',
-      '*://chronik.lotusia.org/*',
-    ],
+    host_permissions: ['*://rank.lotusia.org/api/v1/*', '*://chronik.lotusia.org/*'],
     description: 'Burn Lotus to uprank and downrank social media influencers and content',
     permissions: ['storage', 'notifications'],
   },

@@ -92,9 +92,10 @@ class WalletBuilder implements WalletBuilder {
       balance: '0',
     }
   }
-  static newMnemonic = () => new Mnemonic()
-  static mnemonicFromSeedPhrase = (seedPhrase: string) => new Mnemonic(seedPhrase)
-  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed)
+  static newMnemonic = () => new Mnemonic() as Mnemonic
+  static mnemonicFromSeedPhrase = (seedPhrase: string) =>
+    new Mnemonic(seedPhrase) as Mnemonic
+  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed) as Mnemonic
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())
   static deriveSigningKey = (hdPrivkey: HDPrivateKey, path?: string) =>
@@ -133,10 +134,9 @@ class WalletManager {
     return this.wallet.script.toHex()
   }
   get outpoints() {
-    return Array.from(this.wallet.utxos.entries()).map(([txid, { outIdx }]) => ({
-      txid,
-      outIdx,
-    }))
+    const outpoints: OutPoint[] = []
+    this.wallet.utxos.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    return outpoints
   }
   /** Wallet state that gets saved to localStorage when changed */
   get mutableWalletState(): MutableWalletState {
@@ -166,7 +166,7 @@ class WalletManager {
       balance: this.wallet.balance,
     }
   }
-  init = (walletState: WalletState) => {
+  init = async (walletState: WalletState) => {
     // initialize the wallet from the existing state
     this.wallet = {
       seedPhrase: walletState.seedPhrase,
@@ -180,16 +180,19 @@ class WalletManager {
     // initialize Chronik API and websocket
     this.chronik = new ChronikClient(WALLET_CHRONIK_URL)
     this.ws = this.chronik.ws({
-      onConnect: this.onWsConnect,
+      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.onWsMessage,
       onError: e => console.error('chronik websocket error', e),
       onEnd: e => console.error('chronik websocket ended abruptly', e),
       onReconnect: e => console.warn('chronik websocket reconnected', e),
     })
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
-  }
-  private onWsConnect = () => {
-    console.log(`chronik websocket connected`, this.ws.ws?.url)
+    // wait for websocket connection established
+    await this.wsWaitForOpen()
+    // fetch existing utxo set to bootstrap wallet
+    await this.fetchScriptUtxoSet()
+    // subscribe for updates to primary wallet address (script)
+    this.wsSubscribeP2PKH(this.scriptPayload)
   }
   private onWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {

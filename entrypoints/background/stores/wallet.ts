@@ -48,21 +48,23 @@ class WalletStore {
         init: () => '',
       }),
       utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
-        init: () => '',
+        init: () => '{}',
       }),
       balance: storage.defineItem<WxtStorageValueString>('local:wallet:balance', {
         init: () => '0',
       }),
     }
   }
+  /** Popup UI tracks changes to balance */
   get balanceStorageItem() {
     return this.wxtStorageItems.balance
   }
+  /** Returns `true` if a wallet has already been initialized, `false` otherwise */
   hasSeedPhrase = async () => {
-    return (await this.wxtStorageItems.seedPhrase.getValue()) ? true : false
+    return Boolean(await this.wxtStorageItems.seedPhrase.getValue())
   }
   saveMutableWalletState = async (state: MutableWalletState) => {
-    console.log('saving immutable wallet state to localStorage')
+    console.log('saving mutable wallet state to localStorage')
     try {
       await storage.setItems(
         (Object.keys(state) as Array<keyof MutableWalletState>).map(key => ({
@@ -99,9 +101,9 @@ class WalletStore {
         // storage.getItems() guarantees order of data, so Array.shift() is safe
         const item = walletStoreItems.shift()
         assert(item, 'item is undefined.. corrupt walletStore?')
-        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
-        const storeKey = item.key.split(':').pop()! as keyof WalletState
+        const storeKey = item.key.split(':').pop() as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
+        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
         walletState[storeKey] = item.value as WxtStorageValueString
       }
       return walletState as WalletState
