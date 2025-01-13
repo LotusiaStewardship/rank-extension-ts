@@ -1,16 +1,23 @@
 <script lang="ts" setup>
+import Header from '@/components/Header.vue'
+import Footer from '@/components/Footer.vue'
+import Home from '@/components/pages/Home.vue'
+import Receive from '@/components/pages/Receive.vue'
+import Send from '@/components/pages/Send.vue'
+import Settings from '@/components/pages/Settings.vue'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { walletStore } from '@/entrypoints/background/stores'
-import { WalletBuilder } from '../background/modules/wallet'
+import { WalletBuilder } from '@/entrypoints/background/modules/wallet'
 import { Unwatch } from 'wxt/storage'
 import { toXPI } from '@/utils/functions'
 import { ShallowRef } from 'vue'
 
 const walletBalance: ShallowRef<string, string> = shallowRef('')
-const walletSeedPhrase: ShallowRef<unknown, string> = shallowRef()
 const walletAddress: ShallowRef<string, string> = shallowRef('')
+//const walletSeedPhrase: ShallowRef<unknown, string> = shallowRef()
 //const walletHistory: Ref<object, Record<string, string>> = ref({})
 const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
+const renderComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 
 const watchers: Map<'balance', Unwatch> = new Map()
 
@@ -49,6 +56,10 @@ onBeforeMount(() => {
   )
 })
 
+const onQrMounted = () => {
+  renderComplete.value = true
+}
+
 onMounted(() => {
   // if we don't have a seed phrase then create and send to background
   // background has no access to window.crypto so popup needs to generate
@@ -68,14 +79,13 @@ onMounted(() => {
 
 <template>
   <template v-if="setupComplete">
-    <div>Wallet address: {{ walletAddress }}</div>
-    <div>Wallet balance: {{ walletBalance }} Lotus</div>
-    <div>Seed Phrase: {{ walletSeedPhrase }}</div>
-    <button
-      @click="sendLotus('lotus_16PSJNGxAvexzhaZDvx9sbm6hJ6MJLaszhnta3txA', 1_569_700)"
-    >
-      Send Lotus
-    </button>
+    <Header :balance="walletBalance" />
+    <Receive
+      :address="walletAddress"
+      :render-address-caption="renderComplete"
+      @qr-mounted="onQrMounted"
+    />
+    <Footer />
   </template>
   <template v-else>
     <div>Please wait...</div>
