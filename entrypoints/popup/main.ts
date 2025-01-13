@@ -1,8 +1,10 @@
 import { createApp } from 'vue'
-import PrimeVue, { defaultOptions, PrimeVueConfiguration } from 'primevue/config'
+//import PrimeVue, { defaultOptions, PrimeVueConfiguration } from 'primevue/config'
 import App from './App.vue'
+import './style.css'
 
 const app = createApp(App)
+/*
 app.use(PrimeVue, {
   ...defaultOptions,
   theme: {
@@ -12,4 +14,5 @@ app.use(PrimeVue, {
     },
   },
 } satisfies PrimeVueConfiguration)
+*/
 app.mount('#app')
