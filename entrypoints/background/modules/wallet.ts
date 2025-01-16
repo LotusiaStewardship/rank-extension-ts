@@ -23,6 +23,7 @@ import {
 import assert from 'assert'
 import { serialize, deserialize } from '@/utils/functions'
 import {
+  RANK_OUTPUT_MIN_VALUE,
   WALLET_CHRONIK_URL,
   WALLET_BIP44_COINTYPE,
   WALLET_BIP44_PURPOSE,
@@ -319,6 +320,77 @@ class WalletManager {
   }
   private broadcastTx = async (txBuf: Buffer) => {
     return await this.chronik.broadcastTx(txBuf)
+  }
+  private craftRankTx = (
+    platform: string,
+    profileId: string,
+    sentiment: 'OP_1' | 'OP_0',
+    postId?: string,
+    comment?: string,
+  ) => {
+    const tx = new Transaction()
+    // set some default tx params
+    tx.feePerByte(2)
+    tx.change(this.wallet.address)
+    // gather utxos until we have more than outValue
+    for (const [txid, utxo] of this.wallet.utxos) {
+      const { outIdx, value } = utxo
+      tx.addInput(
+        new Transaction.Input.PublicKeyHash({
+          prevTxId: txid,
+          outputIndex: outIdx,
+          output: new Transaction.Output({
+            satoshis: value,
+            script: this.scriptHex,
+          }),
+          script: this.wallet.script,
+        }),
+      )
+      // don't use anymore inputs if we have enough value already
+      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
+        break
+      }
+    }
+    // Set up RANK script
+    const rankScript = new Script('')
+    rankScript.add('OP_RETURN')
+    rankScript.add(Buffer.from('RANK'))
+    // Add sentiment opcode
+    rankScript.add(sentiment)
+    // Add platform byte
+    rankScript.add(Buffer.from(platform, 'hex'))
+    // Add profielId bytes
+    const profileBuf = Buffer.alloc(16)
+    profileBuf.write(profileId, 16 - profileId.length, 'utf8')
+    rankScript.add(profileBuf)
+    // Add postId bytes if applicable
+    if (postId) {
+      const postIdHex = BigInt(postId).toString(16)
+      rankScript.add(Buffer.from(postIdHex, 'hex'))
+    }
+    // Add the RANK output to the tx
+    tx.addOutput(
+      new Transaction.Output({
+        satoshis: RANK_OUTPUT_MIN_VALUE,
+        script: rankScript,
+      }),
+    )
+    /*
+    if (comment) {
+      // TODO: add comment bytes to 2nd OP_RETURN output
+    }
+    */
+    // Finalize tx
+    tx.sign(this.wallet.signingKey)
+    const verified = tx.verify()
+    switch (typeof verified) {
+      case 'boolean':
+        return tx
+      case 'string':
+        throw new Error(
+          `craftRankTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
+        )
+    }
   }
   private craftSendTx = (outAddress: string, outValue: number): Transaction => {
     const tx = new Transaction()
