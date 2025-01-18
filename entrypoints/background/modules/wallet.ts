@@ -281,6 +281,7 @@ class WalletManager {
       console.error(`failed to cast ${sentiment} vote for ${platform}/${profileId}`, e)
     }
   }
+  handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
     try {
       const { txid } = await this.broadcastTx(
