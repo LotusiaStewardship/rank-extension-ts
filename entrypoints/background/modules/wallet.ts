@@ -1,6 +1,7 @@
 // @ts-ignore
 import Mnemonic from '@abcpros/bitcore-mnemonic'
-import * as lib from 'rank-lib'
+import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
+import { toPlatformBuf, toProfileIdBuf, toPostIdBuf, toSentimentOpCode } from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -341,9 +342,9 @@ class WalletManager {
     return await this.chronik.broadcastTx(txBuf)
   }
   private craftRankTx = (
-    platform: lib.ScriptChunkPlatformUTF8,
+    platform: ScriptChunkPlatformUTF8,
     profileId: string,
-    sentiment: lib.ScriptChunkSentimentUTF8,
+    sentiment: ScriptChunkSentimentUTF8,
     postId?: string,
     comment?: string,
   ) => {
@@ -376,18 +377,19 @@ class WalletManager {
     rankScript.add('OP_RETURN')
     rankScript.add(Buffer.from('RANK'))
     // Add sentiment opcode
-    rankScript.add(lib.toSentimentOpCode(sentiment))
+    rankScript.add(toSentimentOpCode(sentiment))
     // Add platform byte
-    rankScript.add(lib.toPlatformBuf(platform))
+    rankScript.add(toPlatformBuf(platform))
     // Add profielId bytes
-    rankScript.add(lib.toProfileIdBuf(platform, profileId))
+    rankScript.add(toProfileIdBuf(platform, profileId))
     // Add postId bytes if applicable
     if (postId) {
-      rankScript.add(lib.toPostIdBuf(platform, postId))
+      rankScript.add(toPostIdBuf(platform, postId))
     }
     // Add the RANK output to the tx
     tx.addOutput(
       new Transaction.Output({
+        // TODO: use user-defined value; fallback to default
         satoshis: RANK_OUTPUT_MIN_VALUE,
         script: rankScript,
       }),
