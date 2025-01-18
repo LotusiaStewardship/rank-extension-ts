@@ -5,3 +5,5 @@ export const DEFAULT_RANK_TTL = 10 // number of seconds profile/post ranking is 
 export const WALLET_CHRONIK_URL = 'https://chronik.lotusia.org'
 export const WALLET_BIP44_PURPOSE = 44
 export const WALLET_BIP44_COINTYPE = 10605
+// RANK tx constants
+export const RANK_OUTPUT_MIN_VALUE = 100_000_000
