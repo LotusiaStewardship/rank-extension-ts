@@ -43,7 +43,11 @@ type RankTransactionParams = {
   comment?: string
 }
 type EventData = string | SendTransactionParams | RankTransactionParams | undefined
+/** Messaging events between popup and background service worker */
+type EventProcessor = (data: EventData) => Promise<void>
+/** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
 type PendingEventProcessor = [EventProcessor, EventData]
+/** Runtime queue to store `PendingEventProcessor` until they are called */
 type EventQueue = {
   busy: boolean
   pending: PendingEventProcessor[]
@@ -175,6 +179,7 @@ class WalletManager {
       balance: this.wallet.balance,
     }
   }
+  /** Deserialize the stored `WalletState` for runtime application, and connect Chronik API/WebSocket */
   init = async (walletState: WalletState) => {
     // initialize the wallet from the existing state
     this.wallet = {
@@ -249,7 +254,7 @@ class WalletManager {
       return this.processQueue()
     }
   }
-  handleWsAddedToMempool: EventProcessor = async (data?: EventData) => {
+  handleWsAddedToMempool: EventProcessor = async (data: EventData) => {
     const txid = data as string
     const tx = await this.chronik.tx(txid)
     for (let i = 0; i < tx.outputs.length; i++) {
@@ -436,6 +441,7 @@ class WalletManager {
         break
       }
     }
+    // tx fee 2sat/byte default
     const txFee = tx._estimateSize() * 2
     tx.addOutput(
       new Transaction.Output({
