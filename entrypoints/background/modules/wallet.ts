@@ -292,14 +292,14 @@ class WalletManager {
       const { txid } = await this.broadcastTx(
         this.craftSendTx(outAddress, outValue).toBuffer(),
       )
-      console.log(`Lotus sent successfully`, txid)
+      console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
       // schedule utxo reconciliation immediately
-      this.queue.pending.unshift([this.reconcileUtxos, undefined])
+      await this.reconcileUtxos()
     } catch (e) {
       console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
     }
   }
-  private reconcileUtxos: EventProcessor = async () => {
+  private reconcileUtxos = async () => {
     const results = await this.chronik.validateUtxos(this.outpoints)
     const invalid: OutPoint[] = []
     let spentBalance = 0n
@@ -311,7 +311,7 @@ class WalletManager {
         case 'NO_SUCH_TX':
         case 'SPENT':
           console.log(
-            `validateUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
+            `reconcileUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
           )
           invalid.push({ txid, outIdx })
           spentBalance += BigInt(this.wallet.utxos.get(txid)!.value)
