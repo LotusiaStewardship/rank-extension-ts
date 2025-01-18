@@ -1,5 +1,6 @@
 // @ts-ignore
 import Mnemonic from '@abcpros/bitcore-mnemonic'
+import * as lib from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -23,6 +24,7 @@ import {
 import assert from 'assert'
 import { serialize, deserialize } from '@/utils/functions'
 import {
+  RANK_OUTPUT_MIN_VALUE,
   WALLET_CHRONIK_URL,
   WALLET_BIP44_COINTYPE,
   WALLET_BIP44_PURPOSE,
@@ -319,6 +321,75 @@ class WalletManager {
   }
   private broadcastTx = async (txBuf: Buffer) => {
     return await this.chronik.broadcastTx(txBuf)
+  }
+  private craftRankTx = (
+    platform: lib.ScriptChunkPlatformUTF8,
+    profileId: string,
+    sentiment: lib.ScriptChunkSentimentUTF8,
+    postId?: string,
+    comment?: string,
+  ) => {
+    const tx = new Transaction()
+    // set some default tx params
+    tx.feePerByte(2)
+    tx.change(this.wallet.address)
+    // gather utxos until we have more than outValue
+    for (const [txid, utxo] of this.wallet.utxos) {
+      const { outIdx, value } = utxo
+      tx.addInput(
+        new Transaction.Input.PublicKeyHash({
+          prevTxId: txid,
+          outputIndex: outIdx,
+          output: new Transaction.Output({
+            satoshis: value,
+            script: this.scriptHex,
+          }),
+          script: this.wallet.script,
+        }),
+      )
+      // don't use anymore inputs if we have enough value already
+      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
+        break
+      }
+    }
+
+    // Add RANK chunks to output script
+    const rankScript = new Script('')
+    rankScript.add('OP_RETURN')
+    rankScript.add(Buffer.from('RANK'))
+    // Add sentiment opcode
+    rankScript.add(lib.toSentimentOpCode(sentiment))
+    // Add platform byte
+    rankScript.add(lib.toPlatformBuf(platform))
+    // Add profielId bytes
+    rankScript.add(lib.toProfileIdBuf(platform, profileId))
+    // Add postId bytes if applicable
+    if (postId) {
+      rankScript.add(lib.toPostIdBuf(platform, postId))
+    }
+    // Add the RANK output to the tx
+    tx.addOutput(
+      new Transaction.Output({
+        satoshis: RANK_OUTPUT_MIN_VALUE,
+        script: rankScript,
+      }),
+    )
+    /*
+    if (comment) {
+      // TODO: add comment bytes to 2nd OP_RETURN output
+    }
+    */
+    // Finalize tx
+    tx.sign(this.wallet.signingKey)
+    const verified = tx.verify()
+    switch (typeof verified) {
+      case 'boolean':
+        return tx
+      case 'string':
+        throw new Error(
+          `craftRankTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
+        )
+    }
   }
   private craftSendTx = (outAddress: string, outValue: number): Transaction => {
     const tx = new Transaction()
