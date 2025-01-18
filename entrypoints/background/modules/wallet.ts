@@ -267,7 +267,19 @@ class WalletManager {
       }
     }
   }
-  handlePopupSendLotus: EventProcessor = async (data?: EventData) => {
+  handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
+    const { platform, profileId, sentiment, postId, comment } =
+      data as RankTransactionParams
+    try {
+      const { txid } = await this.broadcastTx(
+        this.craftRankTx(platform, profileId, sentiment, postId, comment).toBuffer(),
+      )
+      console.log(`successfully cast ${sentiment} vote for ${platform}/${profileId}`)
+      await this.reconcileUtxos()
+    } catch (e) {
+      console.error(`failed to cast ${sentiment} vote for ${platform}/${profileId}`, e)
+    }
+  }
     const { outAddress, outValue } = data as SendTransactionParams
     try {
       const { txid } = await this.broadcastTx(
