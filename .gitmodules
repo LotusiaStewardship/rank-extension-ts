@@ -1,0 +1,6 @@
+[submodule "submodules/rank-lib"]
+	path = submodules/rank-lib
+	url = https://github.com/LotusiaStewardship/rank-lib
+[submodule "utils/rank-lib"]
+	path = utils/rank-lib
+	url = https://github.com/LotusiaStewardship/rank-lib

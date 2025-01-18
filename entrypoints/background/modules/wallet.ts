@@ -1,5 +1,6 @@
 // @ts-ignore
 import Mnemonic from '@abcpros/bitcore-mnemonic'
+import * as lib from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -322,9 +323,9 @@ class WalletManager {
     return await this.chronik.broadcastTx(txBuf)
   }
   private craftRankTx = (
-    platform: string,
+    platform: lib.ScriptChunkPlatformUTF8,
     profileId: string,
-    sentiment: 'OP_1' | 'OP_0',
+    sentiment: lib.ScriptChunkSentimentUTF8,
     postId?: string,
     comment?: string,
   ) => {
@@ -351,22 +352,20 @@ class WalletManager {
         break
       }
     }
-    // Set up RANK script
+
+    // Add RANK chunks to output script
     const rankScript = new Script('')
     rankScript.add('OP_RETURN')
     rankScript.add(Buffer.from('RANK'))
     // Add sentiment opcode
-    rankScript.add(sentiment)
+    rankScript.add(lib.toSentimentOpCode(sentiment))
     // Add platform byte
-    rankScript.add(Buffer.from(platform, 'hex'))
+    rankScript.add(lib.toPlatformBuf(platform))
     // Add profielId bytes
-    const profileBuf = Buffer.alloc(16)
-    profileBuf.write(profileId, 16 - profileId.length, 'utf8')
-    rankScript.add(profileBuf)
+    rankScript.add(lib.toProfileIdBuf(platform, profileId))
     // Add postId bytes if applicable
     if (postId) {
-      const postIdHex = BigInt(postId).toString(16)
-      rankScript.add(Buffer.from(postIdHex, 'hex'))
+      rankScript.add(lib.toPostIdBuf(platform, postId))
     }
     // Add the RANK output to the tx
     tx.addOutput(
