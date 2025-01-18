@@ -1,5 +1,6 @@
 import { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
+import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void
@@ -11,6 +12,19 @@ interface WalletMessaging {
   }: {
     outAddress: string
     outValue: number
+  }) => void
+  'popup:submitRankVote': ({
+    platform,
+    profileId,
+    sentiment,
+    postId,
+    comment,
+  }: {
+    platform: ScriptChunkPlatformUTF8
+    profileId: string
+    sentiment: ScriptChunkSentimentUTF8
+    postId?: string
+    comment?: string
   }) => void
 }
 
