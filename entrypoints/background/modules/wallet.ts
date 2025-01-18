@@ -208,6 +208,10 @@ class WalletManager {
     // subscribe for updates to primary wallet address (script)
     this.wsSubscribeP2PKH(this.scriptPayload)
   }
+  deinit = async () => {
+    this.wsUnsubscribeP2PKH(this.scriptPayload)
+    this.ws.close()
+  }
   private onWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {
       case 'AddedToMempool':
