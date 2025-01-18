@@ -34,8 +34,14 @@ type SendTransactionParams = {
   outAddress: string
   outValue: number
 }
-type EventData = string | SendTransactionParams | undefined
-type EventProcessor = (data?: EventData) => Promise<void>
+type RankTransactionParams = {
+  platform: ScriptChunkPlatformUTF8
+  profileId: string
+  sentiment: ScriptChunkSentimentUTF8
+  postId?: string
+  comment?: string
+}
+type EventData = string | SendTransactionParams | RankTransactionParams | undefined
 type PendingEventProcessor = [EventProcessor, EventData]
 type EventQueue = {
   busy: boolean

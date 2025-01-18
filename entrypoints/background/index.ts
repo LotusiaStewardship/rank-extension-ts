@@ -74,7 +74,15 @@ export default defineBackground({
         }
       },
     )
-    console.log('Hello background!', { id: browser.runtime.id })
+    walletMessaging.onMessage('popup:submitRankVote', async ({ sender, data }) => {
+      try {
+        validateWalletMessageSender(sender.id)
+        walletManager.queue.pending.push([walletManager.handlePopupSubmitRankVote, data])
+        walletManager.resolveQueuedEventProcessors()
+      } catch (e) {
+        console.error(e)
+      }
+    })
     // Load wallet state, or open popup ui to generate seed for new wallet state
     initWalletManager().catch(() => browser.action.openPopup())
   },
