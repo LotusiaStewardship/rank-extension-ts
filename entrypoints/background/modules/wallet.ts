@@ -43,7 +43,11 @@ type RankTransactionParams = {
   comment?: string
 }
 type EventData = string | SendTransactionParams | RankTransactionParams | undefined
+/** Messaging events between popup and background service worker */
+type EventProcessor = (data: EventData) => Promise<void>
+/** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
 type PendingEventProcessor = [EventProcessor, EventData]
+/** Runtime queue to store `PendingEventProcessor` until they are called */
 type EventQueue = {
   busy: boolean
   pending: PendingEventProcessor[]
@@ -175,6 +179,7 @@ class WalletManager {
       balance: this.wallet.balance,
     }
   }
+  /** Deserialize the stored `WalletState` for runtime application, and connect Chronik API/WebSocket */
   init = async (walletState: WalletState) => {
     // initialize the wallet from the existing state
     this.wallet = {
@@ -202,6 +207,10 @@ class WalletManager {
     await this.fetchScriptUtxoSet()
     // subscribe for updates to primary wallet address (script)
     this.wsSubscribeP2PKH(this.scriptPayload)
+  }
+  deinit = async () => {
+    this.wsUnsubscribeP2PKH(this.scriptPayload)
+    this.ws.close()
   }
   private onWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {
@@ -249,7 +258,7 @@ class WalletManager {
       return this.processQueue()
     }
   }
-  handleWsAddedToMempool: EventProcessor = async (data?: EventData) => {
+  handleWsAddedToMempool: EventProcessor = async (data: EventData) => {
     const txid = data as string
     const tx = await this.chronik.tx(txid)
     for (let i = 0; i < tx.outputs.length; i++) {
@@ -287,14 +296,14 @@ class WalletManager {
       const { txid } = await this.broadcastTx(
         this.craftSendTx(outAddress, outValue).toBuffer(),
       )
-      console.log(`Lotus sent successfully`, txid)
+      console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
       // schedule utxo reconciliation immediately
-      this.queue.pending.unshift([this.reconcileUtxos, undefined])
+      await this.reconcileUtxos()
     } catch (e) {
       console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
     }
   }
-  private reconcileUtxos: EventProcessor = async () => {
+  private reconcileUtxos = async () => {
     const results = await this.chronik.validateUtxos(this.outpoints)
     const invalid: OutPoint[] = []
     let spentBalance = 0n
@@ -306,7 +315,7 @@ class WalletManager {
         case 'NO_SUCH_TX':
         case 'SPENT':
           console.log(
-            `validateUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
+            `reconcileUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
           )
           invalid.push({ txid, outIdx })
           spentBalance += BigInt(this.wallet.utxos.get(txid)!.value)
@@ -436,6 +445,7 @@ class WalletManager {
         break
       }
     }
+    // tx fee 2sat/byte default
     const txFee = tx._estimateSize() * 2
     tx.addOutput(
       new Transaction.Output({
