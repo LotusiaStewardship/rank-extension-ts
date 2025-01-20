@@ -23,6 +23,10 @@ export namespace Selector {
         tweetText = 'data-testid="tweetText"',
         tweetUserName = 'data-testid="User-Name"',
         tweetId = 'href*="/status/"',
+        tweetLikeButton = 'data-testid="like"',
+        tweetUnlikeButton = 'data-testid="unlike"',
+        votePositiveButton = 'data-testid="vote-positive"',
+        voteNegativeButton = 'data-testid="vote-negative"',
       }
       export enum div {
         innerDiv = `div[${attr.innerDiv}]`,
@@ -36,6 +40,12 @@ export namespace Selector {
         tweetId = `${div.tweet} a[${attr.tweetId}]`,
         retweetUserName = `${div.tweet} a[role="link"][dir="ltr"], ${div.notification} a[role="link"][dir="ltr"]`,
         tweetUserName = `${div.tweet} a[role="link"]:not([dir="ltr"]), ${div.notification} a[role="link"]:not([dir="ltr"])`,
+      }
+      export enum button {
+        tweetLikeButton = `${div.tweet} button[${attr.tweetLikeButton}]`,
+        tweetUnlikeButton = `${div.tweet} button[${attr.tweetUnlikeButton}]`,
+        postUpvoteButton = `${div.tweet} button[${attr.votePositiveButton}]`,
+        postDownvoteButton = `${div.tweet} button[${attr.voteNegativeButton}]`,
       }
     }
   }

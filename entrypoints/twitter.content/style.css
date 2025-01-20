@@ -1,4 +1,8 @@
-.lotus-rank-below-threshold {
+.hidden {
   display: none !important;
   opacity: 0;
+}
+
+.blurred {
+  filter: blur(10px);
 }

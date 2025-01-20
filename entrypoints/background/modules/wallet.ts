@@ -42,11 +42,12 @@ type RankTransactionParams = {
   postId?: string
   comment?: string
 }
+type EventCallback = (processorResult: any) => any
 type EventData = string | SendTransactionParams | RankTransactionParams | undefined
 /** Messaging events between popup and background service worker */
-type EventProcessor = (data: EventData) => Promise<void>
+type EventProcessor = (data: EventData) => Promise<void | string>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
-type PendingEventProcessor = [EventProcessor, EventData]
+type PendingEventProcessor = [EventProcessor, EventData, EventCallback?]
 /** Runtime queue to store `PendingEventProcessor` until they are called */
 type EventQueue = {
   busy: boolean
@@ -208,10 +209,16 @@ class WalletManager {
     // subscribe for updates to primary wallet address (script)
     this.wsSubscribeP2PKH(this.scriptPayload)
   }
+  /** Shutdown all active sockets and listeners */
   deinit = async () => {
     this.wsUnsubscribeP2PKH(this.scriptPayload)
     this.ws.close()
   }
+  /**
+   *
+   * @param msg
+   * @returns
+   */
   private onWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {
       case 'AddedToMempool':
@@ -239,8 +246,11 @@ class WalletManager {
         eventProcessor,
         `trying to execute a queued EventProcessor that doesn't exist`,
       )
-      const [EventProcessor, EventData] = eventProcessor
-      await EventProcessor(EventData)
+      const [EventProcessor, EventData, EventCallback] = eventProcessor
+      const result = await EventProcessor(EventData)
+      if (EventCallback) {
+        EventCallback(result)
+      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -253,11 +263,15 @@ class WalletManager {
     this.queue.busy = false
   }
   /** Try to resolve the queued `EventProcessor`s if not already busy doing so */
-  resolveQueuedEventProcessors = () => {
+  resolveQueuedEventProcessors = async () => {
     if (!this.queue.busy) {
-      return this.processQueue()
+      return await this.processQueue()
     }
   }
+  /**
+   *
+   * @param data
+   */
   handleWsAddedToMempool: EventProcessor = async (data: EventData) => {
     const txid = data as string
     const tx = await this.chronik.tx(txid)
@@ -277,19 +291,28 @@ class WalletManager {
       }
     }
   }
+  /**
+   *
+   * @param data
+   * @returns
+   */
   handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
     const { platform, profileId, sentiment, postId, comment } =
       data as RankTransactionParams
     try {
       const { txid } = await this.broadcastTx(
-        this.craftRankTx(platform, profileId, sentiment, postId, comment).toBuffer(),
+        this.craftRankTx(data as RankTransactionParams).toBuffer(),
       )
-      console.log(`successfully cast ${sentiment} vote for ${platform}/${profileId}`)
       await this.reconcileUtxos()
+      return txid
     } catch (e) {
       console.error(`failed to cast ${sentiment} vote for ${platform}/${profileId}`, e)
     }
   }
+  /**
+   *
+   * @param data
+   */
   handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
     try {
@@ -351,13 +374,19 @@ class WalletManager {
   private broadcastTx = async (txBuf: Buffer) => {
     return await this.chronik.broadcastTx(txBuf)
   }
-  private craftRankTx = (
-    platform: ScriptChunkPlatformUTF8,
-    profileId: string,
-    sentiment: ScriptChunkSentimentUTF8,
-    postId?: string,
-    comment?: string,
-  ) => {
+  private craftRankTx = ({
+    platform,
+    profileId,
+    sentiment,
+    postId,
+    comment,
+  }: {
+    platform: ScriptChunkPlatformUTF8
+    profileId: string
+    sentiment: ScriptChunkSentimentUTF8
+    postId?: string
+    comment?: string
+  }) => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)

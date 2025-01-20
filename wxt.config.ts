@@ -1,5 +1,6 @@
 import { defineConfig } from 'wxt'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import svgLoader from 'vite-svg-loader'
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -26,6 +27,10 @@ export default defineConfig({
       },
     },
     plugins: [
+      svgLoader({
+        defaultImport: 'raw',
+        svgo: false,
+      }),
       nodePolyfills({
         globals: {
           Buffer: true,

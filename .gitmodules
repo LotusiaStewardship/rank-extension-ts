@@ -4,3 +4,4 @@
 [submodule "utils/rank-lib"]
 	path = utils/rank-lib
 	url = https://github.com/LotusiaStewardship/rank-lib
+	branch = master
