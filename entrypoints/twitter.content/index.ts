@@ -206,6 +206,13 @@ const hidePost = (postId: string) => {
 }
 /**
  *
+ * @param postId
+ */
+const blurPost = (postId: string) => {
+  cache.get(postId)!.element.classList.add('blurred')
+}
+/**
+ *
  * @param profileId
  * @param postId
  * @returns
@@ -229,27 +236,6 @@ const fetchRankApiData = async (
     // No ranking data found, so profile/post is a neutral rank
     return defaultRanking as RankAPIResult
   }
-}
-/**
- *
- * @param postId
- * @returns
- */
-const isPostBelowThreshold = ({
-  postId,
-  voteButtons,
-}: {
-  postId: string
-  voteButtons?: [HTMLButtonElement, HTMLButtonElement]
-}): boolean => {
-  voteButtons ||= getPostVoteButtons(
-    document.querySelector(Selector.Twitter.Container.div.timeline) as HTMLElement,
-    postId,
-  )
-  const [upvoteButton, downvoteButton] = voteButtons
-  const upvoteCount = Number(getPostVoteButtonCountElement(upvoteButton).innerHTML)
-  const downvoteCount = Number(getPostVoteButtonCountElement(downvoteButton).innerHTML)
-  return downvoteCount > upvoteCount
 }
 /** Observe the configured root node of the document and enforce profile/post rankings in the DOM */
 class Mutator {
