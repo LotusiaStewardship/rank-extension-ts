@@ -159,13 +159,9 @@ const getPostVoteButtonCountElement = (button: HTMLButtonElement): HTMLSpanEleme
  * @param count Total votes, or number of votes to increment to current value
  * @param increment If true, will add `count` to the existing value. Otherwise, will reset the value to `count`
  */
-const updatePostVoteButtonVoteCount = (
-  button: HTMLButtonElement,
-  count: number,
-  increment?: boolean,
-) => {
+const updatePostVoteButtonVoteCount = (button: HTMLButtonElement, count: number) => {
   const span = getPostVoteButtonCountElement(button)
-  span.innerHTML = String(increment ? Number(span.innerHTML) + count : count)
+  span.innerHTML = String(count)
 }
 /**
  *
@@ -175,8 +171,8 @@ const updatePostVoteButtonVoteCount = (
 async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent) {
   const postId = this.getAttribute('data-postid')!
   const profileId = this.getAttribute('data-profileid')!
-  const sentiment =
-    this.getAttribute('data-testid') == 'vote-positive' ? 'positive' : 'negative'
+  const voteType = this.getAttribute('data-testid')!
+  const sentiment = voteType == 'vote-positive' ? 'positive' : 'negative'
   console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
   const txid = await walletMessaging.sendMessage('content-script:submitRankVote', {
     platform: 'twitter',
@@ -186,11 +182,16 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
   })
   if (txid) {
     console.log(`successfully cast ${sentiment} vote for ${profileId}/${postId}`, txid)
-    updatePostVoteButtonVoteCount(this, 1, true)
-    const cachedPost = cache.get(postId)!
-    cachedPost.ranking += BigInt(
-      sentiment == 'positive' ? RANK_OUTPUT_MIN_VALUE : -RANK_OUTPUT_MIN_VALUE,
+    const { ranking, votesPositive, votesNegative } = (await fetchRankApiData(
+      profileId,
+      postId,
+    )) as RankAPIResult
+    updatePostVoteButtonVoteCount(
+      this,
+      voteType == 'vote-positive' ? votesPositive : votesNegative,
     )
+    const cachedPost = cache.get(postId)!
+    cachedPost.ranking = BigInt(ranking)
     if (cachedPost.ranking < DEFAULT_RANK_THRESHOLD) {
       hidePost(postId)
     }
