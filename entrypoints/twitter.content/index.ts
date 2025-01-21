@@ -437,7 +437,7 @@ export default defineContentScript({
   matches: ['*://*.x.com/*', '*://x.com/*', '*://pro.x.com/*'],
   world: 'ISOLATED',
   // https://developer.chrome.com/docs/extensions/reference/api/extensionTypes#type-RunAt
-  runAt: 'document_start',
+  runAt: 'document_end',
   async main(ctx) {
     // Start observing Twitter's `react-node` for mutations
     new Mutator().startMutationObserver()
