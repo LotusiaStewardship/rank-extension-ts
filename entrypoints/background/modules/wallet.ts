@@ -139,6 +139,10 @@ class WalletManager {
       pending: [],
     }
   }
+  /** 12-word backup/restore seed phrase */
+  get seedPhrase() {
+    return this.wallet.seedPhrase
+  }
   /** 20-byte public key hash to register Chronik `ScriptEndpoint` */
   get scriptPayload() {
     return this.wallet.script.getData().toString('hex')
