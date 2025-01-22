@@ -2,11 +2,12 @@ import { MatchPattern } from 'wxt/sandbox'
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
 import { walletMessaging } from '@/entrypoints/background/messaging'
+import { ScriptChunkSentimentUTF8, PLATFORMS } from 'rank-lib'
 import { CheerioAPI, load } from 'cheerio'
-import { PLATFORMS, PlatformParameters } from 'rank-lib'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
 import { ROOT_URL, VOTE_POSITIVE_ARROW_SVG, VOTE_NEGATIVE_ARROW_SVG } from './constants'
 import './style.css'
+
 /**  */
 type ProcessedPostElement = {
   isAd: boolean
@@ -21,8 +22,16 @@ type CachedPostElement = {
   votesPositive: number
   votesNegative: number
 }
+/**  */
+type CachedProfile = {
+  ranking: bigint
+  votesPositive: number
+  votesNegative: number
+}
 /** */
 type CachedPostMap = Map<string, CachedPostElement> // string is postId
+/** */
+type CachedProfileMap = Map<string, CachedProfile> // string is profileId
 /**  */
 type RankAPIParams = {
   platform: string
@@ -38,17 +47,24 @@ type IndexedRanking = RankAPIParams & {
 type IndexedPostRanking = IndexedRanking & {
   postId: string
 }
+/** */
 type RankAPIResult = IndexedRanking | IndexedPostRanking
 const defaultRanking: Partial<RankAPIResult> = {
   ranking: '0',
   votesPositive: 0,
   votesNegative: 0,
 }
+/** */
 type RankAPIErrorResult = {
   error: string
   params: Partial<IndexedRanking>
 }
-const cache: CachedPostMap = new Map()
+/** */
+const postCache: CachedPostMap = new Map()
+/** */
+const profileCache: CachedProfileMap = new Map()
+/** URL match patterns */
+const urlPost = new RegExp(`\/.*\/status\/[0-9]+`)
 /**
  * Process post element and return data to fetch ranking from RANK API
  * @param $ `HTMLElement` loaded into `CheerioAPI`
@@ -100,9 +116,10 @@ const addPostVoteButtons = (
   const upvoteButtonContainer = origButton.parentElement!.cloneNode() as Element
   const upvoteButton = origButton.cloneNode(true) as HTMLButtonElement
   updatePostVoteButtonVoteCount(upvoteButton, 0)
-  upvoteButton.setAttribute('data-testid', 'vote-positive')
+  upvoteButton.setAttribute('data-testid', 'upvote')
   upvoteButton.setAttribute('data-postid', data.postId)
   upvoteButton.setAttribute('data-profileid', data.profileId)
+  upvoteButton.setAttribute('data-sentiment', 'positive')
   upvoteButton.setAttribute('aria-label', '0 upvotes. Upvote')
   upvoteButton.addEventListener('click', handlePostVoteButtonClick)
   const upvoteSvg = upvoteButton.querySelector('svg')!
@@ -112,9 +129,10 @@ const addPostVoteButtons = (
   const downvoteButtonContainer = origButton.parentElement!.cloneNode() as Element
   const downvoteButton = origButton.cloneNode(true) as HTMLButtonElement
   updatePostVoteButtonVoteCount(upvoteButton, 0)
-  downvoteButton.setAttribute('data-testid', 'vote-negative')
+  downvoteButton.setAttribute('data-testid', 'downvote')
   downvoteButton.setAttribute('data-postid', data.postId)
   downvoteButton.setAttribute('data-profileid', data.profileId)
+  downvoteButton.setAttribute('data-sentiment', 'negative')
   downvoteButton.setAttribute('aria-label', '0 downvotes. Downvote')
   downvoteButton.addEventListener('click', handlePostVoteButtonClick)
   const downvoteSvg = downvoteButton.querySelector('svg')!
@@ -159,9 +177,22 @@ const getPostVoteButtonCountElement = (button: HTMLButtonElement): HTMLSpanEleme
  * @param count Total votes, or number of votes to increment to current value
  * @param increment If true, will add `count` to the existing value. Otherwise, will reset the value to `count`
  */
-const updatePostVoteButtonVoteCount = (button: HTMLButtonElement, count: number) => {
+const updatePostVoteButtonVoteCount = (
+  button: HTMLButtonElement,
+  count: number,
+  increment?: boolean,
+) => {
   const span = getPostVoteButtonCountElement(button)
-  span.innerHTML = String(count)
+  span.innerHTML = String(increment ? Number(span.innerHTML) + count : count)
+}
+/**
+ *
+ * @param this
+ * @param ev
+ */
+async function handleBlurredOverlayClick(this: HTMLButtonElement, ev: MouseEvent) {
+  const postId = this.getAttribute('data-postid')!
+  postCache.get(postId)!.element.click()
 }
 /**
  *
@@ -171,8 +202,7 @@ const updatePostVoteButtonVoteCount = (button: HTMLButtonElement, count: number)
 async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent) {
   const postId = this.getAttribute('data-postid')!
   const profileId = this.getAttribute('data-profileid')!
-  const voteType = this.getAttribute('data-testid')!
-  const sentiment = voteType == 'vote-positive' ? 'positive' : 'negative'
+  const sentiment = this.getAttribute('data-sentiment')! as ScriptChunkSentimentUTF8
   console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
   const txid = await walletMessaging.sendMessage('content-script:submitRankVote', {
     platform: 'twitter',
@@ -182,18 +212,28 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
   })
   if (txid) {
     console.log(`successfully cast ${sentiment} vote for ${profileId}/${postId}`, txid)
+    /*
     const { ranking, votesPositive, votesNegative } = (await fetchRankApiData(
       profileId,
       postId,
     )) as RankAPIResult
-    updatePostVoteButtonVoteCount(
-      this,
-      voteType == 'vote-positive' ? votesPositive : votesNegative,
+    const newVoteCount = sentiment == 'positive' ? votesPositive : votesNegative
+    */
+
+    updatePostVoteButtonVoteCount(this, 1, true)
+    const cachedPost = postCache.get(postId)!
+    // add/subtract default output value based on sentiment
+    // TODO: use custom rank output value
+    cachedPost.ranking += BigInt(
+      sentiment == 'positive' ? RANK_OUTPUT_MIN_VALUE : -RANK_OUTPUT_MIN_VALUE,
     )
-    const cachedPost = cache.get(postId)!
-    cachedPost.ranking = BigInt(ranking)
+    // if we're on the post's URL, don't blur
+    console.log('on post url', window.location.pathname.match(urlPost))
+    if (window.location.pathname.match(urlPost)) {
+      return
+    }
     if (cachedPost.ranking < DEFAULT_RANK_THRESHOLD) {
-      hidePost(postId)
+      blurPost(profileId, postId, 'post reputation below threshold')
     }
   }
 }
@@ -201,15 +241,33 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
  *
  * @param postId
  */
-const hidePost = (postId: string) => {
-  cache.get(postId)?.element.classList.add('hidden')
+const hidePost = (profileId: string, postId: string, reason: string) => {
+  console.log(`hiding post with ID ${postId} from profile ${profileId} (${reason})`)
+  postCache.get(postId)?.element.classList.add('hidden')
 }
 /**
  *
  * @param postId
  */
-const blurPost = (postId: string) => {
-  cache.get(postId)!.element.classList.add('blurred')
+const blurPost = (profileId: string, postId: string, reason: string) => {
+  console.log(`blurring post with ID ${postId} from profile ${profileId} (${reason})`)
+  // article element resets CSS classes on hover, thanks to Twitter javascript
+  // so we blur the parent element instead, which achieves the same effect
+  const element = postCache.get(postId)!.element
+  const postParentElement = element.parentElement!
+  // Set up overlay button, text
+  const overlay = document.createElement('button') // new HTMLDivElement()
+  overlay.classList.add('blurred-overlay')
+  overlay.setAttribute('data-profileid', profileId)
+  overlay.setAttribute('data-postid', postId)
+  overlay.addEventListener('click', handleBlurredOverlayClick)
+  const overlayText = document.createElement('span') //new HTMLSpanElement()
+  overlayText.classList.add('blurred-overlay-text')
+  overlayText.innerHTML = 'Post has poor reputation, click to view'
+  overlay.appendChild(overlayText)
+  // Apply blur and overlay to post
+  postParentElement.classList.add('blurred')
+  postParentElement.parentElement!.append(overlay)
 }
 /**
  *
@@ -282,7 +340,7 @@ class Mutator {
   }
   private validateMutatedElement = (element: HTMLElement) => {
     const $ = load(element.outerHTML)
-    let elementType: 'post' | 'notification' | null = null
+    let elementType: 'post' | 'notification' | 'ad' | null = null
     // element is from tweet timeline (home, bookmarks, etc.)
     if (
       $(Selector.Twitter.Article.div.tweet).length == 1 &&
@@ -295,6 +353,7 @@ class Mutator {
     else if ($(Selector.Twitter.Article.div.notification).length == 1) {
       elementType = 'notification'
     }
+
     return { $, elementType }
   }
   /**
@@ -309,11 +368,15 @@ class Mutator {
         continue
       }
       const { $, elementType } = this.validateMutatedElement(element)
+      if (!elementType) {
+        continue
+      }
+      const { isAd, profileId, retweetProfileId, postId } = processPostElement($)
       switch (elementType) {
         case 'post':
           // Get the postId and delete the post from the cache
           const { postId } = processPostElement($)
-          cache.delete(postId)
+          postCache.delete(postId)
           break
         case 'notification':
           // may not even need to do anything with this
@@ -321,6 +384,10 @@ class Mutator {
       }
     }
   }
+  /**
+   *
+   * @param nodes
+   */
   private handleAddedNodes = async (nodes: NodeList) => {
     for (const node of nodes) {
       const element = node as HTMLElement
@@ -354,19 +421,22 @@ class Mutator {
           updatePostVoteButtonVoteCount(downvoteButton, votesNegative)
           // Hide the post if below ranking
           const rankingBigInt = BigInt(ranking)
-          if (rankingBigInt < DEFAULT_RANK_THRESHOLD) {
-            console.log(
-              `hiding post with ID ${postId} from profile ${profileId} (post below rank threshold)`,
-            )
-            element.classList.add('hidden')
-          }
           // add this post to the cache
-          cache.set(postId, {
-            element,
+          postCache.set(postId, {
+            // Only cache the post article element, not its container
+            element: element.querySelector('article')!,
             ranking: rankingBigInt,
             votesPositive,
             votesNegative,
           })
+          // if we're on the post's URL, don't blur
+          if (window.location.pathname.match(urlPost)) {
+            continue
+          }
+          // TODO: use configured rank threshold; fallback to default
+          if (rankingBigInt < DEFAULT_RANK_THRESHOLD) {
+            blurPost(profileId, postId, 'post reputation below threshold')
+          }
           break
         case 'notification':
           // process these elements specifically for profileId ranking
@@ -374,7 +444,10 @@ class Mutator {
       }
     }
   }
-  /** Handle all mutations to the root node */
+  /**
+   * Handle all mutations to the root node
+   * @param mutations
+   */
   private handleRootMutations = (mutations: MutationRecord[]) => {
     mutations.forEach(async mutation => {
       this.handleRemovedNodes(mutation.removedNodes)

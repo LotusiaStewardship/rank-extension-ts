@@ -25,8 +25,8 @@ export namespace Selector {
         tweetId = 'href*="/status/"',
         tweetLikeButton = 'data-testid="like"',
         tweetUnlikeButton = 'data-testid="unlike"',
-        votePositiveButton = 'data-testid="vote-positive"',
-        voteNegativeButton = 'data-testid="vote-negative"',
+        votePositiveButton = 'data-testid="upvote"',
+        voteNegativeButton = 'data-testid="downvote"',
       }
       export enum div {
         innerDiv = `div[${attr.innerDiv}]`,

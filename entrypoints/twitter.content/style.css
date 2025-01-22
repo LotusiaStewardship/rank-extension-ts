@@ -4,5 +4,64 @@
 }
 
 .blurred {
-  filter: blur(10px);
+  filter: blur(0.9rem) grayscale(69%);
+  /* background-color: black !important; */
+  pointer-events: none !important;
+  border: 1px solid black !important;
+  opacity: 45%;
+}
+
+.blurred-overlay {
+  width: 60%;
+  height: auto;
+  position: absolute;
+  left: 30%;
+  top: 30%;
+  margin-left: -11% !important;
+  margin-top: 0% !important;
+  padding: 2%;
+  /*background-color: #6b0080;*/
+  background-color: black !important;
+  border-radius: 24px;
+  box-shadow: 0em 0em 0.69em 0.12em #696969 !important;
+  border: 2px solid #9aa5c7;
+  font-family: inherit !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.blurred-overlay:hover {
+  cursor: pointer;
+}
+
+.blurred-overlay-text {
+  font-weight: 400;
+  font-size: medium;
+  color: #9aa5c7;
+  font-family: system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+    'Helvetica Neue', sans-serif !important;
+}
+
+.profile-positive-reputation {
+  position: relative;
+  &::after {
+    background: green;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    content: '';
+    display: block;
+    position: absolute;
+  }
+}
+
+.profile-negative-reputation {
+  position: relative;
+  &::after {
+    background: red;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    content: '';
+    display: block;
+    position: absolute;
+  }
 }
