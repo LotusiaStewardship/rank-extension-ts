@@ -356,6 +356,8 @@ async function handleBlurredOverlayClick(this: HTMLButtonElement, ev: MouseEvent
  * @param ev
  */
 async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent) {
+  // disable the button first
+  this.disabled = true
   // gather required data for submitting vote to Lotus network
   const postId = this.getAttribute('data-postid')!
   postIdBusy = postId
@@ -379,6 +381,7 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
     }
     // reset button and allow this post to be auto-updated
     postIdBusy = null
+    this.disabled = false
   }
 }
 /**
