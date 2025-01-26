@@ -23,7 +23,7 @@ import {
   WsEndpoint,
 } from 'chronik-client'
 import assert from 'assert'
-import { serialize, deserialize } from '@/utils/functions'
+import { serialize, deserialize, toXPI } from '@/utils/functions'
 import {
   RANK_OUTPUT_MIN_VALUE,
   WALLET_CHRONIK_URL,

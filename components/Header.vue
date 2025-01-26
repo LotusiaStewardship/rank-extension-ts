@@ -1,18 +1,29 @@
 <script lang="ts" setup>
-defineProps({
+const props = defineProps({
   balance: String,
 })
 </script>
 <template>
-  <div class="balance-header">Lotus Balance</div>
-  <div class="balance">{{ balance }}</div>
+  <div>
+    <span class="balance-header">Lotus Balance</span>
+  </div>
+  <div class="balance">
+    <!-- Need to always split balance prop to maintain reactivity -->
+    <span class="balance">{{ props.balance!.split('.')[0] }}</span>
+    <!-- Need to always split balance prop to maintain reactivity -->
+    <span class="balance-suffix">.{{ props.balance!.split('.')[1] }}</span>
+  </div>
 </template>
 <style lang="css" scoped>
 .balance-header {
-  font-size: 1.42em;
+  font-size: 1.2rem;
 }
 .balance {
-  font-size: 2.69em;
-  font-weight: 690;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.balance-suffix {
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 </style>
