@@ -2,7 +2,7 @@
   "name": "rank-extension-ts",
   "description": "manifest.json description",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-alpha",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -20,21 +20,20 @@
   "devDependencies": {
     "@abcpros/bitcore-lib-xpi": "8.25.43",
     "@abcpros/bitcore-mnemonic": "8.25.43",
-    "@primevue/themes": "4.2.5",
-    "@types/chrome": "0.0.287",
-    "@webext-core/messaging": "2.1.0",
+    "@types/chrome": "0.0.299",
+    "@webext-core/messaging": "2.2.0",
     "@wxt-dev/module-vue": "1.0.2",
     "cheerio": "1.0.0",
     "chronik-client": "0.19.0",
     "prettier": "3.4.2",
-    "primevue": "4.2.5",
     "qrcode-vue3": "1.7.1",
     "rank-lib": "file:utils/rank-lib",
-    "typescript": "5.7.2",
+    "typescript": "5.7.3",
     "typescript-eslint": "8.19.0",
-    "vite-plugin-node-polyfills": "0.22.0",
+    "vite": "6.0.8",
+    "vite-plugin-node-polyfills": "0.23.0",
     "vite-svg-loader": "5.1.0",
     "vue-tsc": "2.2.0",
-    "wxt": "0.19.23"
+    "wxt": "0.19.25"
   }
 }
