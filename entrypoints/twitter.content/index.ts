@@ -362,14 +362,8 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
     // updateCachedProfile(sentiment, profileId)
     // TODO: update post ranking with actual vote amount, not just default
     const postRanking = updateCachedPost(sentiment, postId)
+    checkPostRankingAndBlur(profileId, postId, postRanking)
     postIdBusy = null
-    // if we're on the post's URL, don't blur
-    if (window.location.pathname.includes(postId)) {
-      return
-    }
-    if (postRanking < DEFAULT_RANK_THRESHOLD) {
-      blurPost(profileId, postId, 'post reputation below threshold')
-    }
   }
 }
 /**
@@ -549,14 +543,7 @@ class Mutator {
           })
           const t1 = (performance.now() - t0).toFixed(3)
           console.log(`processed adding post ${profileId}/${postId} to cache in ${t1}ms`)
-          // if we're on the post's URL, don't blur
-          if (window.location.pathname.includes(postId)) {
-            continue
-          }
-          // TODO: use configured rank threshold; fallback to default
-          if (postRanking < DEFAULT_RANK_THRESHOLD) {
-            blurPost(profileId, postId, 'post reputation below threshold')
-          }
+          checkPostRankingAndBlur(profileId, postId, postRanking)
           break
         case 'notification':
           // process these elements specifically for profileId ranking
