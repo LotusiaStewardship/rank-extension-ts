@@ -438,10 +438,11 @@ class Mutator {
       childList: true,
       subtree: true,
       characterData: false,
+      // TODO: use attribute mutation events for additional processing?
       attributeFilter: ['data-ranking'],
     })
   }
-  private validateMutatedElement = (element: HTMLElement) => {
+  private isValidElement = (element: HTMLElement) => {
     const $ = load(element.outerHTML)
     let elementType: 'post' | 'notification' | 'button' | 'ad' | null = null
     // element is from tweet timeline (home, bookmarks, etc.)
@@ -472,7 +473,7 @@ class Mutator {
       if (!element.outerHTML) {
         continue
       }
-      const { $, elementType } = this.validateMutatedElement(element)
+      const { $, elementType } = this.isValidElement(element)
       if (!elementType) {
         continue
       }
@@ -505,7 +506,7 @@ class Mutator {
       if (!element.outerHTML) {
         continue
       }
-      const { $, elementType } = this.validateMutatedElement(element)
+      const { $, elementType } = this.isValidElement(element)
       if (!elementType) {
         continue
       }
@@ -644,12 +645,9 @@ export default defineContentScript({
   async main(ctx) {
     ctx.onInvalidated(() => clearInterval(postVoteUpdateInterval))
     ctx.addEventListener(window, 'wxt:locationchange', () => {
-      console.log('window location changed, resetting state')
+      // trigger onInvalidated handler if context is invalid
       if (ctx.isInvalid) {
         ctx.notifyInvalidated()
-        // Reset profile/post caches on page change
-        profileCache.clear()
-        postCache.clear()
       }
     })
     // Start observing Twitter's `react-node` for mutations
