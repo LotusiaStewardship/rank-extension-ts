@@ -74,15 +74,30 @@ export default defineBackground({
         }
       },
     )
-    walletMessaging.onMessage('popup:submitRankVote', async ({ sender, data }) => {
-      try {
-        validateWalletMessageSender(sender.id)
-        walletManager.queue.pending.push([walletManager.handlePopupSubmitRankVote, data])
-        walletManager.resolveQueuedEventProcessors()
-      } catch (e) {
-        console.error(e)
-      }
-    })
+    walletMessaging.onMessage(
+      'content-script:submitRankVote',
+      async ({ sender, data }) => {
+        try {
+          validateWalletMessageSender(sender.id)
+          // Return the txid to the content script
+          let returnValue: string = ''
+          const callback = (txid: string) => (returnValue = txid)
+          walletManager.queue.pending.push([
+            walletManager.handlePopupSubmitRankVote,
+            data,
+            callback,
+          ])
+          // TODO: this may prove to be very hacky.. may need to work in a different solution
+          // Wait for queue to be fully resolved
+          await walletManager.resolveQueuedEventProcessors()
+          // Our callback has been executed; return the value we were waiting for
+          return returnValue
+        } catch (e) {
+          console.error(e)
+        }
+        return null
+      },
+    )
     // Load wallet state, or open popup ui to generate seed for new wallet state
     initWalletManager().catch(() => browser.action.openPopup())
   },
