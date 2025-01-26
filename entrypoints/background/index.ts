@@ -98,6 +98,11 @@ export default defineBackground({
         return null
       },
     )
+    /**  */
+    walletMessaging.onMessage('popup:loadSeedPhrase', async ({ sender }) => {
+      validateWalletMessageSender(sender.id)
+      return walletManager.seedPhrase
+    })
     // Load wallet state, or open popup ui to generate seed for new wallet state
     initWalletManager().catch(() => browser.action.openPopup())
   },
