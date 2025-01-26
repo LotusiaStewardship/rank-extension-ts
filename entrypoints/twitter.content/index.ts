@@ -4,11 +4,7 @@ import { Selector } from '@/utils/selector'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { CheerioAPI, load } from 'cheerio'
-import {
-  DEFAULT_RANK_THRESHOLD,
-  DEFAULT_RANK_API,
-  RANK_OUTPUT_MIN_VALUE,
-} from '@/utils/constants'
+import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
 import { ROOT_URL, VOTE_POSITIVE_ARROW_SVG, VOTE_NEGATIVE_ARROW_SVG } from './constants'
 import './style.css'
 /**
@@ -24,8 +20,9 @@ type ProcessedPostElement = {
   postId: string
 }
 /** */
-type CachedPostElement = {
+type CachedPost = {
   element: HTMLElement //
+  profileId: string
   ranking: bigint
   votesPositive: number
   votesNegative: number
@@ -38,7 +35,7 @@ type CachedProfile = {
   votesNegative: number
 }
 /** */
-type CachedPostMap = Map<string, CachedPostElement> // string is postId
+type CachedPostMap = Map<string, CachedPost> // string is postId
 /** */
 type CachedProfileMap = Map<string, CachedProfile> // string is profileId
 /**  */
@@ -87,34 +84,40 @@ let postIdBusy: string | null = null
  *  Functions
  *
  */
-const checkPostRankingAndBlur = (
-  profileId: string,
-  postId: string,
-  postRanking: bigint,
-) => {
+/**
+ * Checks various conditions to see whether or not a post can be blurred
+ * @param postId
+ * @param cachedPost
+ */
+const canBlurPost = (postId: string, cachedPost: CachedPost): boolean => {
   // if we're on the post's URL, don't blur
   if (window.location.pathname.includes(postId)) {
-    return
+    return false
   }
-  if (postRanking < DEFAULT_RANK_THRESHOLD) {
-    blurPost(profileId, postId, 'post reputation below threshold')
+  // if post ranking is above default threshold, don't blur
+  if (cachedPost.ranking >= DEFAULT_RANK_THRESHOLD) {
+    return false
   }
+  // we can blur the post
+  return true
 }
+/**
+ * Iterate through cached posts and update their ranking, vote buttons, etc.
+ */
 const updateCachedPosts = async () => {
-  for (const [postId, cachedPost] of postCache) {
+  for (const [postId] of postCache) {
     // skip updating posts that are processing vote button clicks
     if (postId == postIdBusy) {
       continue
     }
     try {
-      const element = cachedPost.element
-      const [upvoteButton, downvoteButton] = getPostVoteButtons(element)
-      const profileId = upvoteButton.getAttribute('data-profileid')!
-      const result = await fetchRankApiData(profileId, postId)
-      updatePostVoteButtonVoteCount(upvoteButton, result.votesPositive)
-      updatePostVoteButtonVoteCount(downvoteButton, result.votesNegative)
-      const postRanking = BigInt(result.ranking)
-      checkPostRankingAndBlur(profileId, postId, postRanking)
+      // update the cached post
+      const cachedPost = await updateCachedPost(postId)
+      // check if post can be blurred, and then do so if necessary
+      if (canBlurPost(postId, cachedPost)) {
+        const { element, profileId } = cachedPost
+        blurPost(element, profileId, postId, 'post reputation below threshold')
+      }
     } catch (e) {
       continue
     }
@@ -154,10 +157,7 @@ const processPostElement = ($: CheerioAPI): ProcessedPostElement => {
  * @param element
  * @param postId
  */
-const addPostVoteButtons = (
-  element: HTMLElement,
-  data: ProcessedPostElement,
-): [HTMLButtonElement, HTMLButtonElement] => {
+const mutatePostElement = (element: HTMLElement, data: ProcessedPostElement) => {
   // Get existing like/unlike button, container, and button row
   const origButton =
     element.querySelector(Selector.Twitter.Article.button.tweetLikeButton)! ??
@@ -194,8 +194,6 @@ const addPostVoteButtons = (
   origButtonContainer.classList.add('hidden')
   buttonRow.insertBefore(upvoteButtonContainer, origButtonContainer)
   buttonRow.insertBefore(downvoteButtonContainer, origButtonContainer)
-
-  return [upvoteButton, downvoteButton]
 }
 /**
  *
@@ -236,16 +234,26 @@ const updatePostVoteButtonVoteCount = (
   const span = getPostVoteButtonCountElement(button)
   span.innerHTML = String(increment ? Number(span.innerHTML) + count : count)
 }
-const updateCachedPost = (sentiment: ScriptChunkSentimentUTF8, postId: string) => {
+/**
+ *
+ * @param sentiment
+ * @param postId
+ * @returns {CachedPost} The updated, cached post
+ */
+const updateCachedPost = async (postId: string): Promise<CachedPost> => {
   const cachedPost = postCache.get(postId)!
-  // add/subtract default output value based on sentiment
-  // TODO: use custom rank output value
-  cachedPost.ranking += BigInt(
-    sentiment == 'positive' ? RANK_OUTPUT_MIN_VALUE : -RANK_OUTPUT_MIN_VALUE,
-  )
-  sentiment == 'positive' ? cachedPost.votesPositive++ : cachedPost.votesNegative++
-
-  return cachedPost.ranking
+  const { element, profileId } = cachedPost
+  const result = await fetchRankApiData(profileId, postId)
+  // update cached post stats
+  cachedPost.ranking += BigInt(result.ranking)
+  cachedPost.votesPositive = result.votesPositive
+  cachedPost.votesNegative = result.votesNegative
+  // Update the vote counts on post vote buttons
+  const [upvoteButton, downvoteButton] = getPostVoteButtons(element)
+  updatePostVoteButtonVoteCount(upvoteButton, result.votesPositive)
+  updatePostVoteButtonVoteCount(downvoteButton, result.votesNegative)
+  // return the cached post for additional processing
+  return cachedPost
 }
 /**
  *
@@ -263,21 +271,25 @@ const hidePost = (profileId: string, postId: string, reason: string) => {
  * @param postId
  * @param reason
  */
-const blurPost = (profileId: string, postId: string, reason: string) => {
+const blurPost = (
+  element: HTMLElement,
+  profileId: string,
+  postId: string,
+  reason: string,
+) => {
   // article element resets CSS classes on hover, thanks to Twitter javascript
   // so we blur the parent element instead, which achieves the same effect
-  const element = postCache.get(postId)!.element
   // if element already blurred, don't continue
   if (element.querySelector('.blurred')) {
     return
   }
-  console.log(`blurring post with ID ${postId} from profile ${profileId} (${reason})`)
+  console.log(`blurring post ${profileId}/${postId} (${reason})`)
   const article = element.querySelector('article')!
   const postParentElement = article.parentElement!
   // Set up overlay button, text
   const overlay = document.createElement('button') // new HTMLDivElement()
   overlay.classList.add('blurred-overlay')
-  overlay.setAttribute('data-profileid', profileId)
+  // overlay.setAttribute('data-profileid', profileId)
   overlay.setAttribute('data-postid', postId)
   overlay.addEventListener('click', handleBlurredOverlayClick)
   const overlayText = document.createElement('span') //new HTMLSpanElement()
@@ -344,6 +356,7 @@ async function handleBlurredOverlayClick(this: HTMLButtonElement, ev: MouseEvent
  * @param ev
  */
 async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent) {
+  // gather required data for submitting vote to Lotus network
   const postId = this.getAttribute('data-postid')!
   postIdBusy = postId
   const profileId = this.getAttribute('data-profileid')!
@@ -357,12 +370,14 @@ async function handlePostVoteButtonClick(this: HTMLButtonElement, ev: MouseEvent
   })
   if (txid) {
     console.log(`successfully cast ${sentiment} vote for ${profileId}/${postId}`, txid)
-    updatePostVoteButtonVoteCount(this, 1, true)
     // TODO: update profile ranking with actual vote amount, not just default
     // updateCachedProfile(sentiment, profileId)
-    // TODO: update post ranking with actual vote amount, not just default
-    const postRanking = updateCachedPost(sentiment, postId)
-    checkPostRankingAndBlur(profileId, postId, postRanking)
+    const cachedPost = await updateCachedPost(postId)
+    if (canBlurPost(postId, cachedPost)) {
+      const { element } = cachedPost
+      blurPost(element, profileId, postId, 'post reputation below threshold')
+    }
+    // reset button and allow this post to be auto-updated
     postIdBusy = null
   }
 }
@@ -502,18 +517,29 @@ class Mutator {
             element.classList.add('hidden')
             continue
           }
-          // Mutate post element to add RANK vote buttons
-          const [upvoteButton, downvoteButton] = addPostVoteButtons(element, {
+          // Mutate post element to add RANK vote buttons, etc.
+          mutatePostElement(element, {
             profileId,
             postId,
           } as ProcessedPostElement)
-          // Fetch indexed post ranking from RANK API
-          const { profile, ranking, votesPositive, votesNegative } =
-            (await fetchRankApiData(profileId, postId)) as IndexedPostRanking
+          // add this post to the cache
+          postCache.set(postId, {
+            // Only cache the post article element, not its container
+            element,
+            profileId,
+            ranking: 0n,
+            votesPositive: 0,
+            votesNegative: 0,
+          })
+          const t1 = (performance.now() - t0).toFixed(3)
+          console.log(`processed adding post ${profileId}/${postId} to cache in ${t1}ms`)
+          // Immediately update the post ranking and vote count with API data
+          const cachedPost = await updateCachedPost(postId)
+          // TODO: set up profile caching to add badges to profile avatars
+          /*
           const profileAvatar = element.querySelector(
             Selector.Twitter.Article.div.profileAvatar,
           )!
-          /*
           // get profile-specific data/elements
           const profileRanking = BigInt(profile.ranking)
           profileAvatar.classList.add(
@@ -528,22 +554,9 @@ class Mutator {
             avatar: profileAvatar as HTMLImageElement,
           })
           */
-          // Update vote counts for the upvote/downvote buttons
-          updatePostVoteButtonVoteCount(upvoteButton, votesPositive)
-          updatePostVoteButtonVoteCount(downvoteButton, votesNegative)
-          // Hide the post if below ranking
-          const postRanking = BigInt(ranking)
-          // add this post to the cache
-          postCache.set(postId, {
-            // Only cache the post article element, not its container
-            element,
-            ranking: postRanking,
-            votesPositive,
-            votesNegative,
-          })
-          const t1 = (performance.now() - t0).toFixed(3)
-          console.log(`processed adding post ${profileId}/${postId} to cache in ${t1}ms`)
-          checkPostRankingAndBlur(profileId, postId, postRanking)
+          if (canBlurPost(postId, cachedPost)) {
+            blurPost(element, profileId, postId, 'post reputation below threshold')
+          }
           break
         case 'notification':
           // process these elements specifically for profileId ranking
