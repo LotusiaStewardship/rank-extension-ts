@@ -3,16 +3,16 @@
   opacity: 0;
 }
 
-.blurred div * {
-  filter: blur(0.3rem);
-}
-
 .blurred {
-  filter: grayscale(100%);
   overflow: hidden !important;
-  /* background-color: black !important; */
   pointer-events: none !important;
-  opacity: 70%;
+  background-color: black !important;
+  opacity: 75%;
+  filter: blur(0.35rem);
+  & div:has(> img),
+  div[data-testid='videoPlayer'] {
+    filter: blur(1.15rem) grayscale(100%) !important;
+  }
 }
 
 .blurred-overlay {
@@ -27,14 +27,13 @@
   /*background-color: #6b0080;*/
   background-color: black !important;
   border-radius: 24px;
-  box-shadow: 0rem 0rem 0.75rem 0.125rem black !important;
+  box-shadow: 0rem 0rem 0.5rem 0.125rem #272a32 !important;
   border: 1px solid #9aa5c7;
   text-align: center;
   vertical-align: middle;
-}
-
-.blurred-overlay:hover {
-  cursor: pointer;
+  &:hover {
+    cursor: pointer;
+  }
 }
 
 .blurred-overlay-text {
