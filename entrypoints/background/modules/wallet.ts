@@ -131,6 +131,7 @@ class WalletManager {
   private ws!: WsEndpoint
   private scriptEndpoint!: ScriptEndpoint
   private wallet!: Wallet
+  private wsPingInterval!: NodeJS.Timeout
   public queue: EventQueue
 
   constructor() {
@@ -201,7 +202,11 @@ class WalletManager {
     this.ws = this.chronik.ws({
       onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.onWsMessage,
-      onError: e => console.error('chronik websocket error', e),
+      onError: e => async () => {
+        console.error('chronik websocket error', e)
+        await this.wsWaitForOpen()
+        console.warn('chronik websocket reconnected')
+      },
       onEnd: e => console.error('chronik websocket ended abruptly', e),
       onReconnect: e => console.warn('chronik websocket reconnected', e),
     })
@@ -212,10 +217,15 @@ class WalletManager {
     await this.fetchScriptUtxoSet()
     // subscribe for updates to primary wallet address (script)
     this.wsSubscribeP2PKH(this.scriptPayload)
+    // Set up WebSocket ping interval to keep background service-worker alive
+    this.wsPingInterval = setInterval(async () => {
+      await this.ws.connected
+    }, 7000)
   }
   /** Shutdown all active sockets and listeners */
   deinit = async () => {
     this.wsUnsubscribeP2PKH(this.scriptPayload)
+    clearInterval(this.wsPingInterval)
     this.ws.close()
   }
   /**
