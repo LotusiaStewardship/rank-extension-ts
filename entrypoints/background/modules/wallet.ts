@@ -132,7 +132,7 @@ class WalletManager {
   private wallet!: Wallet
   private wsPingInterval!: NodeJS.Timeout
   public queue: EventQueue
-
+  /** */
   constructor() {
     this.queue = {
       busy: false,
@@ -264,6 +264,10 @@ class WalletManager {
     }
     this.resolveQueuedEventProcessors()
   }
+  /**
+   *
+   * @returns
+   */
   private processQueue = async (): Promise<void> => {
     this.queue.busy = true
     try {
@@ -355,6 +359,7 @@ class WalletManager {
       console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
     }
   }
+  /** */
   private reconcileUtxos = async () => {
     const results = await this.chronik.validateUtxos(this.outpoints)
     const invalid: OutPoint[] = []
@@ -400,9 +405,19 @@ class WalletManager {
       // have bigger problems
     }
   }
+  /**
+   * Broadcast signed `txBuf` to Lotus network
+   * @param txBuf Signed transaction buffer
+   * @returns
+   */
   private broadcastTx = async (txBuf: Buffer) => {
     return await this.chronik.broadcastTx(txBuf)
   }
+  /**
+   *
+   * @param param0
+   * @returns
+   */
   private craftRankTx = ({
     platform,
     profileId,
