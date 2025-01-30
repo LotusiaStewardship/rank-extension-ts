@@ -13,7 +13,7 @@ interface WalletMessaging {
   }: {
     outAddress: string
     outValue: number
-  }) => void
+  }) => Promise<string | null>
   'content-script:submitRankVote': ({
     platform,
     profileId,
