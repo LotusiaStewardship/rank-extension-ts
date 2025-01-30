@@ -42,12 +42,11 @@ type RankTransactionParams = {
   postId?: string
   comment?: string
 }
-type EventCallback = (processorResult: any) => any
 type EventData = string | SendTransactionParams | RankTransactionParams | undefined
 /** Messaging events between popup and background service worker */
 type EventProcessor = (data: EventData) => Promise<void | string>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
-type PendingEventProcessor = [EventProcessor, EventData, EventCallback?]
+type PendingEventProcessor = [EventProcessor, EventData]
 /** Runtime queue to store `PendingEventProcessor` until they are called */
 type EventQueue = {
   busy: boolean
@@ -157,6 +156,19 @@ class WalletManager {
     this.wallet.utxos.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
     return outpoints
   }
+  /** Update `UtxoCache` to remove spent `OutPoint`s and update runtime balance */
+  set outpoints(spent: OutPoint[]) {
+    let balance = BigInt(this.wallet.balance)
+    spent.forEach(({ txid, outIdx }) => {
+      const utxo = this.wallet.utxos.get(txid)
+      if (utxo && utxo.outIdx == outIdx) {
+        console.log(`removing spent utxo ${txid}_${outIdx} from cache`)
+        balance -= BigInt(utxo.value)
+        this.wallet.utxos.delete(txid)
+      }
+    })
+    this.wallet.balance = balance.toString()
+  }
   /** Wallet state that gets saved to localStorage when changed */
   get mutableWalletState(): MutableWalletState {
     return {
@@ -260,11 +272,8 @@ class WalletManager {
         eventProcessor,
         `trying to execute a queued EventProcessor that doesn't exist`,
       )
-      const [EventProcessor, EventData, EventCallback] = eventProcessor
-      const result = await EventProcessor(EventData)
-      if (EventCallback) {
-        EventCallback(result)
-      }
+      const [EventProcessor, EventData] = eventProcessor
+      await EventProcessor(EventData)
     } catch (e) {
       console.error(e)
     } finally {
@@ -277,9 +286,9 @@ class WalletManager {
     this.queue.busy = false
   }
   /** Try to resolve the queued `EventProcessor`s if not already busy doing so */
-  resolveQueuedEventProcessors = async () => {
+  resolveQueuedEventProcessors = () => {
     if (!this.queue.busy) {
-      return await this.processQueue()
+      return this.processQueue()
     }
   }
   /**
@@ -314,13 +323,18 @@ class WalletManager {
     const { platform, profileId, sentiment, postId, comment } =
       data as RankTransactionParams
     try {
-      const { txid } = await this.broadcastTx(
-        this.craftRankTx(data as RankTransactionParams).toBuffer(),
-      )
-      await this.reconcileUtxos()
+      const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
+      // craft RANK tx and broadcast it
+      const { txid } = await this.broadcastTx(tx.toBuffer())
+      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+      this.outpoints = spent
+      // Return the txid
       return txid
     } catch (e) {
-      console.error(`failed to cast ${sentiment} vote for ${platform}/${profileId}`, e)
+      console.error(
+        `failed to cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
+        e,
+      )
     }
   }
   /**
@@ -330,12 +344,13 @@ class WalletManager {
   handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
     try {
-      const { txid } = await this.broadcastTx(
-        this.craftSendTx(outAddress, outValue).toBuffer(),
-      )
-      console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
-      // schedule utxo reconciliation immediately
-      await this.reconcileUtxos()
+      // craft send tx and broadcast it
+      const [tx, spent] = this.craftSendTx(outAddress, outValue)
+      const { txid } = await this.broadcastTx(tx.toBuffer())
+      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+      this.outpoints = spent
+      // Return the txid
+      return txid
     } catch (e) {
       console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
     }
@@ -400,12 +415,13 @@ class WalletManager {
     sentiment: ScriptChunkSentimentUTF8
     postId?: string
     comment?: string
-  }) => {
+  }): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)
     tx.change(this.wallet.address)
     // gather utxos until we have more than outValue
+    const spent: OutPoint[] = []
     for (const [txid, utxo] of this.wallet.utxos) {
       const { outIdx, value } = utxo
       tx.addInput(
@@ -419,6 +435,7 @@ class WalletManager {
           script: this.wallet.script,
         }),
       )
+      spent.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
       if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
         break
@@ -457,19 +474,23 @@ class WalletManager {
     const verified = tx.verify()
     switch (typeof verified) {
       case 'boolean':
-        return tx
+        return [tx, spent]
       case 'string':
         throw new Error(
           `craftRankTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
         )
     }
   }
-  private craftSendTx = (outAddress: string, outValue: number): Transaction => {
+  private craftSendTx = (
+    outAddress: string,
+    outValue: number,
+  ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)
     tx.change(this.wallet.address)
     // gather utxos until we have more than outValue
+    const spent: OutPoint[] = []
     for (const [txid, utxo] of this.wallet.utxos) {
       const { outIdx, value } = utxo
       tx.addInput(
@@ -483,6 +504,7 @@ class WalletManager {
           script: this.wallet.script,
         }),
       )
+      spent.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
       if (tx.inputAmount > outValue) {
         break
@@ -500,7 +522,7 @@ class WalletManager {
     const verified = tx.verify()
     switch (typeof verified) {
       case 'boolean':
-        return tx
+        return [tx, spent]
       case 'string':
         throw new Error(
           `craftSendTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,

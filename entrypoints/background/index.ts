@@ -36,6 +36,7 @@ export default defineBackground({
           await walletStore.saveWalletState(walletState)
           await initWalletManager(walletState)
           // Send the new wallet details to the popup UI
+          // TODO: Return the wallet state to popup UI directly without messaging API
           return await walletMessaging.sendMessage(
             'background:walletState',
             walletManager.uiWalletState,
@@ -45,6 +46,7 @@ export default defineBackground({
         }
       },
     )
+    /**  */
     walletMessaging.onMessage('popup:loadWalletState', async ({ sender }) => {
       try {
         validateWalletMessageSender(sender.id)
@@ -56,44 +58,25 @@ export default defineBackground({
         console.error(e)
       }
     })
-    walletMessaging.onMessage(
-      'popup:sendLotus',
-      async ({ sender, data: { outAddress, outValue } }) => {
-        try {
-          validateWalletMessageSender(sender.id)
-          walletManager.queue.pending.push([
-            walletManager.handlePopupSendLotus,
-            {
-              outAddress,
-              outValue,
-            },
-          ])
-          walletManager.resolveQueuedEventProcessors()
-        } catch (e) {
-          console.error(e)
-        }
-      },
-    )
+    /**  */
+    walletMessaging.onMessage('popup:sendLotus', async ({ sender, data }) => {
+      try {
+        validateWalletMessageSender(sender.id)
+        return (await walletManager.handlePopupSendLotus(data)) as string
+      } catch (e) {
+        console.error(`error during 'popup:sendLotus':`, e)
+      }
+      return null
+    })
+    /**  */
     walletMessaging.onMessage(
       'content-script:submitRankVote',
       async ({ sender, data }) => {
         try {
           validateWalletMessageSender(sender.id)
-          // Return the txid to the content script
-          let returnValue: string = ''
-          const callback = (txid: string) => (returnValue = txid)
-          walletManager.queue.pending.push([
-            walletManager.handlePopupSubmitRankVote,
-            data,
-            callback,
-          ])
-          // TODO: this may prove to be very hacky.. may need to work in a different solution
-          // Wait for queue to be fully resolved
-          await walletManager.resolveQueuedEventProcessors()
-          // Our callback has been executed; return the value we were waiting for
-          return returnValue
-        } catch (e) {
-          console.error(e)
+          return (await walletManager.handlePopupSubmitRankVote(data)) as string
+        } catch (e: any) {
+          console.error(`error during 'content-script:submitRankVote':`, e)
         }
         return null
       },
