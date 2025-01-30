@@ -290,7 +290,7 @@ class WalletManager {
     this.queue.busy = false
   }
   /** Try to resolve the queued `EventProcessor`s if not already busy doing so */
-  resolveQueuedEventProcessors = () => {
+  private resolveQueuedEventProcessors = () => {
     if (!this.queue.busy) {
       return this.processQueue()
     }
@@ -299,7 +299,7 @@ class WalletManager {
    *
    * @param data
    */
-  handleWsAddedToMempool: EventProcessor = async (data: EventData) => {
+  private handleWsAddedToMempool: EventProcessor = async (data: EventData) => {
     const txid = data as string
     const tx = await this.chronik.tx(txid)
     for (let i = 0; i < tx.outputs.length; i++) {
@@ -381,13 +381,14 @@ class WalletManager {
     invalid.forEach(outpoint => this.wallet.utxos.delete(outpoint.txid))
     this.wallet.balance = (BigInt(this.wallet.balance) - spentBalance).toString()
   }
-  wsWaitForOpen = async () => {
+  private wsWaitForOpen = async () => {
     await this.ws.waitForOpen()
   }
-  wsSubscribeP2PKH = (scriptPayload: string) => this.ws.subscribe('p2pkh', scriptPayload)
-  wsUnsubscribeP2PKH = (scriptPayload: string) =>
+  private wsSubscribeP2PKH = (scriptPayload: string) =>
+    this.ws.subscribe('p2pkh', scriptPayload)
+  private wsUnsubscribeP2PKH = (scriptPayload: string) =>
     this.ws.unsubscribe('p2pkh', scriptPayload)
-  fetchScriptUtxoSet = async () => {
+  private fetchScriptUtxoSet = async () => {
     try {
       const [{ utxos }] = await this.scriptEndpoint.utxos()
       let balance = 0n
