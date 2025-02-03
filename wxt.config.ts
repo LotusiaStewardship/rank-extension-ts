@@ -14,8 +14,12 @@ export default defineConfig({
   },
   manifestVersion: 3,
   manifest: {
+    name: 'Lotus Voting System',
+    description:
+      'Add a voting system to social media platforms to establish social reputation of online profiles',
+    version: '0.1.1',
+    version_name: '0.1.1-alpha',
     host_permissions: ['*://rank.lotusia.org/api/v1/*', '*://chronik.lotusia.org/*'],
-    description: 'Burn Lotus to uprank and downrank social media influencers and content',
     permissions: ['storage', 'notifications'],
   },
   vite: () => ({
