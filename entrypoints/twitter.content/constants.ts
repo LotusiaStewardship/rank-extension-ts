@@ -1,5 +1,5 @@
-import votePositiveArrow from './assets/vote-arrow.svg'
-import voteNegativeArrow from './assets/vote-down-arrow.svg'
+import votePositiveArrow from './assets/upvote-arrow-24x24.svg'
+import voteNegativeArrow from './assets/downvote-arrow-24x24.svg'
 
 export const ROOT_URL = 'https://x.com'
 export const VOTE_POSITIVE_ARROW_SVG = votePositiveArrow

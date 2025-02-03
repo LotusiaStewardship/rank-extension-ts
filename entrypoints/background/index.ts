@@ -1,18 +1,28 @@
-import { WalletManager, WalletBuilder } from '@/entrypoints/background/modules/wallet'
+import {
+  WalletManager,
+  WalletBuilder,
+} from '@/entrypoints/background/modules/wallet'
 import { WalletState, walletStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import assert from 'assert'
-
-let walletManager = new WalletManager()
-
+/** Instantiated `WalletManager` used during background service-worker runtime */
+const walletManager = new WalletManager()
+/**
+ * Initialize the `WalletManager` with provided `WalletState`, or load existing `WalletState` from local storage
+ * @param walletState If this is set, it is the `WalletState` returned by `WalletBuilder.buildWalletState`
+ */
 const initWalletManager = async (walletState?: WalletState) => {
   walletState ||= (await walletStore.loadWalletState()) as WalletState
   // Parse new or existing wallet state into usable wallet objects
   await walletManager.init(walletState)
   console.log('initialized wallet manager')
 }
-
-const validateWalletMessageSender = (senderId?: string) => {
+/**
+ * Validate if this extension requests background service-worker action
+ * @param senderId The ID of the message sender, usually extension ID
+ * @returns {boolean} `true` if the message sender is valid, `false` otherwise
+ */
+export const validateWalletMessageSender = (senderId?: string): boolean => {
   assert(senderId, 'there is no sender ID to validate, will not proceed')
   assert(
     senderId === browser.runtime.id,
@@ -25,6 +35,7 @@ export default defineBackground({
   persistent: true,
   type: 'module',
   main: () => {
+    /**  */
     walletMessaging.onMessage(
       'popup:seedPhrase',
       async ({ sender, data: seedPhrase }) => {
@@ -63,10 +74,10 @@ export default defineBackground({
       try {
         validateWalletMessageSender(sender.id)
         return (await walletManager.handlePopupSendLotus(data)) as string
-      } catch (e) {
-        console.error(`error during 'popup:sendLotus':`, e)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
+        throw new Error(`error during 'popup:sendLotus': ${e.message}`)
       }
-      return null
     })
     /**  */
     walletMessaging.onMessage(
@@ -75,16 +86,23 @@ export default defineBackground({
         try {
           validateWalletMessageSender(sender.id)
           return (await walletManager.handlePopupSubmitRankVote(data)) as string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
-          console.error(`error during 'content-script:submitRankVote':`, e)
+          throw new Error(
+            `error during 'content-script:submitRankVote': ${e.message}`,
+          )
         }
-        return null
       },
     )
     /**  */
     walletMessaging.onMessage('popup:loadSeedPhrase', async ({ sender }) => {
-      validateWalletMessageSender(sender.id)
-      return walletManager.seedPhrase
+      try {
+        validateWalletMessageSender(sender.id)
+        return walletManager.seedPhrase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
+        throw new Error(`error during 'popup:loadSeedPhrase': ${e.message}`)
+      }
     })
     // Load wallet state, or open popup ui to generate seed for new wallet state
     initWalletManager().catch(() => browser.action.openPopup())

@@ -11,7 +11,12 @@ export namespace Parser {
       public static postTextFromElement = (postTextElement: Cheerio<Element>) =>
         postTextElement.children('span').first().text()
       public static profileIdFromElement = (userNameLinkElement: Cheerio<Element>) =>
-        userNameLinkElement.attr('href')?.split('/')?.pop()?.toLowerCase()!
+        userNameLinkElement.attr('href')?.split('/')?.pop()?.toLowerCase()
+      public static profileIdFromAvatar = (avatarElement: Cheerio<Element>) =>
+        avatarElement.attr('data-testid')!.split('-').pop()!.toLowerCase()
+      public static quoteProfileIdFromElement = (
+        quoteUserNameDiv: Cheerio<Element>,
+      ) => quoteUserNameDiv.find('span:contains("@")').text().slice(1).toLowerCase()
       public static postIdFromElement = (postIdElement: Cheerio<Element>) => {
         const uriArray = postIdElement.attr('href')!.split('/')
         const statusUriIndex = uriArray.findIndex(uri => uri == 'status')

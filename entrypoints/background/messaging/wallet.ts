@@ -13,7 +13,7 @@ interface WalletMessaging {
   }: {
     outAddress: string
     outValue: number
-  }) => Promise<string | null>
+  }) => Promise<string | void>
   'content-script:submitRankVote': ({
     platform,
     profileId,
@@ -26,7 +26,7 @@ interface WalletMessaging {
     sentiment: ScriptChunkSentimentUTF8
     postId?: string
     comment?: string
-  }) => Promise<string | null>
+  }) => Promise<string | void>
 }
 
 const walletMessaging = defineExtensionMessaging<WalletMessaging>()

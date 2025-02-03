@@ -22,13 +22,15 @@ export namespace Selector {
         tweetComplete = 'data-testid="tweet-text-show-more-link"',
         tweetText = 'data-testid="tweetText"',
         tweetUserName = 'data-testid="User-Name"',
-        profileAvatar = 'data-testid="Tweet-User-Avatar"',
+        profileAvatar = 'data-testid^="UserAvatar-Container"',
+        profileUserName = 'data-testid="UserName',
         tweetId = 'href*="/status/"',
         tweetLikeButton = 'data-testid="like"',
         tweetUnlikeButton = 'data-testid="unlike"',
         votePositiveButton = 'data-testid="upvote"',
         voteNegativeButton = 'data-testid="downvote"',
         grokActions = 'aria-label="Grok actions"',
+        roleLink = 'role="link"',
       }
       export enum div {
         innerDiv = `div[${attr.innerDiv}]`,
@@ -37,7 +39,10 @@ export namespace Selector {
         ad = `${div.tweet} div[dir="ltr"]:first-child span:contains("Ad")`,
         tweetText = `${div.tweet} div[${attr.tweetText}]`,
         tweetUserName = `${div.tweet} div[${attr.tweetUserName}]`,
-        profileAvatar = `${div.tweet} div[${attr.profileAvatar}]`,
+        profileAvatar = `div[${attr.profileAvatar}]`,
+        quoteTweet = `${div.tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
+        quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,
+        quoteTweetProfileAvatar = `${div.quoteTweet} div[${attr.profileAvatar}]`,
       }
       export enum a {
         tweetId = `${div.tweet} a[${attr.tweetId}]`,
@@ -53,8 +58,13 @@ export namespace Selector {
         // so we cannot use the div.tweet selector as an ancesotor
         grokActions = `button[${attr.grokActions}]`,
       }
+      /*
       export enum img {
         profileAvatar = `${div.profileAvatar}:has(img[alt])`,
+      }
+      */
+      export enum span {
+        quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,
       }
     }
   }
