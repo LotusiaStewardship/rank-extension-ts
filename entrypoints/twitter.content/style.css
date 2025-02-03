@@ -16,10 +16,10 @@
 }
 
 .blurred-overlay {
-  width: 80%;
+  width: 90%;
   height: auto;
   position: absolute;
-  left: 10%;
+  left: 5%;
   top: 30%;
   margin-left: 0% !important;
   margin-top: 0% !important;
@@ -27,7 +27,7 @@
   /*background-color: #6b0080;*/
   background-color: black !important;
   border-radius: 24px;
-  box-shadow: 0rem 0rem 0.5rem 0.125rem #272a32 !important;
+  box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20 !important;
   border: 1px solid #9aa5c7;
   text-align: center;
   vertical-align: middle;
@@ -40,42 +40,102 @@
   font-weight: 400;
   font-size: 15px;
   color: #9aa5c7;
-  font-family: TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Open Sans', 'Helvetica Neue', sans-serif !important;
+  font-family: TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+    Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
 }
 
-.profile-neutral-reputation {
+.post-avatar-neutral-reputation {
   position: relative;
   &::after {
-    background: #9aa5c7;
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.5em;
+    width: 0.5em;
+    background: #b8c1db;
+    /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid black;
     content: '';
-    display: block;
     position: absolute;
   }
 }
 
-.profile-positive-reputation {
+.post-avatar-positive-reputation {
   position: relative;
   &::after {
-    background: green;
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.5em;
+    width: 0.5em;
+    background: rgb(79, 234, 79);
+    /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid black;
     content: '';
-    display: block;
     position: absolute;
   }
 }
 
-.profile-negative-reputation {
-  position: relative !important;
+.post-avatar-negative-reputation {
+  position: relative;
   &::after {
-    background: red;
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.5em;
+    width: 0.5em;
+    background: rgb(255, 69, 69);
+    /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid black;
     content: '';
-    display: block;
+    position: absolute;
+  }
+}
+
+.profile-avatar-neutral-reputation {
+  position: relative;
+  &::after {
+    left: -0.16rem;
+    top: -0.08rem;
+    height: 0.8em;
+    width: 0.8em;
+    background: #b8c1db;
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 1px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.profile-avatar-positive-reputation {
+  position: relative;
+  &::after {
+    left: -0.16rem;
+    top: -0.08rem;
+    height: 0.8em;
+    width: 0.8em;
+    background: rgb(79, 234, 79);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 1px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.profile-avatar-negative-reputation {
+  position: relative;
+  &::after {
+    left: -0.16rem;
+    top: -0.08rem;
+    height: 0.8em;
+    width: 0.8em;
+    background: rgb(255, 69, 69);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 1px solid black;
+    content: '';
     position: absolute;
   }
 }
