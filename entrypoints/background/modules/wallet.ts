@@ -1,7 +1,12 @@
-// @ts-ignore
+// @ts-expect-error package has no types
 import Mnemonic from '@abcpros/bitcore-mnemonic'
 import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
-import { toPlatformBuf, toProfileIdBuf, toPostIdBuf, toSentimentOpCode } from 'rank-lib'
+import {
+  toPlatformBuf,
+  toProfileIdBuf,
+  toPostIdBuf,
+  toSentimentOpCode,
+} from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -67,21 +72,10 @@ type Wallet = {
   utxos: UtxoCache
   balance: string
 }
-
-interface WalletBuilder {
-  buildWalletState: (seedPhrase: string) => WalletState
-  newMnemonic: () => Mnemonic
-  mnemonicFromSeedPhrase: (seedPhrase: string) => Mnemonic
-  mnemonicFromSeed: (seed: Buffer) => Mnemonic
-  hdPrivkeyFromMnemonic: (mnemonic: Mnemonic) => HDPrivateKey
-  deriveSigningKey: (hdPrivkey: HDPrivateKey) => PrivateKey
-  scriptFromAddress: (address: string | Address) => Script
-  scriptFromString: (script: string) => Script
-}
 /**
  *
  */
-class WalletBuilder implements WalletBuilder {
+class WalletBuilder {
   static buildWalletState = (seedPhrase: string): WalletState => {
     const mnemonic = new Mnemonic(seedPhrase)
     const hdPrivkey = this.hdPrivkeyFromMnemonic(mnemonic)
@@ -209,30 +203,43 @@ class WalletManager {
       utxos: deserialize(walletState.utxos),
       balance: walletState.balance,
     }
-    // initialize Chronik API and websocket
+    // initialize Chronik API, scriptEndpoint, and WebSocket
     this.chronik = new ChronikClient(WALLET_CHRONIK_URL)
-    this.ws = this.chronik.ws({
-      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
-      onMessage: this.onWsMessage,
-      onError: e => async () => {
-        console.error('chronik websocket error', e)
-        await this.wsWaitForOpen()
-        console.warn('chronik websocket reconnected')
-      },
-      onEnd: e => console.error('chronik websocket ended abruptly', e),
-      onReconnect: e => console.warn('chronik websocket reconnected', e),
-    })
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
-    // wait for websocket connection established
-    await this.wsWaitForOpen()
-    // fetch existing utxo set to bootstrap wallet
-    await this.fetchScriptUtxoSet()
-    // subscribe for updates to primary wallet address (script)
-    this.wsSubscribeP2PKH(this.scriptPayload)
+    this.ws = this.chronik.ws({
+      autoReconnect: false,
+      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
+      onMessage: this.handleWsMessage,
+      onError: async e => {
+        console.error('chronik websocket error', e)
+        await this.handleWsDisconnect()
+      },
+      onEnd: async e => {
+        console.error('chronik websocket ended abruptly', e)
+        await this.handleWsDisconnect()
+      },
+      onReconnect: async e => {
+        console.warn('chronik websocket reconnected', e)
+        await this.hydrateUtxos()
+      },
+    })
+    // hydrate UTXO set and save updated wallet state
+    await this.hydrateUtxos()
+    // await WebSocket online state and set up subscription for wallet script
+    await this.chronikWsSetup()
     // Set up WebSocket ping interval to keep background service-worker alive
     this.wsPingInterval = setInterval(async () => {
-      await this.ws.connected
-    }, 7000)
+      const connected = await this.ws.connected
+      // check to make sure Chronik WebSocket is connected
+      if (connected?.target && connected.target.readyState === WebSocket.CLOSED) {
+        await this.wsWaitForOpen()
+        console.warn('chronik websocket reconnected after state "CLOSED"')
+      }
+      // Always rehydrate UTXO set
+      // this isn't necessary for keeping background service-worker alive,
+      // but is helpful on mobile when WebSocket silently disconnects
+      await this.hydrateUtxos()
+    }, 5000)
   }
   /** Shutdown all active sockets and listeners */
   deinit = async () => {
@@ -241,11 +248,29 @@ class WalletManager {
     this.ws.close()
   }
   /**
+   * Hydrate wallet with UTXOs, invalidating spent or otherwise invalid UTXOs
+   * @param setupChronik
+   */
+  private hydrateUtxos = async () => {
+    // revalidate and fetch UTXO set, in case of invalid/unreconciled UTXOs
+    await this.validateUtxos()
+    await this.fetchScriptUtxoSet()
+    // Save mutable wallet state
+    await walletStore.saveMutableWalletState(this.mutableWalletState)
+  }
+  /** Open WebSocket connection and subscribe to `scriptPayload` endpoint */
+  private chronikWsSetup = async () => {
+    // wait for websocket connection established
+    await this.wsWaitForOpen()
+    // subscribe for updates to primary wallet address (script)
+    this.wsSubscribeP2PKH(this.scriptPayload)
+  }
+  /**
    *
    * @param msg
    * @returns
    */
-  private onWsMessage = (msg: SubscribeMsg) => {
+  private handleWsMessage = (msg: SubscribeMsg) => {
     switch (msg.type) {
       case 'AddedToMempool':
         this.queue.pending.push([this.handleWsAddedToMempool, msg.txid])
@@ -262,13 +287,16 @@ class WalletManager {
         // always return when no handler to push to queue
         return
     }
-    this.resolveQueuedEventProcessors()
+    // Try to resolve the queued `EventProcessor`s if not already busy doing so
+    if (!this.queue.busy) {
+      return this.processEventQueue()
+    }
   }
   /**
    *
    * @returns
    */
-  private processQueue = async (): Promise<void> => {
+  private processEventQueue = async (): Promise<void> => {
     this.queue.busy = true
     try {
       const eventProcessor = this.queue.pending.shift()
@@ -282,18 +310,92 @@ class WalletManager {
       console.error(e)
     } finally {
       if (this.queue.pending.length > 0) {
-        return this.processQueue()
+        // eslint-disable-next-line no-unsafe-finally
+        return this.processEventQueue()
       }
     }
     // save updated wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
     this.queue.busy = false
   }
-  /** Try to resolve the queued `EventProcessor`s if not already busy doing so */
-  private resolveQueuedEventProcessors = () => {
-    if (!this.queue.busy) {
-      return this.processQueue()
+  /**
+   *
+   * @param event
+   * @param data
+   */
+  /*
+  pushMessageEventToQueue = async (
+    event: keyof WalletMessaging,
+    data: EventData,
+  ) => {
+    switch (event) {
+      case 'content-script:submitRankVote': {
+        this.queue.pending.push([this.handlePopupSubmitRankVote, data])
+        break
+      }
+      case 'popup:sendLotus': {
+        this.queue.pending.push([this.handlePopupSendLotus, data])
+        break
+      }
     }
+    // Try to resolve the queued `EventProcessor`s if not already busy doing so
+    if (!this.queue.busy) {
+      return this.processEventQueue()
+    }
+  }
+  */
+  /**
+   *
+   * @param data
+   * @returns
+   */
+  handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
+    const { platform, profileId, sentiment, postId, comment } =
+      data as RankTransactionParams
+    try {
+      // validate `UtxoCache` first
+      //await this.validateUtxos()
+      const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
+      // craft RANK tx and broadcast it
+      const { txid } = await this.broadcastTx(tx.toBuffer())
+      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+      this.outpoints = spent
+      // Return the txid
+      return txid
+    } catch (e) {
+      return void console.error(
+        `failed to cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
+        e,
+      )
+    }
+  }
+  /**
+   *
+   * @param data
+   */
+  handlePopupSendLotus: EventProcessor = async (data: EventData) => {
+    const { outAddress, outValue } = data as SendTransactionParams
+    try {
+      // validate `UtxoCache` first
+      //await this.validateUtxos()
+      // craft send tx and broadcast it
+      const [tx, spent] = this.craftSendTx(outAddress, outValue)
+      const { txid } = await this.broadcastTx(tx.toBuffer())
+      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+      this.outpoints = spent
+      // Return the txid
+      return txid
+    } catch (e) {
+      return void console.error(
+        `failed to send ${outValue} sats to ${outAddress}`,
+        e,
+      )
+    }
+  }
+  /**  */
+  private handleWsDisconnect = async () => {
+    await this.hydrateUtxos()
+    await this.chronikWsSetup()
   }
   /**
    *
@@ -318,52 +420,10 @@ class WalletManager {
       }
     }
   }
-  /**
-   *
-   * @param data
-   * @returns
-   */
-  handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
-    const { platform, profileId, sentiment, postId, comment } =
-      data as RankTransactionParams
-    try {
-      const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
-      // craft RANK tx and broadcast it
-      const { txid } = await this.broadcastTx(tx.toBuffer())
-      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
-      this.outpoints = spent
-      // Return the txid
-      return txid
-    } catch (e) {
-      console.error(
-        `failed to cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
-        e,
-      )
-    }
-  }
-  /**
-   *
-   * @param data
-   */
-  handlePopupSendLotus: EventProcessor = async (data: EventData) => {
-    const { outAddress, outValue } = data as SendTransactionParams
-    try {
-      // craft send tx and broadcast it
-      const [tx, spent] = this.craftSendTx(outAddress, outValue)
-      const { txid } = await this.broadcastTx(tx.toBuffer())
-      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
-      this.outpoints = spent
-      // Return the txid
-      return txid
-    } catch (e) {
-      console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
-    }
-  }
   /** */
-  private reconcileUtxos = async () => {
+  private validateUtxos = async () => {
     const results = await this.chronik.validateUtxos(this.outpoints)
     const invalid: OutPoint[] = []
-    let spentBalance = 0n
     for (let i = 0; i < results.length; i++) {
       const { txid, outIdx } = this.outpoints[i]
       const { state } = results[i]
@@ -372,22 +432,19 @@ class WalletManager {
         case 'NO_SUCH_TX':
         case 'SPENT':
           console.log(
-            `reconcileUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
+            `validateUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
           )
           invalid.push({ txid, outIdx })
-          spentBalance += BigInt(this.wallet.utxos.get(txid)!.value)
+        //spentBalance += BigInt(this.wallet.utxos.get(txid)!.value)
       }
     }
-    invalid.forEach(outpoint => this.wallet.utxos.delete(outpoint.txid))
-    this.wallet.balance = (BigInt(this.wallet.balance) - spentBalance).toString()
+    // Use the outpoints setter to remove invalid UTXOs from `UtxoCache`
+    if (invalid.length > 0) {
+      this.outpoints = invalid
+    }
+    //invalid.forEach(outpoint => this.wallet.utxos.delete(outpoint.txid))
+    //this.wallet.balance = (BigInt(this.wallet.balance) - spentBalance).toString()
   }
-  private wsWaitForOpen = async () => {
-    await this.ws.waitForOpen()
-  }
-  private wsSubscribeP2PKH = (scriptPayload: string) =>
-    this.ws.subscribe('p2pkh', scriptPayload)
-  private wsUnsubscribeP2PKH = (scriptPayload: string) =>
-    this.ws.unsubscribe('p2pkh', scriptPayload)
   private fetchScriptUtxoSet = async () => {
     try {
       const [{ utxos }] = await this.scriptEndpoint.utxos()
@@ -397,15 +454,21 @@ class WalletManager {
         balance += BigInt(value)
         this.wallet.utxos.set(txid, { outIdx, value })
       })
+      // Set the wallet balance
       this.wallet.balance = balance.toString()
-      // save updated wallet state
-      await walletStore.saveMutableWalletState(this.mutableWalletState)
     } catch (e) {
+      console.error('fetchScriptUtxoSet', e)
       // no need for special error handling here
-      // if we fail to get the utxos for the wallet script, we likely
-      // have bigger problems
+      // we have bigger problems if we get here
     }
   }
+  private wsWaitForOpen = async () => {
+    await this.ws.waitForOpen()
+  }
+  private wsSubscribeP2PKH = (scriptPayload: string) =>
+    this.ws.subscribe('p2pkh', scriptPayload)
+  private wsUnsubscribeP2PKH = (scriptPayload: string) =>
+    this.ws.unsubscribe('p2pkh', scriptPayload)
   /**
    * Broadcast signed `txBuf` to Lotus network
    * @param txBuf Signed transaction buffer
