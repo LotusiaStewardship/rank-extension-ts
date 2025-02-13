@@ -43,7 +43,11 @@
   font-family: TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu,
     Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
 }
-
+/**
+ *
+ * Post avatars
+ *
+ */
 .post-avatar-neutral-reputation {
   position: relative;
   &::after {
@@ -91,18 +95,74 @@
     position: absolute;
   }
 }
-
-.profile-avatar-neutral-reputation {
+/**
+ *
+ * Post popup avatars
+ *
+ */
+.post-popup-avatar-neutral-reputation {
   position: relative;
   &::after {
-    left: -0.16rem;
+    left: -0.15rem;
     top: -0.08rem;
     height: 0.8em;
     width: 0.8em;
     background: #b8c1db;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid black;
+    border: 2px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.post-popup-avatar-positive-reputation {
+  position: relative;
+  &::after {
+    left: -0.15rem;
+    top: -0.08rem;
+    height: 0.8em;
+    width: 0.8em;
+    background: rgb(79, 234, 79);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 2px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.post-popup-avatar-negative-reputation {
+  position: relative;
+  &::after {
+    left: -0.15rem;
+    top: -0.08rem;
+    height: 0.8em;
+    width: 0.8em;
+    background: rgb(255, 69, 69);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 2px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+/**
+ *
+ * Profile avatars
+ *
+ */
+.profile-avatar-neutral-reputation {
+  position: relative;
+  &::after {
+    left: 4%;
+    top: 2%;
+    height: 15%;
+    width: 15%;
+    background: #b8c1db;
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 0.15em solid black;
     content: '';
     position: absolute;
   }
@@ -111,14 +171,14 @@
 .profile-avatar-positive-reputation {
   position: relative;
   &::after {
-    left: -0.16rem;
-    top: -0.08rem;
-    height: 0.8em;
-    width: 0.8em;
+    left: 4%;
+    top: 2%;
+    height: 15%;
+    width: 15%;
     background: rgb(79, 234, 79);
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid black;
+    border: 0.15em solid black;
     content: '';
     position: absolute;
   }
@@ -127,14 +187,66 @@
 .profile-avatar-negative-reputation {
   position: relative;
   &::after {
-    left: -0.16rem;
-    top: -0.08rem;
-    height: 0.8em;
-    width: 0.8em;
+    left: 4%;
+    top: 2%;
+    height: 15%;
+    width: 15%;
     background: rgb(255, 69, 69);
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 1px solid black;
+    border: 0.15em solid black;
+    content: '';
+    position: absolute;
+  }
+}
+/**
+ *
+ * Notification avatars
+ *
+ */
+.notification-avatar-neutral-reputation {
+  position: relative;
+  &::after {
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.4em;
+    width: 0.4em;
+    background: #b8c1db;
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 0.5px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.notification-avatar-positive-reputation {
+  position: relative;
+  &::after {
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.4em;
+    width: 0.4em;
+    background: rgb(79, 234, 79);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 0.5px solid black;
+    content: '';
+    position: absolute;
+  }
+}
+
+.notification-avatar-negative-reputation {
+  position: relative;
+  &::after {
+    left: -0.08rem;
+    top: -0.04rem;
+    height: 0.4em;
+    width: 0.4em;
+    background: rgb(255, 69, 69);
+    /* background-size: 0.4rem 0.4rem; */
+    border-radius: 50%;
+    border: 0.5px solid black;
     content: '';
     position: absolute;
   }
