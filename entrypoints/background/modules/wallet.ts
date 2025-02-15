@@ -1,12 +1,7 @@
 // @ts-expect-error package has no types
 import Mnemonic from '@abcpros/bitcore-mnemonic'
 import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
-import {
-  toPlatformBuf,
-  toProfileIdBuf,
-  toPostIdBuf,
-  toSentimentOpCode,
-} from 'rank-lib'
+import { toPlatformBuf, toProfileIdBuf, toPostIdBuf, toSentimentOpCode } from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -396,10 +391,7 @@ class WalletManager {
       // Return the txid
       return txid
     } catch (e) {
-      return void console.error(
-        `failed to send ${outValue} sats to ${outAddress}`,
-        e,
-      )
+      return void console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
     }
   }
   /**  */
