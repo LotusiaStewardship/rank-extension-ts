@@ -225,6 +225,8 @@ class WalletManager {
     })
     // hydrate UTXO set and save updated wallet state
     await this.hydrateUtxos()
+    // Save mutable wallet state
+    await walletStore.saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
     await this.chronikWsSetup()
     // Set up WebSocket ping interval to keep background service-worker alive
@@ -238,7 +240,11 @@ class WalletManager {
       // Always rehydrate UTXO set
       // this isn't necessary for keeping background service-worker alive,
       // but is helpful on mobile when WebSocket silently disconnects
-      await this.hydrateUtxos()
+      this.queue.pending.push([this.hydrateUtxos, undefined])
+      // Try to resolve the queued `EventProcessor`s if not already busy doing so
+      if (!this.queue.busy) {
+        return this.processEventQueue()
+      }
     }, 5000)
   }
   /** Shutdown all active sockets and listeners */
@@ -255,8 +261,6 @@ class WalletManager {
     // revalidate and fetch UTXO set, in case of invalid/unreconciled UTXOs
     await this.validateUtxos()
     await this.fetchScriptUtxoSet()
-    // Save mutable wallet state
-    await walletStore.saveMutableWalletState(this.mutableWalletState)
   }
   /** Open WebSocket connection and subscribe to `scriptPayload` endpoint */
   private chronikWsSetup = async () => {
@@ -314,8 +318,9 @@ class WalletManager {
         return this.processEventQueue()
       }
     }
-    // save updated wallet state
+    // Save mutable wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
+    // queue is no longer busy
     this.queue.busy = false
   }
   /**
@@ -358,6 +363,10 @@ class WalletManager {
       const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
       // craft RANK tx and broadcast it
       const { txid } = await this.broadcastTx(tx.toBuffer())
+      console.log(
+        `successfully cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
+        txid,
+      )
       // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
       this.outpoints = spent
       // Return the txid
@@ -381,6 +390,7 @@ class WalletManager {
       // craft send tx and broadcast it
       const [tx, spent] = this.craftSendTx(outAddress, outValue)
       const { txid } = await this.broadcastTx(tx.toBuffer())
+      console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
       // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
       this.outpoints = spent
       // Return the txid
@@ -425,25 +435,24 @@ class WalletManager {
     const results = await this.chronik.validateUtxos(this.outpoints)
     const invalid: OutPoint[] = []
     for (let i = 0; i < results.length; i++) {
-      const { txid, outIdx } = this.outpoints[i]
+      const outpoint = this.outpoints[i]
+      if (!outpoint) {
+        continue
+      }
+      const { txid, outIdx } = outpoint
       const { state } = results[i]
       switch (state) {
         case 'NO_SUCH_OUTPUT':
         case 'NO_SUCH_TX':
         case 'SPENT':
-          console.log(
-            `validateUtxos: removing utxo "${txid}_${outIdx}" from cache due to state "${state}"`,
-          )
+          console.log(`validateUtxos: utxo "${txid}_${outIdx}" is "${state}"`)
           invalid.push({ txid, outIdx })
-        //spentBalance += BigInt(this.wallet.utxos.get(txid)!.value)
       }
     }
     // Use the outpoints setter to remove invalid UTXOs from `UtxoCache`
     if (invalid.length > 0) {
       this.outpoints = invalid
     }
-    //invalid.forEach(outpoint => this.wallet.utxos.delete(outpoint.txid))
-    //this.wallet.balance = (BigInt(this.wallet.balance) - spentBalance).toString()
   }
   private fetchScriptUtxoSet = async () => {
     try {
@@ -529,8 +538,8 @@ class WalletManager {
     rankScript.add(toSentimentOpCode(sentiment))
     // Add platform byte
     rankScript.add(toPlatformBuf(platform))
-    // Add profielId bytes
-    rankScript.add(toProfileIdBuf(platform, profileId))
+    // Add LOWERCASE profielId bytes
+    rankScript.add(toProfileIdBuf(platform, profileId.toLowerCase()))
     // Add postId bytes if applicable
     if (postId) {
       rankScript.add(toPostIdBuf(platform, postId))
