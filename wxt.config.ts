@@ -16,9 +16,9 @@ export default defineConfig({
   manifest: {
     name: 'Lotus Voting System',
     description:
-      'Add a voting system to social media platforms to establish social reputation of online profiles',
-    version: '0.1.1',
-    version_name: '0.1.1-alpha',
+      'A decentralized, community-moderated reputation system for social media, powered by Lotus',
+    version: '0.2.0',
+    version_name: '0.2.0-alpha',
     host_permissions: ['*://rank.lotusia.org/api/v1/*', '*://chronik.lotusia.org/*'],
     permissions: ['storage', 'notifications'],
   },
@@ -27,7 +27,7 @@ export default defineConfig({
       commonjsOptions: {
         strictRequires: true,
         //ignoreDynamicRequires: true,
-        //transformMixedEsModules: false,
+        transformMixedEsModules: true,
       },
     },
     plugins: [
