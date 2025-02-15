@@ -19,6 +19,7 @@ export namespace Selector {
         innerDiv = 'cellInnerDiv',
         notification = 'notification',
         tweet = 'tweet',
+        directMessage = 'conversation',
         tweetComplete = 'tweet-text-show-more-link',
         tweetText = 'tweetText',
         tweetUserName = 'User-Name',
@@ -34,12 +35,14 @@ export namespace Selector {
         votePositiveButton = 'upvote',
         voteNegativeButton = 'downvote',
         grokActions = 'Grok actions',
+        grokProfileSummary = 'Profile Summary',
         roleLink = 'link',
       }
       export enum attr {
         innerDiv = `data-testid="${value.innerDiv}"`,
         notification = `data-testid="${value.notification}"`,
         tweet = `data-testid="${value.tweet}"`,
+        directMessage = `data-testid="${value.directMessage}"`,
         tweetComplete = `data-testid="${value.tweetComplete}"`,
         tweetText = `data-testid="${value.tweetText}"`,
         tweetUserName = `data-testid="${value.tweetUserName}"`,
@@ -57,18 +60,29 @@ export namespace Selector {
         grokActions = `aria-label="${value.grokActions}"`,
         roleLink = `role="${value.roleLink}"`,
       }
+      export enum button {
+        tweetLikeButton = `button[${attr.tweetLikeButton}]`,
+        tweetUnlikeButton = `button[${attr.tweetUnlikeButton}]`,
+        postUpvoteButton = `button[${attr.votePositiveButton}]`,
+        postDownvoteButton = `button[${attr.voteNegativeButton}]`,
+        // this button does not get loaded with post, but is added afterwards
+        // so we cannot use the tweet selector as an ancesotor
+        grokActions = `button[${attr.grokActions}]`,
+      }
       export enum div {
         innerDiv = `div[${attr.innerDiv}]`,
-        tweet = `div[${attr.innerDiv}]:has(article[${attr.tweet}])`,
-        directMessage = `div[${attr.innerDiv}]:has(div[data-testid="conversation"])`,
-        notification = `div[${attr.innerDiv}]:has(article[${attr.notification}])`,
-        ad = `${div.tweet} div[dir="ltr"]:first-child span:contains("Ad")`,
-        tweetText = `${div.tweet} div[${attr.tweetText}]`,
-        tweetUserName = `${div.tweet} div[${attr.tweetUserName}]`,
+        tweet = `article[${attr.tweet}]`,
+        notification = `article[${attr.notification}]`,
+        directMessage = `div[${attr.directMessage}]`,
+        ad = `${tweet} div[dir="ltr"]:first-child span:contains("Ad")`,
+        buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton})`,
+        tweetText = `${tweet} div[${attr.tweetText}]`,
+        tweetUserName = `${tweet} div[${attr.tweetUserName}]`,
         profileAvatar = `div[${attr.profileAvatar}]`,
-        profileAvatarUnknown = `div:has(div[${attr.profileAvatarUnknown}], a[${attr.conversationAvatar}])`,
+        profileAvatarUnknown = `div[${attr.profileAvatarUnknown}]`,
+        profileAvatarConversation = `${div.profileAvatarUnknown}, a[${attr.conversationAvatar}]`,
         profilePopup = `div[${attr.profilePopup}]:has(${div.profileAvatar})`,
-        quoteTweet = `${div.tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
+        quoteTweet = `${tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
         quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,
         quoteTweetProfileAvatar = `${div.quoteTweet} div[${attr.profileAvatar}]`,
       }
@@ -76,24 +90,11 @@ export namespace Selector {
         tweetId = `${div.tweet} a[${attr.tweetId}]`,
         retweetUserName = `${div.tweet} a[role="link"][dir="ltr"], ${div.notification} a[role="link"][dir="ltr"]`,
         tweetUserName = `${div.tweet} a[role="link"]:not([dir="ltr"]), ${div.notification} a[role="link"]:not([dir="ltr"])`,
-        avatarLink = `a:first-child, a[${attr.conversationAvatar}]`,
+        avatarConversation = `a[${attr.conversationAvatar}], a:has(:not([href*="/follow"]))`,
       }
-      export enum button {
-        tweetLikeButton = `${div.tweet} button[${attr.tweetLikeButton}]`,
-        tweetUnlikeButton = `${div.tweet} button[${attr.tweetUnlikeButton}]`,
-        postUpvoteButton = `${div.tweet} button[${attr.votePositiveButton}]`,
-        postDownvoteButton = `${div.tweet} button[${attr.voteNegativeButton}]`,
-        // this button does not get loaded with post, but is added afterwards
-        // so we cannot use the div.tweet selector as an ancesotor
-        grokActions = `button[${attr.grokActions}]`,
-      }
-      /*
-      export enum img {
-        profileAvatar = `${div.profileAvatar}:has(img[alt])`,
-      }
-      */
       export enum span {
         quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,
+        grokProfileSummary = `span:contains("${value.grokProfileSummary}")`,
       }
     }
   }
