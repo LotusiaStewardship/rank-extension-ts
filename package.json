@@ -20,21 +20,21 @@
   "devDependencies": {
     "@abcpros/bitcore-lib-xpi": "8.25.43",
     "@abcpros/bitcore-mnemonic": "8.25.43",
-    "@types/chrome": "0.0.304",
+    "@types/chrome": "0.0.306",
     "@types/jquery": "3.5.32",
     "@webext-core/messaging": "2.2.0",
     "@wxt-dev/module-vue": "1.0.2",
     "chronik-client": "0.19.0",
     "jquery": "3.7.1",
-    "prettier": "3.5.1",
+    "prettier": "3.5.2",
     "qrcode-vue3": "1.7.1",
     "rank-lib": "file:utils/rank-lib",
     "typescript": "5.7.3",
-    "typescript-eslint": "8.24.0",
+    "typescript-eslint": "8.24.1",
     "vite": "6.0.8",
     "vite-plugin-node-polyfills": "0.23.0",
     "vite-svg-loader": "5.1.0",
-    "vue-tsc": "2.2.0",
+    "vue-tsc": "2.2.2",
     "wxt": "0.19.27"
   }
 }
