@@ -4,3 +4,4 @@ import voteNegativeArrow from './assets/downvote-arrow-24x24.svg'
 export const ROOT_URL = 'https://x.com'
 export const VOTE_ARROW_UP = votePositiveArrow
 export const VOTE_ARROW_DOWN = voteNegativeArrow
+export const CACHE_POST_ENTRY_EXPIRE_TIME = 5_000

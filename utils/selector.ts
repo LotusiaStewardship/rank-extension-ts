@@ -7,10 +7,12 @@ export namespace Selector {
       export enum attr {
         timeline = 'aria-label*="timeline"',
         root = `react-root`,
+        primaryColumn = `data-testid="primaryColumn"`,
       }
       export enum div {
-        timeline = `div[${attr.timeline}]`,
+        timeline = `div[${attr.timeline}], div[aria-label*="Timeline"]`,
         root = `div#${attr.root}`,
+        primaryColumn = `div[${attr.primaryColumn}]`,
       }
     }
     /** Selectors for Tweet DOM elements */
@@ -24,6 +26,8 @@ export namespace Selector {
         tweetText = 'tweetText',
         tweetUserName = 'User-Name',
         profilePopup = 'HoverCard',
+        profileFollowing = '/following',
+        profileFollowers = '/verified_followers',
         conversationAvatar = 'DM_Conversation_Avatar',
         profileAvatar = 'UserAvatar-Container',
         profileAvatarUnknown = 'UserAvatar-Container-unknown',
@@ -36,6 +40,7 @@ export namespace Selector {
         voteNegativeButton = 'downvote',
         grokActions = 'Grok actions',
         grokProfileSummary = 'Profile Summary',
+        scrollSnapList = 'ScrollSnap-List',
         roleLink = 'link',
       }
       export enum attr {
@@ -47,6 +52,8 @@ export namespace Selector {
         tweetText = `data-testid="${value.tweetText}"`,
         tweetUserName = `data-testid="${value.tweetUserName}"`,
         profilePopup = `data-testid="${value.profilePopup}"`,
+        profileFollowing = `href$="${value.profileFollowing}"`,
+        profileFollowers = `href$="${value.profileFollowers}"`,
         conversationAvatar = `data-testid="${value.conversationAvatar}"`,
         profileAvatar = `data-testid^="${value.profileAvatar}"`,
         profileAvatarUnknown = `data-testid="${value.profileAvatarUnknown}"`,
@@ -58,6 +65,8 @@ export namespace Selector {
         votePositiveButton = `data-testid="${value.votePositiveButton}"`,
         voteNegativeButton = `data-testid="${value.voteNegativeButton}"`,
         grokActions = `aria-label="${value.grokActions}"`,
+        grokProfileSummary = `aria-label="${value.grokProfileSummary}"`,
+        grokScrollList = `data-testid="${value.scrollSnapList}"`,
         roleLink = `role="${value.roleLink}"`,
       }
       export enum button {
@@ -68,21 +77,25 @@ export namespace Selector {
         // this button does not get loaded with post, but is added afterwards
         // so we cannot use the tweet selector as an ancesotor
         grokActions = `button[${attr.grokActions}]`,
+        grokProfileSummary = `button[${attr.grokProfileSummary}], button:has(span:contains("${value.grokProfileSummary}"))`,
       }
       export enum div {
         innerDiv = `div[${attr.innerDiv}]`,
         tweet = `article[${attr.tweet}]`,
+        quoteTweet = `${tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
         notification = `article[${attr.notification}]`,
         directMessage = `div[${attr.directMessage}]`,
-        ad = `${tweet} div[dir="ltr"]:first-child span:contains("Ad")`,
-        buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton})`,
+        ad = `${tweet} div[dir="ltr"]:has(span:contains("Ad")) ~ div:has(button[data-testid="caret"])`,
+        //ad = `${tweet} div:not([${attr.tweetUserName}]) div[dir="ltr"]:has(span:contains("Ad")) + div:has(button)`,
+        buttonRow = `div[role="group"]:has(div > ${button.tweetLikeButton}, div > ${button.tweetUnlikeButton}):only-of-type`,
+        grokScrollList = `div[data-testid*="followups"] + nav:has(div[${attr.grokScrollList}])`,
         tweetText = `${tweet} div[${attr.tweetText}]`,
         tweetUserName = `${tweet} div[${attr.tweetUserName}]`,
-        profileAvatar = `div[${attr.profileAvatar}]`,
+        profileAvatar = `div[${attr.profileAvatar}]:not([${attr.profileAvatarUnknown}])`,
         profileAvatarUnknown = `div[${attr.profileAvatarUnknown}]`,
-        profileAvatarConversation = `${div.profileAvatarUnknown}, a[${attr.conversationAvatar}]`,
-        profilePopup = `div[${attr.profilePopup}]:has(${div.profileAvatar})`,
-        quoteTweet = `${tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
+        profileAvatarConversation = `a[${attr.conversationAvatar}]:first ${div.profileAvatarUnknown}:first, ${div.profileAvatarUnknown}:first`,
+        profilePopup = `div[${attr.profilePopup}]`,
+        profileStats = `div:has(> a[href*="header_photo"]):has(div[${attr.profileUserName}], a[${attr.profileFollowers}])`,
         quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,
         quoteTweetProfileAvatar = `${div.quoteTweet} div[${attr.profileAvatar}]`,
       }
@@ -90,7 +103,9 @@ export namespace Selector {
         tweetId = `${div.tweet} a[${attr.tweetId}]`,
         retweetUserName = `${div.tweet} a[role="link"][dir="ltr"], ${div.notification} a[role="link"][dir="ltr"]`,
         tweetUserName = `${div.tweet} a[role="link"]:not([dir="ltr"]), ${div.notification} a[role="link"]:not([dir="ltr"])`,
-        avatarConversation = `a[${attr.conversationAvatar}], a:has(:not([href*="/follow"]))`,
+        avatarConversation = `a[${attr.conversationAvatar}], a:not([href*="/follow"], [href*="messages"])`,
+        profileFollowing = `a[${attr.profileFollowing}]`,
+        profileFollowers = `a[${attr.profileFollowers}]`,
       }
       export enum span {
         quoteTweetUserName = `${div.quoteTweet} div[${attr.tweetUserName}]`,

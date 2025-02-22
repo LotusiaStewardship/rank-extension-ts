@@ -5,25 +5,21 @@ import { walletMessaging } from '@/entrypoints/background/messaging'
 import type { ScriptChunkSentimentUTF8 } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
-import { ROOT_URL, VOTE_ARROW_UP, VOTE_ARROW_DOWN } from './constants'
+import { toMinifiedNumber } from '@/utils/functions'
+import {
+  CACHE_POST_ENTRY_EXPIRE_TIME,
+  ROOT_URL,
+  VOTE_ARROW_UP,
+  VOTE_ARROW_DOWN,
+} from './constants'
 import './style.css'
 /**
  *  Types
  */
 /**  */
 type ProfileSentiment = ScriptChunkSentimentUTF8 | 'neutral'
-/**  */
-type ValidElement =
-  | 'post'
-  | 'conversation'
-  | 'notification'
-  | 'profilePopup'
-  | 'avatar'
-  | 'avatarConversation'
-  | 'button'
-  | 'buttonRow'
-  | 'ad'
-  | null
+/** */
+type MutationType = 'added' | 'removed'
 /**  */
 type ParsedPostData = {
   profileId: string
@@ -37,6 +33,7 @@ type CachedPost = {
   ranking: bigint
   votesPositive: number
   votesNegative: number
+  cachedAt: number // time inserted into cache
 }
 /** */
 type CachedProfile = {
@@ -45,13 +42,6 @@ type CachedProfile = {
   votesPositive: number
   votesNegative: number
 }
-type PendingPostUpdateTarget = [
-  string,
-  JQuery<HTMLElement>,
-  JQuery<HTMLButtonElement>,
-  JQuery<HTMLButtonElement>,
-  CachedPost,
-]
 /** */
 type CachedPostMap = Map<string, CachedPost> // string is postId
 /** */
@@ -79,14 +69,8 @@ type RankAPIErrorResult = {
   error: string
   params: Partial<IndexedRanking>
 }
-type StateKey = 'postIdBusy' | 'postUpdateTimeout' | 'postVoteUpdateInterval'
-type AvatarElementType =
-  | 'post'
-  | 'profile'
-  | 'profilePopover'
-  | 'notification'
-  | 'message'
-  | 'other'
+type StateKey = 'postIdBusy' | 'postUpdateTimeout' | 'postUpdateInterval'
+type AvatarElementType = 'message' | 'other'
 /** Browser runs this when the configured `runAt` stage is reached */
 export default defineContentScript({
   matches: ['https://*.x.com/*', 'https://x.com/*'],
@@ -97,6 +81,7 @@ export default defineContentScript({
     /**
      *  Constants
      */
+    const selector = Selector.Twitter
     /** */
     const defaultRanking: Partial<RankAPIResult> = {
       ranking: '0',
@@ -115,7 +100,345 @@ export default defineContentScript({
     /** Overlay span to put text on the overlay button */
     const overlaySpan = document.createElement('span')
     /** Primary document root where mutations are observed */
-    const documentRoot = $(Selector.Twitter.Container.div.root)
+    const documentRoot = $(selector.Container.div.root)
+    /**
+     *  Mutator classes
+     */
+    class AddedMutator {
+      /**
+       *
+       * @param element
+       * @returns
+       */
+      async processPost(element: JQuery<HTMLElement>) {
+        if (
+          element.attr('data-testid') == selector.Article.value.innerDiv &&
+          element.has(selector.Article.div.tweet).length == 1
+        ) {
+          //console.log('processing post element', element)
+          try {
+            const { profileId, retweetProfileId, postId } = parsePostElement(element)
+            // Always hide ads :)
+            if (element.has(selector.Article.div.ad).length == 1) {
+              console.log(`hiding post ${profileId}/${postId} (Ad)`)
+              element.addClass('hidden')
+              return
+            }
+          } catch (e) {
+            // ignore processing errors for now; just continue to next element
+            console.warn('failed to process post', e)
+          }
+        }
+      }
+      /**
+       * IMPORTANT: we no longer need to manually set profile badges for this element
+       * since we are now processing the element through all element checks
+       *
+       * TODO: hide notifications for low reputation accounts? can do more here
+       * @param element
+       */
+      async processNotification(element: JQuery<HTMLElement>) {
+        if (
+          element.attr('data-testid') == selector.Article.value.innerDiv &&
+          element.has(selector.Article.div.notification).length == 1
+        ) {
+          await processAvatarElements(element.find(selector.Article.div.profileAvatar))
+        }
+      }
+      /**
+       * IMPORTANT: we no longer need to manually set profile badges for this element
+       * since we are now processing the element through all element checks
+       * @param element
+       */
+      async processConversation(element: JQuery<HTMLElement>) {
+        if (
+          element.attr('data-testid') == selector.Article.value.innerDiv &&
+          element.has(selector.Article.div.directMessage).length == 1
+        ) {
+          // process avatars found in the DM rows displayed in the `/messages` URL
+          await processAvatarElements(element, 'message')
+        }
+      }
+      /**
+       *
+       * @param element
+       */
+      async processProfilePopup(element: JQuery<HTMLElement>) {
+        if (element.has(selector.Article.div.profilePopup).length != 1) {
+          return
+        }
+        //console.log('processing profilePopup element', element)
+        // ensure the popup avatar has its badge set
+        //this.processAvatars(element)
+        // hide the Grok profile summary button
+        // this will generally come as a fallthrough from the `profilePopup` case
+        //element
+        //  .find(selector.Article.button.grokProfileSummary)
+        //  ?.parent()
+        //  ?.addClass('hidden')
+      }
+      /**
+       *
+       * @param element
+       */
+      async processPrimaryColumn(element: JQuery<HTMLElement>) {
+        //console.log('processing primaryColumn element', element)
+        // first need to process the profile avatar badge
+        // this will force an update from the API to get vote/ranking stats
+        await this.processAvatars(element)
+        // find and hide the appropriate buttons
+        await this.processButtons(element)
+        // TODO: could probably do more here in the future
+      }
+      /**
+       *
+       * @param element
+       */
+      async processButtonRows(element: JQuery<HTMLElement>) {
+        if (element.has(selector.Article.div.buttonRow).length < 1) {
+          return
+        }
+        //console.log('processing button row element', element)
+        // find the first button row that contains the requisite data for processing
+        const rows = findButtonRowElements(element)
+        // if we don't have a valid button row, then abort processing
+        if (!rows) {
+          console.warn('no button row found in element', element)
+          return
+        }
+        // process each found button row
+        rows.each((index, row) => void processButtonRowElement($(row)))
+      }
+      /**
+       *
+       * @param element
+       */
+      async processButtons(element: JQuery<HTMLElement>) {
+        if (
+          element.has(selector.Article.button.grokActions).length > 0 ||
+          element.has(selector.Article.button.grokProfileSummary).length > 0
+        ) {
+          //console.log('processing button elements', element)
+          // hide the Grok actions button (top-right corner of post)
+          element.find(selector.Article.button.grokActions)?.addClass('hidden')
+          // hide the Grok profile summary buttons
+          element
+            // main button
+            .find(selector.Article.button.grokProfileSummary)
+            ?.addClass('hidden')
+            // big button in profile popup
+            .has(selector.Article.span.grokProfileSummary)
+            ?.parent()
+            .addClass('hidden')
+        }
+      }
+      /**
+       *
+       * @param element
+       */
+      async processAvatarConversation(element: JQuery<HTMLElement>) {
+        if (
+          window.location.pathname.includes('message') &&
+          element
+            .has(selector.Article.a.avatarConversation)
+            .find(selector.Article.div.profileAvatarConversation).length == 1
+        ) {
+          //console.log('processing message avatars avatar in element', element)
+          // process avatars found in other message divs, e.g. navbar
+          processAvatarElements(element, 'message')
+        }
+      }
+      /**
+       *
+       * @param element
+       */
+      async processAvatars(element: JQuery<HTMLElement>) {
+        if (element.has(selector.Article.div.profileAvatar).length > 0) {
+          //console.log('processing avatars in element', element)
+          processAvatarElements(element.find(selector.Article.div.profileAvatar))
+        }
+      }
+      /**
+       *
+       * @param element
+       */
+      async processProfileStats(element: JQuery<HTMLElement>) {
+        if (
+          element.has(selector.Article.div.profileStats).length == 1 ||
+          element.is(selector.Article.div.profileStats)
+        ) {
+          console.log('processing profileStats element', element)
+          //const statsDiv = element.find(selector.Article.div.profileStats)
+          // update profile avatar badge
+          //processAvatarElements(statsDiv.find(selector.Article.div.profileAvatar))
+          // find the row containing the following/follower links
+          const profileUserNameElement = element.find(
+            `div[${selector.Article.attr.profileUserName}]`,
+          )
+          //console.log('profileUserNameElement', profileUserNameElement)
+          console.log(profileUserNameElement)
+          const profileId = $('span:contains("@")', profileUserNameElement)
+            .html()
+            .substring(1)
+          //console.log(profileId)
+          const row = profileUserNameElement.siblings(
+            `:has(${selector.Article.a.profileFollowing})`,
+          )
+          if (!row.length) {
+            console.warn(
+              'primaryColumn did not have profile following/follower stats',
+              row,
+            )
+          }
+          console.log(row)
+          console.log(profileCache.get(profileId), profileId)
+          // get cached profile
+          const { votesPositive, votesNegative, ranking } =
+            profileCache.get(profileId)! ?? (await updateCachedProfile(profileId))
+          // set up rank stats row
+          const statsRow = $(row[0].cloneNode() as HTMLElement)
+          ;[votesPositive, votesNegative, ranking].forEach((stat, i) => {})
+          /*
+          const mutatedStatsRow = statsRow
+            .prop('style', 'margin-top: 0.8em;')
+            .find('a')
+            .prop('href', `https://rank.lotusia.org/api/v1/twitter/${profileId}`)
+            .each((index, spanContainer) => {
+              const container = $(spanContainer)
+              switch (index) {
+                case 0:
+                  $('span:first', container)[0].innerHTML =
+                    toMinifiedNumber(votesPositive)
+                  $('span:last', container)[0].innerHTML = 'Upvotes'
+                  return
+                case 1:
+                  $('span:first', container)[0].innerHTML =
+                    toMinifiedNumber(votesNegative)
+                  $('span:last', container)[0].innerHTML = 'Downvotes'
+                  return
+              }
+            })
+            */
+          console.log('statsRow', statsRow)
+          statsRow.insertAfter(row)
+          //statsRow.insertAfter(row)
+        }
+      }
+      /**
+       *
+       * @param element
+       */
+      async processGrokScrollList(element: JQuery<HTMLElement>) {
+        if (element.has(selector.Article.div.grokScrollList).length == 1) {
+          //console.log('processing grokScrollList element', element)
+          element.find(selector.Article.div.grokScrollList).parent().addClass('hidden')
+        }
+      }
+    }
+    /**
+     *
+     */
+    class RemovedMutator {
+      /**
+       *
+       * @param element
+       */
+      async processPost(element: JQuery<HTMLElement>) {
+        try {
+          //const t0 = performance.now()
+          const { profileId, retweetProfileId, postId } = parsePostElement(element)
+          // Get the postId and delete the post from the cache
+          postCache.delete(postId)
+          //const t1 = (performance.now() - t0).toFixed(3)
+          //console.log(
+          //  `processed removing post ${profileId}/${postId} from cache in ${t1}ms`,
+          //)
+        } catch (e) {
+          // ignore processing errors for now; just continue to next element
+        }
+      }
+      async processNotification(element: JQuery<HTMLElement>) {}
+      async processConversation(element: JQuery<HTMLElement>) {}
+      async processProfilePopup(element: JQuery<HTMLElement>) {}
+      async processPrimaryColumn(element: JQuery<HTMLElement>) {}
+      async processButtonRows(element: JQuery<HTMLElement>) {}
+      async processButtons(element: JQuery<HTMLElement>) {}
+      async processAvatarConversation(element: JQuery<HTMLElement>) {}
+      async processAvatars(element: JQuery<HTMLElement>) {}
+      async processProfileStats(element: JQuery<HTMLElement>) {}
+      async processGrokScrollList(element: JQuery<HTMLElement>) {}
+    }
+    /**
+     *  Timers
+     */
+    /** Timeout to react to document scroll and clear/set post update interval */
+    state.set('postUpdateTimeout', null)
+    /** Interval to update cached post/profile rankings */
+    state.set(
+      'postUpdateInterval',
+      setInterval(updateCachedPosts, CACHE_POST_ENTRY_EXPIRE_TIME),
+    )
+    /**
+     *  Event Registrations
+     */
+    /*
+    ctx.onInvalidated(() =>
+      clearInterval(state.get('postUpdateInterval') as NodeJS.Timeout),
+    )
+    */
+    // callback for handling URL changes
+    ctx.addEventListener(window, 'wxt:locationchange', async ({ newUrl }) => {
+      //console.log('url changed to', newUrl.pathname)
+      // trigger onInvalidated handler if context is invalid
+      if (ctx.isInvalid) {
+        ctx.notifyInvalidated()
+      }
+    })
+    /** */
+    document.addEventListener('scroll', () => {
+      // interrupt auto post updating immediately on scroll
+      clearInterval(state.get('postUpdateInterval') as NodeJS.Timeout)
+      clearTimeout(state.get('postUpdateTimeout') as NodeJS.Timeout)
+      // Set new scroll timeout
+      state.set(
+        'postUpdateTimeout',
+        setTimeout(() => {
+          // clean out cached posts that don't exist in the DOM
+          postCache.forEach(async ({ profileId }, postId) => {
+            if (
+              !documentRoot.has(`a[href*="/status/${postId}"]`).length &&
+              !window.location.pathname.includes(postId)
+            ) {
+              //console.log(
+              //  `removing post ${profileId}/${postId} from cache (missing from DOM)`,
+              //)
+              postCache.delete(postId)
+            }
+          })
+          // Re-enable postCache update interval
+          state.set(
+            'postUpdateInterval',
+            setInterval(updateCachedPosts, CACHE_POST_ENTRY_EXPIRE_TIME),
+          )
+        }, 500),
+      )
+    })
+    /**
+     *
+     *  Runtime Activation
+     *
+     */
+    // instantiate the mutator classes for processing mutations
+    const mutators = {
+      added: new AddedMutator(),
+      removed: new RemovedMutator(),
+    }
+    console.log('connecting react-root observer')
+    new MutationObserver(handleRootMutations).observe(documentRoot[0], {
+      childList: true,
+      subtree: true,
+      attributeFilter: ['data-ranking', 'data-testid', 'href'],
+    })
     /**
      *  Functions
      */
@@ -124,7 +447,7 @@ export default defineContentScript({
      * @param postId
      * @returns
      */
-    const createOverlay = (postId: string): JQuery<HTMLButtonElement> => {
+    function createOverlay(postId: string): JQuery<HTMLButtonElement> {
       // Set up overlay button, span
       const overlay = $(overlayButton.cloneNode() as HTMLButtonElement)
       const span = $(overlaySpan.cloneNode() as HTMLSpanElement)
@@ -145,10 +468,10 @@ export default defineContentScript({
      * @param postId
      * @returns
      */
-    const fetchRankApiData = async (
+    async function fetchRankApiData(
       profileId: string,
       postId?: string,
-    ): Promise<RankAPIResult> => {
+    ): Promise<RankAPIResult> {
       const apiPath = postId
         ? `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}/${postId}`
         : `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}`
@@ -167,156 +490,121 @@ export default defineContentScript({
      *
      * @param profileId
      */
-    const updateCachedProfile = async (
+    async function updateCachedProfile(
       profileId: string,
-    ): Promise<CachedProfile> => {
-      // Create new cached entry for profileId if not already cached
-      if (!profileCache.has(profileId)) {
-        profileCache.set(profileId, {
-          sentiment: 'neutral',
-          ranking: DEFAULT_RANK_THRESHOLD,
-          votesPositive: 0,
-          votesNegative: 0,
-        })
-      }
-      // Get reference to cached profile data object
-      const cachedProfile = profileCache.get(profileId)!
-      // Fetch profile data and set cache item
-      const result = await fetchRankApiData(profileId)
+      data?: RankAPIResult,
+    ): Promise<CachedProfile> {
+      // Use provied profile rank data from a post update, otherwise fetch from API
+      const result = data ?? (await fetchRankApiData(profileId))
       const ranking = BigInt(result.ranking)
-      // Update the cached profile with API data
-      cachedProfile.ranking = ranking
-      cachedProfile.votesPositive = result.votesPositive
-      cachedProfile.votesNegative = result.votesNegative
+      // set up profile cache data
+      const profileData = {} as CachedProfile
+      profileData.ranking = ranking
+      profileData.votesPositive = result.votesPositive
+      profileData.votesNegative = result.votesNegative
       if (ranking > DEFAULT_RANK_THRESHOLD) {
-        cachedProfile.sentiment = 'positive'
+        profileData.sentiment = 'positive'
       } else if (ranking < DEFAULT_RANK_THRESHOLD) {
-        cachedProfile.sentiment = 'negative'
+        profileData.sentiment = 'negative'
       } else {
-        cachedProfile.sentiment = 'neutral'
+        profileData.sentiment = 'neutral'
       }
 
-      return cachedProfile
+      profileCache.set(profileId, profileData)
+      return profileCache.get(profileId)!
+    }
+    /**
+     * Check the timestamp of a cached post entry against current time. Returns `true`
+     * if post has exceeded the default expiry time or timestamp is undefined, `false` otherwise.
+     * @param timestamp
+     * @returns
+     */
+    function isPostExpired(cachedAt: number | undefined) {
+      return cachedAt ? Date.now() - cachedAt > CACHE_POST_ENTRY_EXPIRE_TIME : true
     }
     /**
      *
+     * @param profileId
      * @param postId
-     * @returns {Promise<CachedPost>} The updated, cached post
+     * @returns
      */
-    const updateCachedPost = async (
+    async function updateCachedPost(
       profileId: string,
       postId: string,
-    ): Promise<CachedPost> => {
-      if (!postCache.has(postId)) {
+    ): Promise<CachedPost> {
+      try {
+        // update cached post entry with API data
+        const result = (await fetchRankApiData(profileId, postId)) as IndexedPostRanking
+        // check if cached data differs from API data, then update
         postCache.set(postId, {
           profileId,
-          ranking: DEFAULT_RANK_THRESHOLD,
-          votesPositive: 0,
-          votesNegative: 0,
+          ranking: BigInt(result.ranking),
+          votesPositive: result.votesPositive,
+          votesNegative: result.votesNegative,
+          cachedAt: Date.now(),
         })
-      }
-      const cachedPost = postCache.get(postId)!
-      if (!profileCache.has(profileId)) {
-        profileCache.set(profileId, {
-          sentiment: 'neutral',
-          ranking: DEFAULT_RANK_THRESHOLD,
-          votesPositive: 0,
-          votesNegative: 0,
-        })
-      }
-      const cachedProfile = profileCache.get(profileId)!
-      const result = (await fetchRankApiData(
-        profileId,
-        postId,
-      )) as IndexedPostRanking
-      try {
-        // check if cached data differs from API data, then update
-        // update cached post stats
-        const postRanking = BigInt(result.ranking)
-        cachedPost.ranking = postRanking
-        cachedPost.votesPositive = result.votesPositive
-        cachedPost.votesNegative = result.votesNegative
-        // update cached profile stats
-        const profileRanking = BigInt(result.profile.ranking)
-        cachedProfile.ranking = profileRanking
-        cachedProfile.votesPositive = result.profile.votesPositive
-        cachedProfile.votesNegative = result.profile.votesNegative
-        // check if profile sentiment
-        let sentiment: ProfileSentiment
-        if (profileRanking > 0n) {
-          sentiment = 'positive'
-        } else if (profileRanking < 0n) {
-          sentiment = 'negative'
-        } else {
-          sentiment = 'neutral'
-        }
-        cachedProfile.sentiment = sentiment
+        // update cached profile with data received from API
+        await updateCachedProfile(profileId, result.profile)
       } catch (e) {
         console.warn(e)
       }
       // return the cached post for additional processing
-      return cachedPost
+      return postCache.get(postId)!
     }
     /**
-     * Iterate through cached posts and update their ranking, vote buttons, etc.
+     * Update rank stats for cached posts and update DOM elements accordingly. This
+     * callback is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
      */
-    const updateCachedPosts = async () => {
-      const avatars: Map<string, string[]> = new Map()
-      // first update all cached posts with fresh API data
-      for (const [postId, { profileId }] of postCache) {
-        // skip updating posts that are processing vote button clicks
-        if (postId == state.get('postIdBusy')) {
-          continue
-        }
+    async function updateCachedPosts() {
+      postCache.forEach(async (cachedPost, postId) => {
         // interrupt if post cache update interval is disabled
-        if (!state.get('postVoteUpdateInterval')) {
-          break
+        /*
+        if (!state.get('postUpdateInterval')) {
+          return
         }
+        */
+        // skip updating posts that are processing vote button handlers
+        if (postId == state.get('postIdBusy')) {
+          return
+        }
+        // cached post may have been removed during scroll interval
         try {
-          // update the cached post
-          await updateCachedPost(profileId, postId)
-          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-          avatars.has(profileId)
-            ? avatars.get(profileId)!.push(postId)
-            : avatars.set(profileId, [postId])
-        } catch (e) {
-          continue
-        }
-      }
-      // mutate post elements with updated cache data and set profile avatar badges
-      avatars.entries().forEach(async ([profileId, postIds]) => {
-        // mutate elements for all posts that were updated
-        postIds.forEach(postId => {
-          const article = documentRoot.find(
-            `article:has(button[data-postid="${postId}"])`,
+          // update cached post with API data
+          await updateCachedPost(cachedPost.profileId, postId)
+          // set all available profile avatar badges accordingly
+          processAvatarElements(
+            documentRoot.find(
+              `div[data-testid="UserAvatar-Container-${cachedPost.profileId}"]`,
+            ),
           )
-          const buttons = article.find(`button[data-postid="${postId}"]`)
-          const upvoteButton = $(buttons[0] as HTMLButtonElement)
-          const downvoteButton = $(buttons[1] as HTMLButtonElement)
-          const cachedPost = postCache.get(postId)!
+          const voteButtons = documentRoot.find(`button[data-postid="${postId}"]`)
           // Update the vote counts on post vote buttons if greater than 0
           if (cachedPost.votesPositive > 0) {
-            upvoteButton
+            $(voteButtons[0])
               .find('span')
               .last()
               .html(cachedPost.votesPositive.toString())
           }
           if (cachedPost.votesNegative > 0) {
-            downvoteButton
+            $(voteButtons[1])
               .find('span')
               .last()
               .html(cachedPost.votesNegative.toString())
           }
           // check if post can be blurred, and then do so if necessary
-          if (canBlurPost(postId, cachedPost)) {
-            blurPost(article, profileId, postId, 'post reputation below threshold')
+          const article = voteButtons.closest('article')
+          if (article.length) {
+            handlePostBlurAction(
+              article,
+              cachedPost.profileId,
+              postId,
+              cachedPost.ranking,
+            )
           }
-        })
-        // set all available profile avatar badges accordingly
-        await processAvatarElements(
-          documentRoot.find(`div[data-testid="UserAvatar-Container-${profileId}"]`),
-          false,
-        )
+        } catch (e) {
+          // skip to next post if we fail here
+          return
+        }
       })
     }
     /**
@@ -325,10 +613,10 @@ export default defineContentScript({
      * @param sentiment
      * @returns
      */
-    const setProfileAvatarBadge = (
+    function setProfileAvatarBadge(
       avatar: JQuery<HTMLElement>,
       sentiment: ProfileSentiment,
-    ) => {
+    ) {
       const elementWidth = avatar?.css('width') ?? `${avatar[0].offsetWidth}px`
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
@@ -341,15 +629,12 @@ export default defineContentScript({
       // Set the new class name according to the size of the avatar element
       switch (elementWidth) {
         // abort because cached element is no longer in the DOM
-        case '0px': {
+        case '0px':
           return
-        }
         // e.g. embedded post avatars
-        case '24px': {
-          // TODO: need to make a class for this one, then break instead of return
-          return
-        }
+        case '24px':
         // e.g. profile avatars on notifications such as likes
+        // // eslint-disable-next-line no-fallthrough
         case '32px': {
           newClassName = `notification-avatar-${sentiment}-reputation`
           break
@@ -364,7 +649,6 @@ export default defineContentScript({
           newClassName = `post-popup-avatar-${sentiment}-reputation`
           break
         }
-        // Assume profile avatar on profile page
         default: {
           console.log('default avatar width', avatar[0].offsetWidth)
           newClassName = `profile-avatar-${sentiment}-reputation`
@@ -380,28 +664,24 @@ export default defineContentScript({
      * Parse through the provided elements to gather `profileId`s and avatar elements, then set the
      * appropriate badge class on all avatar elements correlated to that profile
      * @param elements
-     * @param updateProfile
      * @param type
      * @returns
      */
-    const processAvatarElements = async (
+    async function processAvatarElements(
       elements: JQuery<HTMLElement>,
-      updateProfile: boolean = true,
       type?: AvatarElementType,
-    ) => {
+    ) {
       // Parse elements for unique profileIds and collect associated avatar elements
       const map: Map<string, JQuery<HTMLElement>[]> = new Map()
       switch (type) {
-        // we are only interested in a single avatar element and profileId
         case 'message': {
+          // we are only interested in a single avatar element and profileId
           const avatarDiv = elements
-            .find(Selector.Twitter.Article.div.profileAvatar)
+            .find(selector.Article.div.profileAvatarUnknown)
             .first()
-          const avatarLink = elements
-            .find(Selector.Twitter.Article.a.avatarConversation)
-            .first()
+          const avatarLink = elements.find(selector.Article.a.avatarConversation).first()
           if (avatarDiv.length < 1 || avatarLink.length < 1) {
-            console.warn('could not find profileId in elements', elements)
+            //console.warn('did not find profileId in message avatar element', elements)
             return
           }
           const profileId = avatarLink.attr('href')!.split('/')[1]
@@ -415,21 +695,71 @@ export default defineContentScript({
             const profileId = avatarDiv.attr('data-testid')!.split('-').pop()!
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             map.get(profileId)?.push(avatarDiv) ?? map.set(profileId, [avatarDiv])
-            return
           })
           break
         }
       }
       // process all elements that were found
       map.forEach(async (avatars, profileId) => {
-        // update the cached profile if specified, otherwise use cached data
-        const cachedProfile = updateProfile
-          ? await updateCachedProfile(profileId)
-          : profileCache.get(profileId)!
-        // set the badge on each avatar element that was found for this profile
-        const { sentiment } = cachedProfile
-        avatars.forEach(avatar => setProfileAvatarBadge(avatar, sentiment))
+        try {
+          // update the cached profile if we don't already have it cached
+          const { sentiment } =
+            profileCache.get(profileId) ?? (await updateCachedProfile(profileId))
+          // set the badge on each avatar element that was found for this profile
+          avatars.forEach(async avatar => setProfileAvatarBadge(avatar, sentiment))
+        } catch (e) {
+          // warn and skip
+          console.warn('failed to set avatar badge', profileId, avatars, e)
+          return
+        }
       })
+    }
+    /**
+     *
+     * @param element
+     */
+    async function processButtonRowElement(element: JQuery<HTMLElement>) {
+      try {
+        // destructure index 1 and 3 for profileId and postId respectively
+        const isPostButtonRow = element.closest(selector.Article.div.innerDiv).length
+        const [, profileId, , postId] = isPostButtonRow
+          ? element
+              .closest(selector.Article.div.innerDiv)
+              .find(`a[${selector.Article.attr.tweetId}]:last`)
+              .attr('href')!
+              .split('/')
+          : element
+              .find(`a[${selector.Article.attr.tweetId}]:last`)
+              .attr('href')!
+              .split('/')
+        // mutate button row to add vote buttons
+        const [upvoteButton, downvoteButton] = mutateButtonRowElement(element, {
+          profileId,
+          postId,
+        } as ParsedPostData)
+        // use cached post data if it's available, otherwise fetch and cache post data
+        const { votesPositive, votesNegative, ranking } = !isPostExpired(
+          postCache.get(postId)?.cachedAt,
+        )
+          ? postCache.get(postId)!
+          : await updateCachedPost(profileId, postId)
+        // some button rows are part of post elements (i.e. have parent article element)
+        const article = element.closest('article')
+        if (article.length) {
+          handlePostBlurAction(article, profileId, postId, ranking)
+        }
+        //
+        if (votesPositive > 0) {
+          upvoteButton.find('span').last().html(votesPositive.toString())
+        }
+        if (votesNegative > 0) {
+          downvoteButton.find('span').last().html(votesNegative.toString())
+        }
+        // some button rows (e.g. mediaViewer on mobile) have profile avatars
+        //await processAvatarElements(element.find(selector.Article.div.profileAvatar))
+      } catch (e) {
+        console.warn('failed to process button row element', element, e)
+      }
     }
     /**
      * Parse post element to gather profileId, postId, and other data for fetching
@@ -437,41 +767,49 @@ export default defineContentScript({
      * @param element
      * @returns
      */
-    const parsePostElement = (element: JQuery<HTMLElement>): ParsedPostData => {
+    function parsePostElement(element: JQuery<HTMLElement>): ParsedPostData {
       // Select elements
-      const tweetTextDiv = element.find(Selector.Twitter.Article.div.tweetText)
-      const tweetUserNameLink = element.find(
-        Selector.Twitter.Article.a.tweetUserName,
-      )
-      const retweetUserNameLink = element.find(
-        Selector.Twitter.Article.a.retweetUserName,
-      )
-      const postIdLink = element.find(Selector.Twitter.Article.a.tweetId).last()
-      const quoteTweet = element.find(Selector.Twitter.Article.div.quoteTweet)
-      const quoteUserNameDiv = element.find(
-        Selector.Twitter.Article.div.quoteTweetUserName,
-      )
+      //const tweetTextDiv = element.find(selector.Article.div.tweetText)
+      //const retweetUserNameLink = element.find(selector.Article.a.retweetUserName)
+      //const quoteTweet = element.find(selector.Article.div.quoteTweet)
+      //const quoteUserNameDiv = element.find(selector.Article.div.quoteTweetUserName)
       // Parse elements for text data
-      const postText = Parser.Twitter.Article.postTextFromElement(tweetTextDiv)
-      const profileId =
-        Parser.Twitter.Article.profileIdFromElement(tweetUserNameLink)
-      const quoteProfileId =
-        Parser.Twitter.Article.quoteProfileIdFromElement(quoteUserNameDiv)
-      const retweetProfileId =
-        Parser.Twitter.Article.profileIdFromElement(retweetUserNameLink)
-      const postId = Parser.Twitter.Article.postIdFromElement(postIdLink)
+      //const postText = Parser.Twitter.Article.postTextFromElement(tweetTextDiv)
+
+      const profileId = Parser.Twitter.Article.profileIdFromElement(
+        element.find(selector.Article.a.tweetUserName),
+      )
+      //const quoteProfileId =
+      //  Parser.Twitter.Article.quoteProfileIdFromElement(quoteUserNameDiv)
+      //const retweetProfileId =
+      //  Parser.Twitter.Article.profileIdFromElement(retweetUserNameLink)
+      const postId = Parser.Twitter.Article.postIdFromElement(
+        element.find(selector.Article.a.tweetId).last(),
+      )
 
       const data = {} as ParsedPostData
       data.profileId = profileId as string
       data.postId = postId
+      /*
       if (retweetProfileId) {
         data.retweetProfileId = retweetProfileId
       }
       if (quoteProfileId) {
         data.quoteProfileId = quoteProfileId
       }
-
+      */
       return data
+    }
+    /**
+     *
+     * @param element
+     * @returns
+     */
+    function findButtonRowElements(element: JQuery<HTMLElement>) {
+      const rows = element
+        .has(`a[${selector.Article.attr.tweetId}]`)
+        .find(selector.Article.div.buttonRow)
+      return rows.length > 0 ? rows : undefined
     }
     /**
      * Mutate button rows with vote buttons (e.g. posts, photo/media viewer, etc.)
@@ -479,15 +817,12 @@ export default defineContentScript({
      * @param data
      * @returns
      */
-    const mutateButtonRowElement = (
+    function mutateButtonRowElement(
       element: JQuery<HTMLElement>,
       data: ParsedPostData,
-    ): [JQuery<HTMLButtonElement>, JQuery<HTMLButtonElement>] => {
-      // Get existing like/unlike button, container, and button row
-      const origButton =
-        element.has(Selector.Twitter.Article.button.tweetLikeButton).length > 0
-          ? element.find(Selector.Twitter.Article.button.tweetLikeButton)
-          : element.find(Selector.Twitter.Article.button.tweetUnlikeButton)
+    ): [JQuery<HTMLButtonElement>, JQuery<HTMLButtonElement>] {
+      // the like/unlike button will be the 3rd div element in the row
+      const origButton = element.find('div:nth-child(3) button')
       const origButtonContainer = origButton.parent()
       // Create upvote button and its container
       const upvoteButtonContainer = $(origButtonContainer[0].cloneNode() as Element)
@@ -506,9 +841,7 @@ export default defineContentScript({
       upvoteButton.find('g path').attr('d', upvoteArrow.attr('d')!)
       upvoteButtonContainer.append(upvoteButton)
       // Create downvote button and its container
-      const downvoteButtonContainer = $(
-        origButtonContainer[0].cloneNode() as Element,
-      )
+      const downvoteButtonContainer = $(origButtonContainer[0].cloneNode() as Element)
       const downvoteButton = $(origButton[0].cloneNode(true) as HTMLButtonElement)
       downvoteButton
         .attr({
@@ -529,82 +862,74 @@ export default defineContentScript({
       downvoteButtonContainer.insertBefore(origButtonContainer)
       return [upvoteButton, downvoteButton]
     }
-    const processCachedPost = async (cachedPost: CachedPost) => {}
     /**
      *
      * @param profileId
      * @param postId
      * @param reason
      */
-    const hidePost = (profileId: string, postId: string, reason: string) => {
-      console.log(
-        `hiding post with ID ${postId} from profile ${profileId} (${reason})`,
-      )
+    function handlePostHideAction(profileId: string, postId: string, reason: string) {
+      console.log(`hiding post with ID ${postId} from profile ${profileId} (${reason})`)
       // TODO: add jQuery for getting the div['cellInnerDiv'] element
     }
     /**
-     * Checks various conditions to see whether or not a post can be blurred
-     * @param postId
-     * @param cachedPost
-     */
-    const canBlurPost = (postId: string, cachedPost: CachedPost): boolean => {
-      // if we're on the post's URL, don't blur
-      if (window.location.pathname.includes(postId)) {
-        return false
-      }
-      // if post ranking is above default threshold, don't blur
-      if (cachedPost.ranking >= DEFAULT_RANK_THRESHOLD) {
-        return false
-      }
-      // we can blur the post
-      return true
-    }
-    /**
      *
-     * @param element The `article` element containing the post
+     * @param element
      * @param profileId
      * @param postId
-     * @param reason
+     * @param ranking
+     * @returns
      */
-    const blurPost = (
+    function handlePostBlurAction(
       element: JQuery<HTMLElement>,
       profileId: string,
       postId: string,
-      reason: string,
-    ) => {
-      // if element already blurred, don't continue
-      if (element.parent().hasClass('blurred')) {
-        return false
+      ranking: bigint,
+    ) {
+      // abort if we're on the post's URL
+      if (window.location.pathname.includes(postId)) {
+        return
       }
-      console.log(`blurring post ${profileId}/${postId} (${reason})`)
-      // article element resets CSS classes on hover, thanks to Twitter javascript
-      // so we blur the parent element instead, which achieves the same effect
-      const overlay = createOverlay(postId)
-      element.parent().addClass('blurred').parent().append(overlay)
-      //postParentElement.parent()!.style.overflow = 'hidden !important'
+      // if post ranking is above default threshold, don't blur
+      if (ranking < DEFAULT_RANK_THRESHOLD) {
+        // post is aleady blurred, so don't do it again
+        if (element.parent().hasClass('blurred')) {
+          return
+        }
+        // if element already blurred, don't continue
+        console.log(
+          `blurring post ${profileId}/${postId} (post reputation below threshold)`,
+        )
+        // article element resets CSS classes on hover, thanks to Twitter javascript
+        // so we blur the parent element instead, which achieves the same effect
+        const overlay = createOverlay(postId)
+        element.parent().addClass('blurred').parent().append(overlay)
+        //postParentElement.parent()!.style.overflow = 'hidden !important'
+      }
+      // otherwise unblur the post
+      else {
+        // post isn't already blurred, so don't unblur
+        if (!element.parent().hasClass('blurred')) {
+          return
+        }
+        console.log(
+          `unblurring post ${profileId}/${postId} (post reputation at or above treshold)`,
+        )
+        element.parent().removeClass('blurred').next().remove()
+        //postParentElement.parent()!.style.overflow = 'hidden !important'
+      }
     }
-    /**
-     *  Timers
-     */
-    /** Timeout to react to document scroll and clear/set post update interval */
-    state.set('postUpdateTimeout', null)
-    /** Interval to update cached post/profile rankings */
-    state.set('postVoteUpdateInterval', setInterval(updateCachedPosts, 5000))
-    /**
-     *  Event Handlers
-     */
     /**
      *
      * @param this
-     * @param ev
      */
     async function handleBlurredOverlayButtonClick(this: HTMLButtonElement) {
+      // button overlay is appended as next sibling to div containing the post article element
       $(this).prev().find('article').trigger('click')
     }
     /**
      *
      * @param this
-     * @param ev
      */
     async function handlePostVoteButtonClick(this: HTMLButtonElement) {
       // disable the button first
@@ -612,56 +937,46 @@ export default defineContentScript({
       // gather required data for submitting vote to Lotus network
       const postId = this.getAttribute('data-postid')!
       const profileId = this.getAttribute('data-profileid')!
-      const sentiment = this.getAttribute(
-        'data-sentiment',
-      )! as ScriptChunkSentimentUTF8
+      const sentiment = this.getAttribute('data-sentiment')! as ScriptChunkSentimentUTF8
       // skip auto-updating this post since it will be updated below
       state.set('postIdBusy', postId)
       console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
       try {
-        const txid = await walletMessaging.sendMessage(
-          'content-script:submitRankVote',
-          {
-            platform: 'twitter',
-            profileId,
-            sentiment,
-            postId,
-          },
-        )
+        const txid = await walletMessaging.sendMessage('content-script:submitRankVote', {
+          platform: 'twitter',
+          profileId,
+          sentiment,
+          postId,
+        })
         console.log(
           `successfully cast ${sentiment} vote for ${profileId}/${postId}`,
           txid,
         )
       } catch (e) {
-        console.warn(
-          `failed to cast ${sentiment} vote for ${profileId}/${postId}`,
-          e,
-        )
+        console.warn(`failed to cast ${sentiment} vote for ${profileId}/${postId}`, e)
       }
       //
       try {
         // load the button element into jQuery
         const button = $(this)
-        // update cached post data from API
+        // update cached post data from API if the entry is expired
         const cachedPost = await updateCachedPost(profileId, postId)
         // Update the vote counts on the appropriate button
-        if (sentiment == 'positive') {
+        if (sentiment == 'positive' && cachedPost.votesPositive > 0) {
           button.find('span').last().html(cachedPost.votesPositive.toString())
-        } else if (sentiment == 'negative') {
+        } else if (sentiment == 'negative' && cachedPost.votesNegative > 0) {
           button.find('span').last().html(cachedPost.votesNegative.toString())
         } else {
           // TOOD: add more cases if more sentiments are added in the future
         }
-        // get the article element associated with this vote button
+        // handle post blurring
         const article = button.closest('article')
-        // if the post can be blurred, then proceed
-        if (canBlurPost(postId, cachedPost)) {
-          blurPost(article, profileId, postId, 'post reputation below threshold')
+        if (article.length) {
+          handlePostBlurAction(article, profileId, postId, cachedPost.ranking)
         }
         // update all available avatar elements for this profile with appropriate reputation badge
-        await processAvatarElements(
+        processAvatarElements(
           documentRoot.find(`div[data-testid="UserAvatar-Container-${profileId}"]`),
-          false,
         )
       } catch (e) {
         console.warn(e)
@@ -672,421 +987,123 @@ export default defineContentScript({
       }
     }
     /**
-     *  Event Registrations
+     *
+     * @param element
+     * @param mutationType
+     * @returns
      */
-    /** */
-    document.addEventListener('scroll', function (this: Document, ev: Event) {
-      // if this timeout is already set on scroll, reset it
-      if (state.get('postUpdateTimeout')) {
-        clearTimeout(state.get('postUpdateTimeout') as NodeJS.Timeout)
-        clearInterval(state.get('postVoteUpdateInterval') as NodeJS.Timeout)
-        state.delete('postUpdateTimeout')
-        state.delete('postVoteUpdateInterval')
+    async function processMutatedElement(
+      element: JQuery<HTMLElement>,
+      mutationType: MutationType,
+    ) {
+      // don't process column/timeline elements or entire sections
+      // helps to prevent unnecessary double processing
+      if (element.is(`:has(${selector.Article.div.innerDiv})`)) {
+        // find the profileStats div and set current element to this div
+        element = element.find(selector.Article.div.profileStats)
+        // TODO: handle additional edge cases to avoid duplicate processing if necessary
       }
-      state.set(
-        'postUpdateTimeout',
-        setTimeout(() => {
-          const removed: string[] = []
-          // gather cached posts that are no longer in the DOM
-          for (const [postId, { profileId }] of postCache) {
-            if (documentRoot.has(`a[href*="/status/${postId}"]`).length < 1) {
-              console.log(
-                `removing post ${profileId}/${postId} from cache (missing from DOM)`,
-              )
-              removed.push(postId)
-            }
-          }
-          // remove posts from cache if not in the DOM
-          removed.forEach(postId => postCache.delete(postId))
-          // Re-enable postCache update interval
-          state.set(
-            'postVoteUpdateInterval',
-            setInterval(
-              updateCachedPosts,
-              postCache.size < 10 || postCache.size > 20
-                ? 5000
-                : postCache.size * 500,
-            ),
-          )
-        }, 500),
-      )
-    })
-    /** Observe the configured root node of the document and enforce profile/post rankings in the DOM */
-    class Mutator {
-      /** https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver */
-      private observers: Map<'react-root', MutationObserver>
-      /** https://wxt.dev/guide/essentials/content-scripts.html#dealing-with-spas */
-      public urlPatterns: Map<
-        'home' | 'notifications' | 'timeline' | 'post' | 'bookmarks' | 'messages',
-        MatchPattern
-      >
-      /** Initial runtime setup */
-      constructor() {
-        // set up react-root observer
-        this.observers = new Map()
-        this.observers.set(
-          'react-root',
-          new MutationObserver(this.handleRootMutations),
-        )
-        // set URL patterns
-        this.urlPatterns = new Map()
-        const urlHome = `${ROOT_URL}/home`
-        const urlNotifications = `${ROOT_URL}/notifications`
-        const urlPost = `${ROOT_URL}/*/status/*`
-        const urlBookmarks = `${ROOT_URL}/*/bookmarks`
-        const urlTimeline = `${ROOT_URL}/*`
-        const urlMessages = `${ROOT_URL}/messages`
-        this.urlPatterns.set('home', new MatchPattern(urlHome))
-        this.urlPatterns.set('notifications', new MatchPattern(urlNotifications))
-        this.urlPatterns.set('post', new MatchPattern(urlPost))
-        this.urlPatterns.set('bookmarks', new MatchPattern(urlBookmarks))
-        this.urlPatterns.set('timeline', new MatchPattern(urlTimeline))
-        this.urlPatterns.set('messages', new MatchPattern(urlMessages))
-      }
-      /** Begin observing the root node of the DOM for mutations */
-      public startMutationObserver = () => {
-        // Begin observing root node to find the timeline node
-        console.log('connecting react-root observer')
-        this.observers.get('react-root')!.observe(documentRoot[0], {
-          childList: true,
-          subtree: true,
-          // TODO: use attribute mutation events for additional processing?
-          attributeFilter: ['data-ranking', 'data-testid'],
-        })
-      }
+      // get the mutator for either added or removed elements
+      const mutator = mutators[mutationType]
+      // process element as a post in a timeline (home, bookmarks, etc.)
+      mutator.processPost(element)
+      // process element for the Grok scroll list of buttons that we don't want
+      mutator.processGrokScrollList(element)
+      // process element for button elements of interest
+      mutator.processButtons(element)
+      // process element for an action button row (e.g. contains comment, repost, like buttons)
+      mutator.processButtonRows(element)
+      // process element for profiles avatars that contains the profileId in the data-testid attribute
+      mutator.processAvatars(element)
+      // process element for profile avatars in a conversation context (i.e. /messages URL)
+      mutator.processAvatarConversation(element)
+      // process element for profile stats (e.g. followers, following, etc.)
+      // TODO: need to finish implementing this properly
+      // needs to use the attributeFilter when navigating between profile pages
+      //mutator.processProfileStats(element)
       /**
        *
-       * @param element
-       * @returns
-       */
-      private isValidElement = (element: JQuery<HTMLElement>) => {
-        //const $ = load(element.outerHTML)
-        let elementType: ValidElement = null
-        // element is from tweet timeline (home, bookmarks, etc.)
-        if (
-          element.attr('data-testid') == Selector.Twitter.Article.value.innerDiv &&
-          element.has(Selector.Twitter.Article.div.tweet).length == 1
-        ) {
-          elementType = 'post'
-        }
-        // element is from notification timeline
-        else if (
-          element.attr('data-testid') == Selector.Twitter.Article.value.innerDiv &&
-          element.has(Selector.Twitter.Article.div.notification).length == 1
-        ) {
-          elementType = 'notification'
-        }
-        // element is a conversation in the messages timeline
-        else if (
-          element.attr('data-testid') == Selector.Twitter.Article.value.innerDiv &&
-          element.has(Selector.Twitter.Article.div.directMessage).length == 1
-        ) {
-          elementType = 'conversation'
-        }
-        // element is a profile hover popup
-        else if (
-          element.has(Selector.Twitter.Article.div.profilePopup).length == 1
-        ) {
-          elementType = 'profilePopup'
-        }
-        // element is the dumb Grok actions button
-        else if (
-          element.has(Selector.Twitter.Article.button.grokActions).length == 1
-        ) {
-          elementType = 'button'
-        }
-        // element contains an action button row (e.g. contains comment, repost, like buttons)
-        else if (element.has(Selector.Twitter.Article.div.buttonRow).length == 1) {
-          elementType = 'buttonRow'
-        }
-        // element contains a profile avatar in a conversation context (i.e. /messages URL)
-        else if (
-          (element.has(Selector.Twitter.Article.div.profileAvatarUnknown).length ==
-            1 &&
-            element.has(Selector.Twitter.Article.a.avatarConversation).length > 0) ||
-          element.has(Selector.Twitter.Article.div.profileAvatarConversation)
-            .length == 4
-        ) {
-          elementType = 'avatarConversation'
-        }
-        // element is a profile avatar
-        else if (
-          element.has(Selector.Twitter.Article.div.profileAvatar).length == 1 &&
-          element.has(Selector.Twitter.Article.div.profileAvatarUnknown).length == 0
-        ) {
-          elementType = 'avatar'
-        }
-        return { elementType }
-      }
-      /**
+       *  UNUSED HANDLERS BELOW
        *
-       * @param element
        */
-      private handleAttributeChange = (element: JQuery<HTMLElement>) => {
-        const value = element.attr('data-testid')!
-        console.log('handleAttributeChange', value)
-        // set profile avatar badge
-        // This is useful when navigating from one profile's page to another
-        if (
-          value.includes(Selector.Twitter.Article.value.profileAvatar) ||
-          value.includes(Selector.Twitter.Article.value.tweetUserAvatar)
-        ) {
-          const profileId =
-            value.split('-').pop()! ??
-            Parser.Twitter.Article.profileIdFromElement(
-              element.find(Selector.Twitter.Article.a.tweetUserName),
-            )!
-          if (!profileId) {
-            console.log('cannot get profileId from element; aborting avatar update')
+      // element is from notification timeline
+      //mutator.processNotification(element)
+      // element is a conversation in the messages timeline
+      //mutator.processConversation(element)
+      // element is a profile hover popup
+      //mutator.processProfilePopup(element)
+      /*
+      // element is the primary column with profile data on page load
+      if (element.has(selector.Container.div.primaryColumn).length == 1) {
+        mutator.processPrimaryColumn(element)
+      }
+      */
+    }
+    /**
+     *
+     * @param element
+     */
+    function handleAttributeChange(target: HTMLElement) {
+      const element = $(target)
+      //console.log('handleAttributeChange', element)
+      // set profile avatar badge
+      // This is useful when navigating from one profile's page to another
+      if (
+        element.closest(selector.Article.div.profileAvatar).length &&
+        element.attr('data-testid')?.includes(selector.Article.value.profileAvatar)
+      ) {
+        //console.log('processing attribute change for avatar element', element)
+        processAvatarElements(element)
+      }
+      // TODO: need to finish implementing this for profile ranking stats
+      /*
+      else if (
+        element.closest(selector.Article.div.profileStats).length &&
+        element.attr('href')?.includes(selector.Article.value.profileFollowers)
+      ) {
+        const profileId = element.attr('href')!.split('/')[1]
+        console.log('followers element changed for', profileId)
+      }
+      */
+    }
+    /**
+     *
+     * @param mutation
+     * @param mutationType
+     * @returns
+     */
+    async function handldMutatedNode(mutation: HTMLElement, mutationType: MutationType) {
+      const element = $(mutation)
+      if (!element.prop('outerHTML')) {
+        return
+      }
+      processMutatedElement(element, mutationType)
+    }
+    /**
+     * Handle all mutations to the root node
+     * @param mutations
+     */
+    function handleRootMutations(mutations: MutationRecord[]) {
+      mutations.forEach(async mutation => {
+        //const target = $(mutation.target as HTMLElement)
+        switch (mutation.type) {
+          case 'childList': {
+            // process each removed node
+            mutation.removedNodes.forEach(async mutation =>
+              handldMutatedNode(mutation as HTMLElement, 'removed'),
+            )
+            // process each added node
+            mutation.addedNodes.forEach(async mutation =>
+              handldMutatedNode(mutation as HTMLElement, 'added'),
+            )
             return
           }
-          setProfileAvatarBadge(element, profileCache.get(profileId)!.sentiment)
-        }
-      }
-      /**
-       * Adjust runtime state and otherwise respond to events when interesting
-       * elements are removed from the DOM
-       * @param nodes
-       */
-      private handleRemovedNodes = async (nodes: NodeList) => {
-        for (const node of nodes) {
-          if (!(node as HTMLElement).outerHTML) {
-            continue
-          }
-          const element = $(node as HTMLElement)
-          const { elementType } = this.isValidElement(element)
-          if (!elementType) {
-            continue
-          }
-          const t0 = performance.now()
-          switch (elementType) {
-            case 'post': {
-              try {
-                const { profileId, retweetProfileId, postId } =
-                  parsePostElement(element)
-                // Get the postId and delete the post from the cache
-                postCache.delete(postId)
-                const t1 = (performance.now() - t0).toFixed(3)
-                console.log(
-                  `processed removing post ${profileId}/${postId} from cache in ${t1}ms`,
-                )
-              } catch (e) {
-                // ignore processing errors for now; just continue to next element
-                continue
-              }
-              break
-            }
-            case 'notification':
-              // may not need to do anything here
-              break
-            case 'avatar':
-              // may not need to do anything here
-              break
+          case 'attributes': {
+            handleAttributeChange(mutation.target as HTMLElement)
+            return
           }
         }
-      }
-      /**
-       *
-       * @param nodes
-       */
-      private handleAddedNodes = async (nodes: NodeList) => {
-        for (const node of nodes) {
-          if (!(node as HTMLElement).outerHTML) {
-            continue
-          }
-          const element = $(node as HTMLElement)
-          // don't continue if not valid elementType
-          const { elementType } = this.isValidElement(element)
-          if (!elementType) {
-            continue
-          }
-          // Process the element depending on the determined type
-          switch (elementType) {
-            case 'post': {
-              try {
-                const t0 = performance.now()
-                const { profileId, retweetProfileId, postId } =
-                  parsePostElement(element)
-                // Always hide ads :)
-                if (element.has(Selector.Twitter.Article.div.ad).length) {
-                  console.log(`hiding post ${profileId}/${postId} (Ad)`)
-                  element.addClass('hidden')
-                  continue
-                }
-                // mutate the post button row with vote buttons
-                const [upvoteButton, downvoteButton] = mutateButtonRowElement(
-                  element.find(Selector.Twitter.Article.div.buttonRow),
-                  {
-                    profileId,
-                    postId,
-                  } as ParsedPostData,
-                )
-                // Immediately update the post ranking and vote count with API data
-                const cachedPost = await updateCachedPost(profileId, postId)
-                const t1 = (performance.now() - t0).toFixed(3)
-                console.log(
-                  `processed adding post ${profileId}/${postId} to cache in ${t1}ms`,
-                )
-                // Update the vote counts on post vote buttons if greater than 0
-                if (cachedPost.votesPositive > 0) {
-                  upvoteButton
-                    .find('span')
-                    .last()
-                    .html(cachedPost.votesPositive.toString())
-                }
-                if (cachedPost.votesNegative > 0) {
-                  downvoteButton
-                    .find('span')
-                    .last()
-                    .html(cachedPost.votesNegative.toString())
-                }
-                // blur the post if below rank threshold
-                if (canBlurPost(postId, cachedPost)) {
-                  blurPost(
-                    element.find('article'),
-                    profileId,
-                    postId,
-                    'post reputation below threshold',
-                  )
-                }
-                // set appropriate reputation badge for the profile avatar in this post element
-                // only need to set this individual badge when processing individual post
-                await processAvatarElements(
-                  element.find(Selector.Twitter.Article.div.profileAvatar).first(),
-                  false,
-                )
-              } catch (e) {
-                // ignore processing errors for now; just continue to next element
-                console.warn('element processing failed', e)
-                continue
-              }
-              break
-            }
-            case 'notification': {
-              // Set all profile avatar badges for notification items
-              // some notification elements can have several avatar elements
-              await processAvatarElements(
-                element.find(Selector.Twitter.Article.div.profileAvatar),
-              )
-              // TODO: hide notifications for low reputation accounts? can do more here
-              break
-            }
-            case 'conversation': {
-              await processAvatarElements(element, true, 'message')
-              // TODO: add logic to sort this DM element in the main container (e.g. stampchat)
-              break
-            }
-            case 'avatarConversation': {
-              await processAvatarElements(element, true, 'message')
-              break
-            }
-            case 'button':
-              // hide the Grok actions button (top-right corner of post)
-              element
-                .find(Selector.Twitter.Article.button.grokActions)
-                .addClass('hidden')
-              break
-            case 'buttonRow': {
-              // find the first button row that contains the requisite data for processing
-              const row = element
-                .find(Selector.Twitter.Article.div.buttonRow)
-                .has(`a[${Selector.Twitter.Article.attr.tweetId}]`)
-                .first()
-              // if we don't have a valid button row, then abort processing
-              if (row.length < 1) {
-                continue
-              }
-              // destructure index 1 and 3 for profileId and postId respectively
-              const [, profileId, , postId] = row
-                .find(`a[${Selector.Twitter.Article.attr.tweetId}]`)
-                .attr('href')!
-                .split('/')
-              // mutate button row to add vote buttons
-              const [upvoteButton, downvoteButton] = mutateButtonRowElement(row, {
-                profileId,
-                postId,
-              } as ParsedPostData)
-              // use cached post data if it's available, otherwise fetch and cache post data
-              const { votesPositive, votesNegative } =
-                postCache.get(postId) ?? (await updateCachedPost(profileId, postId))
-              if (votesPositive > 0) {
-                upvoteButton.find('span').last().html(votesPositive.toString())
-              }
-              if (votesNegative > 0) {
-                downvoteButton.find('span').last().html(votesNegative.toString())
-              }
-              // some button rows (e.g. mediaViewer on mobile) have profile avatars
-              // don't update cached profile data since that was done above
-              await processAvatarElements(
-                element.find(Selector.Twitter.Article.div.profileAvatar).first(),
-                false,
-              )
-              break
-            }
-            case 'profilePopup':
-            case 'avatar': {
-              // hide the Grok profile summary button
-              element
-                .find(Selector.Twitter.Article.span.grokProfileSummary)
-                ?.closest('button')
-                ?.parent() // button container div
-                ?.addClass('hidden')
-              await processAvatarElements(
-                element.find(Selector.Twitter.Article.div.profileAvatar),
-              )
-              break
-            }
-          }
-        }
-      }
-      /**
-       * Handle all mutations to the root node
-       * @param mutations
-       */
-      private handleRootMutations = (mutations: MutationRecord[]) => {
-        mutations.forEach(async mutation => {
-          switch (mutation.type) {
-            case 'childList': {
-              this.handleRemovedNodes(mutation.removedNodes)
-              this.handleAddedNodes(mutation.addedNodes)
-              return
-            }
-            case 'attributes': {
-              this.handleAttributeChange($(mutation.target as HTMLElement))
-              return
-            }
-            /*
-           case 'characterData': {
-             console.log('data change', mutation.target)
-           }
-           */
-          }
-        })
-      }
+      })
     }
-    const mutator = new Mutator()
-    ctx.onInvalidated(() =>
-      clearInterval(state.get('postVoteUpdateInterval') as NodeJS.Timeout),
-    )
-    // callback for handling URL changes
-    ctx.addEventListener(window, 'wxt:locationchange', async ({ newUrl }) => {
-      console.log('url changed to', newUrl.pathname)
-      // trigger onInvalidated handler if context is invalid
-      if (ctx.isInvalid) {
-        ctx.notifyInvalidated()
-      }
-      // handle setting avatar badges after navigating to profile pages
-      // remove beginning `/` for profileId
-      const profileId = newUrl.pathname.substring(1)
-      const avatars = documentRoot.find(
-        `div[data-testid="UserAvatar-Container-${profileId}"]`,
-      )
-      if (avatars.length > 0) {
-        await processAvatarElements(avatars, false)
-      }
-    })
-
-    // Start observing Twitter's `react-node` for mutations
-    mutator.startMutationObserver()
   },
 })
