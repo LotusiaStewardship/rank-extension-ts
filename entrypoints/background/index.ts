@@ -1,7 +1,4 @@
-import {
-  WalletManager,
-  WalletBuilder,
-} from '@/entrypoints/background/modules/wallet'
+import { WalletManager, WalletBuilder } from '@/entrypoints/background/modules/wallet'
 import { WalletState, walletStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import assert from 'assert'
@@ -88,9 +85,7 @@ export default defineBackground({
           return (await walletManager.handlePopupSubmitRankVote(data)) as string
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
-          throw new Error(
-            `error during 'content-script:submitRankVote': ${e.message}`,
-          )
+          throw new Error(`error during 'content-script:submitRankVote': ${e.message}`)
         }
       },
     )
