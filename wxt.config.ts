@@ -17,8 +17,8 @@ export default defineConfig({
     name: 'Lotus Voting System',
     description:
       'A decentralized, community-moderated reputation system for social media, powered by Lotus',
-    version: '0.3.0',
-    version_name: '0.3.0-alpha',
+    version: '0.3.1',
+    version_name: '0.3.1-alpha',
     host_permissions: ['*://rank.lotusia.org/api/v1/*', '*://chronik.lotusia.org/*'],
     permissions: ['storage', 'notifications'],
   },
