@@ -1085,6 +1085,15 @@ export default defineContentScript({
       if (!element.prop('outerHTML')) {
         return
       }
+      // immediately ignore some elements we don't care about
+      else if (
+        element.is('img') ||
+        element.is('a') ||
+        element.is('span') ||
+        element.is(':header')
+      ) {
+        return
+      }
       processMutatedElement(element, mutationType)
     }
     /**
