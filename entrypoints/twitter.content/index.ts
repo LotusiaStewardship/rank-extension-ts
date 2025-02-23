@@ -195,7 +195,15 @@ export default defineContentScript({
        * @param element
        */
       async processButtonRows(element: JQuery<HTMLElement>) {
-        if (element.has(selector.Article.div.buttonRow).length < 1) {
+        if (
+          // need at least 1 button row element to proceed
+          element.has(selector.Article.div.buttonRow).length < 1 ||
+          // bugfix: some race condition on mobile duplicated vote buttons
+          // this makes sure we don't process button rows we've already mutated
+          element.has(
+            `${selector.Article.button.postUpvoteButton}, ${selector.Article.button.postDownvoteButton}`,
+          ).length
+        ) {
           return
         }
         //console.log('processing button row element', element)
