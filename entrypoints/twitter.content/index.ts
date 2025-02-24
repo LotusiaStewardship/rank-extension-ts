@@ -207,10 +207,10 @@ export default defineContentScript({
           return
         }
         //console.log('processing button row element', element)
-        // find the first button row that contains the requisite data for processing
-        const rows = findButtonRowElements(element)
+        // find all button rows in current element
+        const rows = element.find(selector.Article.div.buttonRow)
         // if we don't have a valid button row, then abort processing
-        if (!rows) {
+        if (!rows.length) {
           console.warn('no button row found in element', element)
           return
         }
@@ -730,17 +730,14 @@ export default defineContentScript({
     async function processButtonRowElement(element: JQuery<HTMLElement>) {
       try {
         // destructure index 1 and 3 for profileId and postId respectively
-        const isPostButtonRow = element.closest(selector.Article.div.innerDiv).length
-        const [, profileId, , postId] = isPostButtonRow
-          ? element
-              .closest(selector.Article.div.innerDiv)
-              .find(`a[${selector.Article.attr.tweetId}]:last`)
-              .attr('href')!
-              .split('/')
-          : element
-              .find(`a[${selector.Article.attr.tweetId}]:last`)
-              .attr('href')!
-              .split('/')
+        const postButtonRow = element.closest(selector.Article.div.innerDiv)
+        const postIdLink = postButtonRow.length
+          ? postButtonRow.find(`a[${selector.Article.attr.tweetId}]:last`)
+          : element.find(`a[${selector.Article.attr.tweetId}]:last`)
+        // sometimes a full-screen photo has a button row without the post URL in href attribute
+        // in this case, assume our browser is on the post URL page and use this for the info
+        const [, profileId, , postId] =
+          postIdLink?.attr('href')?.split('/') ?? window.location.pathname.split('/')
         // mutate button row to add vote buttons
         const [upvoteButton, downvoteButton] = mutateButtonRowElement(element, {
           profileId,
@@ -808,17 +805,6 @@ export default defineContentScript({
       }
       */
       return data
-    }
-    /**
-     *
-     * @param element
-     * @returns
-     */
-    function findButtonRowElements(element: JQuery<HTMLElement>) {
-      const rows = element
-        .has(`a[${selector.Article.attr.tweetId}]`)
-        .find(selector.Article.div.buttonRow)
-      return rows.length > 0 ? rows : undefined
     }
     /**
      * Mutate button rows with vote buttons (e.g. posts, photo/media viewer, etc.)
