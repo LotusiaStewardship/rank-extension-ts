@@ -629,9 +629,10 @@ export default defineContentScript({
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
       // Find the existing avatar badge class on the element to replace
-      const className = avatar[0].classList
-        .entries()
-        .find(([, className]) => className.includes('reputation'))
+      const className = avatar
+        .prop('class')
+        .split(/\s/)
+        .filter((c: string) => c.includes('reputation'))
       // New badge class that will be applied to the avatar element
       let newClassName = ''
       // Set the new class name according to the size of the avatar element
@@ -664,8 +665,8 @@ export default defineContentScript({
         }
       }
       // set or replace the badge class on the avatar element
-      return className
-        ? avatar[0].classList.replace(className[1], newClassName)
+      return className.length
+        ? avatar[0].classList.replace(className[0], newClassName)
         : avatar?.addClass(newClassName)
     }
     /**
