@@ -215,7 +215,7 @@ export default defineContentScript({
           return
         }
         // process each found button row
-        rows.each((index, row) => void processButtonRowElement($(row)))
+        rows.map(async (i, row) => processButtonRowElement($(row)))
       }
       /**
        *
