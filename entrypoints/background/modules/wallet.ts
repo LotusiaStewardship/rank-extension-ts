@@ -234,18 +234,18 @@ class WalletManager {
     this.wsPingInterval = setInterval(async () => {
       const connected = await this.ws.connected
       // check to make sure Chronik WebSocket is connected
-      if (connected?.target && connected.target.readyState === WebSocket.CLOSED) {
+      if (connected?.target && connected.target.readyState !== WebSocket.OPEN) {
         await this.wsWaitForOpen()
-        console.warn('chronik websocket reconnected after state "CLOSED"')
+        console.warn(
+          `chronik websocket reconnected after state "${connected.target.readyState}"`,
+        )
       }
       // Always rehydrate UTXO set
       // this isn't necessary for keeping background service-worker alive,
       // but is helpful on mobile when WebSocket silently disconnects
       this.queue.pending.push([this.hydrateUtxos, undefined])
       // Try to resolve the queued `EventProcessor`s if not already busy doing so
-      if (!this.queue.busy) {
-        return this.processEventQueue()
-      }
+      return this.processEventQueue()
     }, 5000)
   }
   /** Shutdown all active sockets and listeners */
