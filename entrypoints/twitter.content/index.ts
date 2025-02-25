@@ -560,22 +560,15 @@ export default defineContentScript({
       return postCache.get(postId)!
     }
     /**
-     * Update rank stats for cached posts and update DOM elements accordingly. This
-     * callback is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
+     * Update ranking statistics for cached posts and update DOM elements accordingly.
+     * This function is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
      */
     async function updateCachedPosts() {
       postCache.forEach(async (cachedPost, postId) => {
-        // interrupt if post cache update interval is disabled
-        /*
-        if (!state.get('postUpdateInterval')) {
-          return
-        }
-        */
         // skip updating posts that are processing vote button handlers
         if (postId == state.get('postIdBusy')) {
           return
         }
-        // cached post may have been removed during scroll interval
         try {
           // update cached post with API data
           await updateCachedPost(cachedPost.profileId, postId)
@@ -585,24 +578,32 @@ export default defineContentScript({
               `div[data-testid="UserAvatar-Container-${cachedPost.profileId}"]`,
             ),
           )
-          const voteButtons = documentRoot.find(`button[data-postid="${postId}"]`)
-          // Update the vote counts on post vote buttons if greater than 0
-          if (cachedPost.votesPositive > 0) {
-            $(voteButtons[0])
-              .find('span')
-              .last()
-              .html(cachedPost.votesPositive.toString())
-          }
-          if (cachedPost.votesNegative > 0) {
-            $(voteButtons[1])
-              .find('span')
-              .last()
-              .html(cachedPost.votesNegative.toString())
-          }
+          // Update the vote counts on post vote buttons if necessary
+          const { votesPositive, votesNegative } = cachedPost
+          const voteButtons = documentRoot
+            .find(`button[data-postid="${postId}"] span:last`)
+            .each((i, span) => {
+              switch (span.getAttribute('data-testid')) {
+                case 'upvote': {
+                  const voteString = String(votesNegative)
+                  if (votesPositive > 0 && span.innerHTML !== voteString) {
+                    span.innerHTML = voteString
+                  }
+                  break
+                }
+                case 'downvote': {
+                  const voteString = String(votesNegative)
+                  if (votesNegative > 0 && span.innerHTML !== voteString) {
+                    span.innerHTML = voteString
+                  }
+                  break
+                }
+              }
+            })
           // check if post can be blurred, and then do so if necessary
           const article = voteButtons.closest('article')
           if (article.length) {
-            handlePostBlurAction(
+            processPostBlurAction(
               article,
               cachedPost.profileId,
               postId,
