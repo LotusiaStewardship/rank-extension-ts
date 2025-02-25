@@ -187,7 +187,13 @@ class WalletManager {
     }
   }
   /** Deserialize the stored `WalletState` for runtime application, and connect Chronik API/WebSocket */
-  init = async (walletState: WalletState) => {
+  init = async () => {
+    const walletState = await walletStore.loadWalletState()
+    if (!walletState) {
+      throw new Error(
+        'tried to initialize wallet, but no wallet state saved to localStorage',
+      )
+    }
     // initialize the wallet from the existing state
     this.wallet = {
       seedPhrase: walletState.seedPhrase,
