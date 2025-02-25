@@ -711,11 +711,15 @@ export default defineContentScript({
       // process all elements that were found
       map.forEach(async (avatars, profileId) => {
         try {
-          // update the cached profile if we don't already have it cached
-          const { sentiment } =
-            profileCache.get(profileId) ?? (await updateCachedProfile(profileId))
           // set the badge on each avatar element that was found for this profile
-          avatars.forEach(async avatar => setProfileAvatarBadge(avatar, sentiment))
+          avatars.forEach(async avatar =>
+            setProfileAvatarBadge(
+              avatar,
+              // get cached profile data or fetch from API, then get sentiment value
+              (profileCache.get(profileId) ?? (await updateCachedProfile(profileId)))
+                .sentiment,
+            ),
+          )
         } catch (e) {
           // warn and skip
           console.warn('failed to set avatar badge', profileId, avatars, e)
