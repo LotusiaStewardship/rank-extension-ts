@@ -757,7 +757,7 @@ export default defineContentScript({
         // some button rows are part of post elements (i.e. have parent article element)
         const article = element.closest('article')
         if (article.length) {
-          handlePostBlurAction(article, profileId, postId, ranking)
+          processPostBlurAction(article, profileId, postId, ranking)
         }
         //
         if (votesPositive > 0) {
@@ -880,7 +880,7 @@ export default defineContentScript({
      * @param ranking
      * @returns
      */
-    function handlePostBlurAction(
+    function processPostBlurAction(
       element: JQuery<HTMLElement>,
       profileId: string,
       postId: string,
@@ -972,7 +972,7 @@ export default defineContentScript({
         // handle post blurring
         const article = button.closest('article')
         if (article.length) {
-          handlePostBlurAction(article, profileId, postId, cachedPost.ranking)
+          processPostBlurAction(article, profileId, postId, cachedPost.ranking)
         }
         // update all available avatar elements for this profile with appropriate reputation badge
         processAvatarElements(
