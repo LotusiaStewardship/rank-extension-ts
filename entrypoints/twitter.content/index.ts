@@ -207,15 +207,15 @@ export default defineContentScript({
           return
         }
         //console.log('processing button row element', element)
-        // find the first button row that contains the requisite data for processing
-        const rows = findButtonRowElements(element)
+        // find all button rows in current element
+        const rows = element.find(selector.Article.div.buttonRow)
         // if we don't have a valid button row, then abort processing
-        if (!rows) {
+        if (!rows.length) {
           console.warn('no button row found in element', element)
           return
         }
         // process each found button row
-        rows.each((index, row) => void processButtonRowElement($(row)))
+        rows.map(async (i, row) => processButtonRowElement($(row)))
       }
       /**
        *
@@ -560,22 +560,15 @@ export default defineContentScript({
       return postCache.get(postId)!
     }
     /**
-     * Update rank stats for cached posts and update DOM elements accordingly. This
-     * callback is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
+     * Update ranking statistics for cached posts and update DOM elements accordingly.
+     * This function is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
      */
     async function updateCachedPosts() {
       postCache.forEach(async (cachedPost, postId) => {
-        // interrupt if post cache update interval is disabled
-        /*
-        if (!state.get('postUpdateInterval')) {
-          return
-        }
-        */
         // skip updating posts that are processing vote button handlers
         if (postId == state.get('postIdBusy')) {
           return
         }
-        // cached post may have been removed during scroll interval
         try {
           // update cached post with API data
           await updateCachedPost(cachedPost.profileId, postId)
@@ -585,24 +578,32 @@ export default defineContentScript({
               `div[data-testid="UserAvatar-Container-${cachedPost.profileId}"]`,
             ),
           )
-          const voteButtons = documentRoot.find(`button[data-postid="${postId}"]`)
-          // Update the vote counts on post vote buttons if greater than 0
-          if (cachedPost.votesPositive > 0) {
-            $(voteButtons[0])
-              .find('span')
-              .last()
-              .html(cachedPost.votesPositive.toString())
-          }
-          if (cachedPost.votesNegative > 0) {
-            $(voteButtons[1])
-              .find('span')
-              .last()
-              .html(cachedPost.votesNegative.toString())
-          }
+          // Update the vote counts on post vote buttons if necessary
+          const { votesPositive, votesNegative } = cachedPost
+          const voteButtons = documentRoot
+            .find(`button[data-postid="${postId}"] span:last`)
+            .each((i, span) => {
+              switch (span.getAttribute('data-testid')) {
+                case 'upvote': {
+                  const voteString = String(votesNegative)
+                  if (votesPositive > 0 && span.innerHTML !== voteString) {
+                    span.innerHTML = voteString
+                  }
+                  break
+                }
+                case 'downvote': {
+                  const voteString = String(votesNegative)
+                  if (votesNegative > 0 && span.innerHTML !== voteString) {
+                    span.innerHTML = voteString
+                  }
+                  break
+                }
+              }
+            })
           // check if post can be blurred, and then do so if necessary
           const article = voteButtons.closest('article')
           if (article.length) {
-            handlePostBlurAction(
+            processPostBlurAction(
               article,
               cachedPost.profileId,
               postId,
@@ -629,9 +630,10 @@ export default defineContentScript({
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
       // Find the existing avatar badge class on the element to replace
-      const className = avatar[0].classList
-        .entries()
-        .find(([, className]) => className.includes('reputation'))
+      const className = avatar
+        .prop('class')
+        .split(/\s/)
+        .filter((c: string) => c.includes('reputation'))
       // New badge class that will be applied to the avatar element
       let newClassName = ''
       // Set the new class name according to the size of the avatar element
@@ -664,8 +666,8 @@ export default defineContentScript({
         }
       }
       // set or replace the badge class on the avatar element
-      return className
-        ? avatar[0].classList.replace(className[1], newClassName)
+      return className.length
+        ? avatar[0].classList.replace(className[0], newClassName)
         : avatar?.addClass(newClassName)
     }
     /**
@@ -710,11 +712,15 @@ export default defineContentScript({
       // process all elements that were found
       map.forEach(async (avatars, profileId) => {
         try {
-          // update the cached profile if we don't already have it cached
-          const { sentiment } =
-            profileCache.get(profileId) ?? (await updateCachedProfile(profileId))
           // set the badge on each avatar element that was found for this profile
-          avatars.forEach(async avatar => setProfileAvatarBadge(avatar, sentiment))
+          avatars.forEach(async avatar =>
+            setProfileAvatarBadge(
+              avatar,
+              // get cached profile data or fetch from API, then get sentiment value
+              (profileCache.get(profileId) ?? (await updateCachedProfile(profileId)))
+                .sentiment,
+            ),
+          )
         } catch (e) {
           // warn and skip
           console.warn('failed to set avatar badge', profileId, avatars, e)
@@ -729,17 +735,14 @@ export default defineContentScript({
     async function processButtonRowElement(element: JQuery<HTMLElement>) {
       try {
         // destructure index 1 and 3 for profileId and postId respectively
-        const isPostButtonRow = element.closest(selector.Article.div.innerDiv).length
-        const [, profileId, , postId] = isPostButtonRow
-          ? element
-              .closest(selector.Article.div.innerDiv)
-              .find(`a[${selector.Article.attr.tweetId}]:last`)
-              .attr('href')!
-              .split('/')
-          : element
-              .find(`a[${selector.Article.attr.tweetId}]:last`)
-              .attr('href')!
-              .split('/')
+        const postButtonRow = element.closest(selector.Article.div.innerDiv)
+        const postIdLink = postButtonRow.length
+          ? postButtonRow.find(`a[${selector.Article.attr.tweetId}]:last`)
+          : element.find(`a[${selector.Article.attr.tweetId}]:last`)
+        // sometimes a full-screen photo has a button row without the post URL in href attribute
+        // in this case, assume our browser is on the post URL page and use this for the info
+        const [, profileId, , postId] =
+          postIdLink?.attr('href')?.split('/') ?? window.location.pathname.split('/')
         // mutate button row to add vote buttons
         const [upvoteButton, downvoteButton] = mutateButtonRowElement(element, {
           profileId,
@@ -807,17 +810,6 @@ export default defineContentScript({
       }
       */
       return data
-    }
-    /**
-     *
-     * @param element
-     * @returns
-     */
-    function findButtonRowElements(element: JQuery<HTMLElement>) {
-      const rows = element
-        .has(`a[${selector.Article.attr.tweetId}]`)
-        .find(selector.Article.div.buttonRow)
-      return rows.length > 0 ? rows : undefined
     }
     /**
      * Mutate button rows with vote buttons (e.g. posts, photo/media viewer, etc.)
