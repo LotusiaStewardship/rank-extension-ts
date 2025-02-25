@@ -358,26 +358,23 @@ class WalletManager {
   handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
     const { platform, profileId, sentiment, postId, comment } =
       data as RankTransactionParams
-    try {
-      // validate `UtxoCache` first
-      //await this.validateUtxos()
-      const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
-      // craft RANK tx and broadcast it
-      const { txid } = await this.broadcastTx(tx.toBuffer())
-      console.log(
-        `successfully cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
-        txid,
-      )
-      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
-      this.outpoints = spent
-      // Return the txid
-      return txid
-    } catch (e) {
-      return void console.error(
-        `failed to cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
-        e,
-      )
+    // initialize the wallet if it isn't loaded
+    if (!this.outpoints) {
+      await this.deinit()
+      await this.init()
     }
+    // craft RANK tx
+    const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
+    // broadcast the crafted tx
+    const { txid } = await this.broadcastTx(tx.toBuffer())
+    console.log(
+      `successfully cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
+      txid,
+    )
+    // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+    this.outpoints = spent
+    // Return the txid
+    return txid
   }
   /**
    *
@@ -385,20 +382,20 @@ class WalletManager {
    */
   handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
-    try {
-      // validate `UtxoCache` first
-      //await this.validateUtxos()
-      // craft send tx and broadcast it
-      const [tx, spent] = this.craftSendTx(outAddress, outValue)
-      const { txid } = await this.broadcastTx(tx.toBuffer())
-      console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
-      // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
-      this.outpoints = spent
-      // Return the txid
-      return txid
-    } catch (e) {
-      return void console.error(`failed to send ${outValue} sats to ${outAddress}`, e)
+    // initialize the wallet if it isn't loaded
+    if (!this.outpoints) {
+      await this.deinit()
+      await this.init()
     }
+    // craft send tx
+    const [tx, spent] = this.craftSendTx(outAddress, outValue)
+    // broadcast the crafted tx
+    const { txid } = await this.broadcastTx(tx.toBuffer())
+    console.log(`successfully sent ${outValue} sats to ${outAddress}`, txid)
+    // Use the outpoints setter to remove spent UTXOs from `UtxoCache`
+    this.outpoints = spent
+    // Return the txid
+    return txid
   }
   /**  */
   private handleWsDisconnect = async () => {
