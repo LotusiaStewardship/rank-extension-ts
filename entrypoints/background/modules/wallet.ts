@@ -250,8 +250,8 @@ class WalletManager {
   }
   /** Shutdown all active sockets and listeners */
   deinit = async () => {
-    this.wsUnsubscribeP2PKH(this.scriptPayload)
     clearInterval(this.wsPingInterval)
+    this.wsUnsubscribeP2PKH(this.scriptPayload)
     this.ws.close()
   }
   /**
