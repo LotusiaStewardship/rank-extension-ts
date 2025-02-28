@@ -10,6 +10,7 @@ export default defineConfig({
   runner: {
     binaries: {
       chrome: '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      safari: '/Applications/Safari.app/Contents/MacOS/Safari',
     },
   },
   manifestVersion: 3,
