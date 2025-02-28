@@ -8,11 +8,13 @@ export namespace Selector {
         timeline = 'aria-label*="timeline"',
         root = `react-root`,
         primaryColumn = `data-testid="primaryColumn"`,
+        sidebarColumn = `data-testid="sidebarColumn"`,
       }
       export enum div {
         timeline = `div[${attr.timeline}], div[aria-label*="Timeline"]`,
         root = `div#${attr.root}`,
         primaryColumn = `div[${attr.primaryColumn}]`,
+        sidebarColumn = `div[${attr.sidebarColumn}]`,
       }
     }
     /** Selectors for Tweet DOM elements */

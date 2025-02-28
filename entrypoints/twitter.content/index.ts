@@ -1006,9 +1006,18 @@ export default defineContentScript({
       // don't process column/timeline elements or entire sections
       // helps to prevent unnecessary double processing
       if (element.is(`:has(${selector.Article.div.innerDiv})`)) {
-        // find the profileStats div and set current element to this div
-        element = element.find(selector.Article.div.profileStats)
+        // set up array of selectors we still want to process
+        const selectors: string[] = []
+        // profile stats div (i.e. profile page)
+        //selectors.push(selector.Article.div.profileStats)
+        // primary column
+        selectors.push(selector.Container.div.primaryColumn)
+        // sidebar column
+        selectors.push(selector.Container.div.sidebarColumn)
         // TODO: handle additional edge cases to avoid duplicate processing if necessary
+        // join the selectors with a comma to find them all
+        element = element.find(selectors.join(', '))
+        //console.log('modified elements', element)
       }
       // get the mutator for either added or removed elements
       const mutator = mutators[mutationType]
