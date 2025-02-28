@@ -573,37 +573,36 @@ export default defineContentScript({
      * This function is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
      */
     async function updateCachedPosts() {
-      postCache.forEach(async (cachedPost, postId) => {
+      postCache.forEach(async ({ profileId }, postId) => {
         // skip updating posts that are processing vote button handlers
         if (postId == state.get('postIdBusy')) {
           return
         }
         try {
           // update cached post with API data
-          await updateCachedPost(cachedPost.profileId, postId)
+          const { votesPositive, votesNegative, ranking } = await updateCachedPost(
+            profileId,
+            postId,
+          )
           // set all available profile avatar badges accordingly
           processAvatarElements(
-            documentRoot.find(
-              `div[data-testid="UserAvatar-Container-${cachedPost.profileId}"]`,
-            ),
+            documentRoot.find(`div[data-testid="UserAvatar-Container-${profileId}"]`),
           )
           // Update the vote counts on post vote buttons if necessary
-          const { votesPositive, votesNegative } = cachedPost
           const voteButtons = documentRoot
-            .find(`button[data-postid="${postId}"] span:last`)
-            .each((i, span) => {
-              switch (span.getAttribute('data-testid')) {
+            .find(`button[data-postid="${postId}"]`)
+            .each((i, button) => {
+              const span = $('span:last', button)
+              switch (button.getAttribute('data-testid')) {
                 case 'upvote': {
-                  const voteString = String(votesNegative)
-                  if (votesPositive > 0 && span.innerHTML !== voteString) {
-                    span.innerHTML = voteString
+                  if (votesPositive > 0) {
+                    span.html(String(votesPositive))
                   }
                   break
                 }
                 case 'downvote': {
-                  const voteString = String(votesNegative)
-                  if (votesNegative > 0 && span.innerHTML !== voteString) {
-                    span.innerHTML = voteString
+                  if (votesNegative > 0) {
+                    span.html(String(votesNegative))
                   }
                   break
                 }
@@ -612,12 +611,7 @@ export default defineContentScript({
           // check if post can be blurred, and then do so if necessary
           const article = voteButtons.closest('article')
           if (article.length) {
-            processPostBlurAction(
-              article,
-              cachedPost.profileId,
-              postId,
-              cachedPost.ranking,
-            )
+            processPostBlurAction(article, profileId, postId, ranking)
           }
         } catch (e) {
           // skip to next post if we fail here
