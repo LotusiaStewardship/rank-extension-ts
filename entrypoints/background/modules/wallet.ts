@@ -249,7 +249,7 @@ class WalletManager {
       // but is helpful on mobile when WebSocket silently disconnects
       this.queue.pending.push([this.hydrateUtxos, undefined])
       // Try to resolve the queued `EventProcessor`s if not already busy doing so
-      return this.processEventQueue()
+      await this.processEventQueue()
     }, 5000)
   }
   /** Shutdown all active sockets and listeners */
