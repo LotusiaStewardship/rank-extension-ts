@@ -458,7 +458,7 @@ export default defineContentScript({
      *  Functions
      */
     /**
-     * Creates a unique overlay button/span element for a blurred post
+     * Create a unique button to overlay a blurred post
      * @param postId
      * @returns
      */
@@ -480,7 +480,12 @@ export default defineContentScript({
         )
     }
     /**
+     * Fetch ranking statistics for `profileId` from API. If `postId` is provided, then
+     * ranking statistics for the post will be fetched instead.
      *
+     * If both a `profileID` and `postId` are specified, the return data will be for the
+     * `postId`, but an object with the `profile` property will also contain up-to-date
+     * ranking statistics for the `profileId`.
      * @param profileId
      * @param postId
      * @returns
@@ -620,7 +625,8 @@ export default defineContentScript({
       })
     }
     /**
-     *
+     * Set the badge on the provided `avatar` element(s) according to the `sentiment`
+     * of a cached profile's ranking.
      * @param avatar
      * @param sentiment
      * @returns
@@ -644,7 +650,7 @@ export default defineContentScript({
         // abort because cached element is no longer in the DOM
         case '0px':
           return
-        // e.g. embedded post avatars
+        // e.g. embedded post avatars (i.e. quote tweets)
         case '24px':
         // e.g. profile avatars on notifications such as likes
         // // eslint-disable-next-line no-fallthrough
