@@ -1096,6 +1096,9 @@ export default defineContentScript({
       // immediately ignore some elements we don't care about
       else if (
         element.is('img') ||
+        element.is('svg') ||
+        // occurs when inserting vote buttons
+        element.is('div:has(> button[data-testid*="vote"])') ||
         element.is('a') ||
         element.is('span') ||
         element.is(':header')
