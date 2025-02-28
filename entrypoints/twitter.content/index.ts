@@ -470,7 +470,9 @@ export default defineContentScript({
       return overlay
         .attr('data-postid', postId)
         .addClass('blurred-overlay')
-        .on('click', overlay[0], handleBlurredOverlayButtonClick)
+        .on({
+          click: handleBlurredOverlayButtonClick,
+        })
         .append(
           span
             .addClass('blurred-overlay-text')
@@ -841,7 +843,9 @@ export default defineContentScript({
           'data-profileid': data.profileId,
           'data-sentiment': 'positive',
         })
-        .on('click', upvoteButton[0], handlePostVoteButtonClick)
+        .on({
+          click: handlePostVoteButtonClick,
+        })
       upvoteButton.find('span').last().html('')
       const upvoteSvg = $(VOTE_ARROW_UP) as JQuery<HTMLOrSVGElement>
       const upvoteArrow = upvoteSvg.find('g path')
@@ -857,7 +861,9 @@ export default defineContentScript({
           'data-profileid': data.profileId,
           'data-sentiment': 'negative',
         })
-        .on('click', downvoteButton[0], handlePostVoteButtonClick)
+        .on({
+          click: handlePostVoteButtonClick,
+        })
       downvoteButton.find('span').last().html('')
       const downvoteSvg = $(VOTE_ARROW_DOWN) as JQuery<HTMLOrSVGElement>
       const downvoteArrow = downvoteSvg.find('g path')
