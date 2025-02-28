@@ -118,8 +118,11 @@ export default defineContentScript({
           //console.log('processing post element', element)
           try {
             const { profileId, retweetProfileId, postId } = parsePostElement(element)
-            // Always hide ads :)
-            if (element.has(selector.Article.div.ad).length == 1) {
+            // Always hide ads :) unless we're on the post URL
+            if (
+              element.has(selector.Article.div.ad).length == 1 &&
+              !window.location.pathname.includes(postId)
+            ) {
               console.log(`hiding post ${profileId}/${postId} (Ad)`)
               element.addClass('hidden')
               return
@@ -222,18 +225,18 @@ export default defineContentScript({
        * @param element
        */
       async processButtons(element: JQuery<HTMLElement>) {
-        if (
-          element.has(selector.Article.button.grokActions).length > 0 ||
-          element.has(selector.Article.button.grokProfileSummary).length > 0
-        ) {
+        // hide the Grok actions button (top-right corner of post)
+        if (element.has(selector.Article.button.grokActions).length > 0) {
           //console.log('processing button elements', element)
-          // hide the Grok actions button (top-right corner of post)
-          element.find(selector.Article.button.grokActions)?.addClass('hidden')
-          // hide the Grok profile summary buttons
+          element.find(selector.Article.button.grokActions).addClass('hidden')
+        }
+        // hide the Grok profile summary buttons
+        if (element.has(selector.Article.button.grokProfileSummary).length > 0) {
+          //console.log('processing button elements', element)
           element
             // main button
             .find(selector.Article.button.grokProfileSummary)
-            ?.addClass('hidden')
+            .addClass('hidden')
             // big button in profile popup
             .has(selector.Article.span.grokProfileSummary)
             ?.parent()
@@ -336,10 +339,14 @@ export default defineContentScript({
        *
        * @param element
        */
-      async processGrokScrollList(element: JQuery<HTMLElement>) {
+      async processGrokElements(element: JQuery<HTMLElement>) {
+        // Grok scroll list embedded in post element
         if (element.has(selector.Article.div.grokScrollList).length == 1) {
-          //console.log('processing grokScrollList element', element)
-          element.find(selector.Article.div.grokScrollList).parent().addClass('hidden')
+          element.find(selector.Article.div.grokScrollList)?.parent().addClass('hidden')
+        }
+        // hovering grok drawer found on home page (and possibly elsewhere)
+        if (element.has(selector.Article.div.grokDrawer).length == 1) {
+          element.find(selector.Article.div.grokDrawer)?.addClass('hidden')
         }
       }
     }
@@ -374,7 +381,7 @@ export default defineContentScript({
       async processAvatarConversation(element: JQuery<HTMLElement>) {}
       async processAvatars(element: JQuery<HTMLElement>) {}
       async processProfileStats(element: JQuery<HTMLElement>) {}
-      async processGrokScrollList(element: JQuery<HTMLElement>) {}
+      async processGrokElements(element: JQuery<HTMLElement>) {}
     }
     /**
      *  Timers
@@ -451,7 +458,7 @@ export default defineContentScript({
      *  Functions
      */
     /**
-     * Creates a unique overlay button/span element for a blurred post
+     * Create a unique button to overlay a blurred post
      * @param postId
      * @returns
      */
@@ -463,7 +470,9 @@ export default defineContentScript({
       return overlay
         .attr('data-postid', postId)
         .addClass('blurred-overlay')
-        .on('click', overlay[0], handleBlurredOverlayButtonClick)
+        .on({
+          click: handleBlurredOverlayButtonClick,
+        })
         .append(
           span
             .addClass('blurred-overlay-text')
@@ -471,7 +480,12 @@ export default defineContentScript({
         )
     }
     /**
+     * Fetch ranking statistics for `profileId` from API. If `postId` is provided, then
+     * ranking statistics for the post will be fetched instead.
      *
+     * If both a `profileID` and `postId` are specified, the return data will be for the
+     * `postId`, but an object with the `profile` property will also contain up-to-date
+     * ranking statistics for the `profileId`.
      * @param profileId
      * @param postId
      * @returns
@@ -564,37 +578,36 @@ export default defineContentScript({
      * This function is executed after `CACHE_POST_ENTRY_EXPIRE_TIME` interval
      */
     async function updateCachedPosts() {
-      postCache.forEach(async (cachedPost, postId) => {
+      postCache.forEach(async ({ profileId }, postId) => {
         // skip updating posts that are processing vote button handlers
         if (postId == state.get('postIdBusy')) {
           return
         }
         try {
           // update cached post with API data
-          await updateCachedPost(cachedPost.profileId, postId)
+          const { votesPositive, votesNegative, ranking } = await updateCachedPost(
+            profileId,
+            postId,
+          )
           // set all available profile avatar badges accordingly
           processAvatarElements(
-            documentRoot.find(
-              `div[data-testid="UserAvatar-Container-${cachedPost.profileId}"]`,
-            ),
+            documentRoot.find(`div[data-testid="UserAvatar-Container-${profileId}"]`),
           )
           // Update the vote counts on post vote buttons if necessary
-          const { votesPositive, votesNegative } = cachedPost
           const voteButtons = documentRoot
-            .find(`button[data-postid="${postId}"] span:last`)
-            .each((i, span) => {
-              switch (span.getAttribute('data-testid')) {
+            .find(`button[data-postid="${postId}"]`)
+            .each((i, button) => {
+              const span = $('span:last', button)
+              switch (button.getAttribute('data-testid')) {
                 case 'upvote': {
-                  const voteString = String(votesNegative)
-                  if (votesPositive > 0 && span.innerHTML !== voteString) {
-                    span.innerHTML = voteString
+                  if (votesPositive > 0) {
+                    span.html(String(votesPositive))
                   }
                   break
                 }
                 case 'downvote': {
-                  const voteString = String(votesNegative)
-                  if (votesNegative > 0 && span.innerHTML !== voteString) {
-                    span.innerHTML = voteString
+                  if (votesNegative > 0) {
+                    span.html(String(votesNegative))
                   }
                   break
                 }
@@ -603,12 +616,7 @@ export default defineContentScript({
           // check if post can be blurred, and then do so if necessary
           const article = voteButtons.closest('article')
           if (article.length) {
-            processPostBlurAction(
-              article,
-              cachedPost.profileId,
-              postId,
-              cachedPost.ranking,
-            )
+            processPostBlurAction(article, profileId, postId, ranking)
           }
         } catch (e) {
           // skip to next post if we fail here
@@ -617,7 +625,8 @@ export default defineContentScript({
       })
     }
     /**
-     *
+     * Set the badge on the provided `avatar` element(s) according to the `sentiment`
+     * of a cached profile's ranking.
      * @param avatar
      * @param sentiment
      * @returns
@@ -641,7 +650,7 @@ export default defineContentScript({
         // abort because cached element is no longer in the DOM
         case '0px':
           return
-        // e.g. embedded post avatars
+        // e.g. embedded post avatars (i.e. quote tweets)
         case '24px':
         // e.g. profile avatars on notifications such as likes
         // // eslint-disable-next-line no-fallthrough
@@ -834,7 +843,9 @@ export default defineContentScript({
           'data-profileid': data.profileId,
           'data-sentiment': 'positive',
         })
-        .on('click', upvoteButton[0], handlePostVoteButtonClick)
+        .on({
+          click: handlePostVoteButtonClick,
+        })
       upvoteButton.find('span').last().html('')
       const upvoteSvg = $(VOTE_ARROW_UP) as JQuery<HTMLOrSVGElement>
       const upvoteArrow = upvoteSvg.find('g path')
@@ -850,7 +861,9 @@ export default defineContentScript({
           'data-profileid': data.profileId,
           'data-sentiment': 'negative',
         })
-        .on('click', downvoteButton[0], handlePostVoteButtonClick)
+        .on({
+          click: handlePostVoteButtonClick,
+        })
       downvoteButton.find('span').last().html('')
       const downvoteSvg = $(VOTE_ARROW_DOWN) as JQuery<HTMLOrSVGElement>
       const downvoteArrow = downvoteSvg.find('g path')
@@ -999,16 +1012,25 @@ export default defineContentScript({
       // don't process column/timeline elements or entire sections
       // helps to prevent unnecessary double processing
       if (element.is(`:has(${selector.Article.div.innerDiv})`)) {
-        // find the profileStats div and set current element to this div
-        element = element.find(selector.Article.div.profileStats)
+        // set up array of selectors we still want to process
+        const selectors: string[] = []
+        // profile stats div (i.e. profile page)
+        //selectors.push(selector.Article.div.profileStats)
+        // primary column
+        selectors.push(selector.Container.div.primaryColumn)
+        // sidebar column
+        selectors.push(selector.Container.div.sidebarColumn)
         // TODO: handle additional edge cases to avoid duplicate processing if necessary
+        // join the selectors with a comma to find them all
+        element = element.find(selectors.join(', '))
+        //console.log('modified elements', element)
       }
       // get the mutator for either added or removed elements
       const mutator = mutators[mutationType]
       // process element as a post in a timeline (home, bookmarks, etc.)
       mutator.processPost(element)
       // process element for the Grok scroll list of buttons that we don't want
-      mutator.processGrokScrollList(element)
+      mutator.processGrokElements(element)
       // process element for button elements of interest
       mutator.processButtons(element)
       // process element for an action button row (e.g. contains comment, repost, like buttons)
@@ -1080,6 +1102,9 @@ export default defineContentScript({
       // immediately ignore some elements we don't care about
       else if (
         element.is('img') ||
+        element.is('svg') ||
+        // occurs when inserting vote buttons
+        element.is('div:has(> button[data-testid*="vote"])') ||
         element.is('a') ||
         element.is('span') ||
         element.is(':header')

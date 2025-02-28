@@ -142,7 +142,7 @@ class WalletManager {
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
-    this.wallet.utxos.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    this.wallet?.utxos?.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
     return outpoints
   }
   /** Update `UtxoCache` to remove spent `OutPoint`s and update runtime balance */
@@ -234,7 +234,11 @@ class WalletManager {
     this.wsPingInterval = setInterval(async () => {
       const connected = await this.ws.connected
       // check to make sure Chronik WebSocket is connected
-      if (connected?.target && connected.target.readyState !== WebSocket.OPEN) {
+      if (
+        connected?.target &&
+        (connected.target.readyState === WebSocket.CLOSED ||
+          connected.target.readyState === WebSocket.CLOSING)
+      ) {
         await this.wsWaitForOpen()
         console.warn(
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
@@ -245,13 +249,13 @@ class WalletManager {
       // but is helpful on mobile when WebSocket silently disconnects
       this.queue.pending.push([this.hydrateUtxos, undefined])
       // Try to resolve the queued `EventProcessor`s if not already busy doing so
-      return this.processEventQueue()
+      await this.processEventQueue()
     }, 5000)
   }
   /** Shutdown all active sockets and listeners */
   deinit = async () => {
-    this.wsUnsubscribeP2PKH(this.scriptPayload)
     clearInterval(this.wsPingInterval)
+    this.wsUnsubscribeP2PKH(this.scriptPayload)
     this.ws.close()
   }
   /**

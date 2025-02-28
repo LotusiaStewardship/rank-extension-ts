@@ -8,11 +8,13 @@ export namespace Selector {
         timeline = 'aria-label*="timeline"',
         root = `react-root`,
         primaryColumn = `data-testid="primaryColumn"`,
+        sidebarColumn = `data-testid="sidebarColumn"`,
       }
       export enum div {
         timeline = `div[${attr.timeline}], div[aria-label*="Timeline"]`,
         root = `div#${attr.root}`,
         primaryColumn = `div[${attr.primaryColumn}]`,
+        sidebarColumn = `div[${attr.sidebarColumn}]`,
       }
     }
     /** Selectors for Tweet DOM elements */
@@ -40,6 +42,7 @@ export namespace Selector {
         voteNegativeButton = 'downvote',
         grokActions = 'Grok actions',
         grokProfileSummary = 'Profile Summary',
+        grokDrawer = 'GrokDrawer',
         scrollSnapList = 'ScrollSnap-List',
         roleLink = 'link',
       }
@@ -66,6 +69,7 @@ export namespace Selector {
         voteNegativeButton = `data-testid="${value.voteNegativeButton}"`,
         grokActions = `aria-label="${value.grokActions}"`,
         grokProfileSummary = `aria-label="${value.grokProfileSummary}"`,
+        grokDrawer = `data-testid="${value.grokDrawer}"`,
         grokScrollList = `data-testid="${value.scrollSnapList}"`,
         roleLink = `role="${value.roleLink}"`,
       }
@@ -85,10 +89,11 @@ export namespace Selector {
         quoteTweet = `${tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
         notification = `article[${attr.notification}]`,
         directMessage = `div[${attr.directMessage}]`,
-        ad = `${tweet} div[dir="ltr"]:has(span:contains("Ad")) ~ div:has(button[data-testid="caret"])`,
+        ad = `div[data-testid="placementTracking"]:has(${tweet})`,
         //ad = `${tweet} div:not([${attr.tweetUserName}]) div[dir="ltr"]:has(span:contains("Ad")) + div:has(button)`,
         buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton}):only-of-type`,
         grokScrollList = `div[data-testid*="followups"] + nav:has(div[${attr.grokScrollList}])`,
+        grokDrawer = `div[${attr.grokDrawer}]`,
         tweetText = `${tweet} div[${attr.tweetText}]`,
         tweetUserName = `${tweet} div[${attr.tweetUserName}]`,
         profileAvatar = `div[${attr.profileAvatar}]:not([${attr.profileAvatarUnknown}])`,
