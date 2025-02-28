@@ -118,8 +118,11 @@ export default defineContentScript({
           //console.log('processing post element', element)
           try {
             const { profileId, retweetProfileId, postId } = parsePostElement(element)
-            // Always hide ads :)
-            if (element.has(selector.Article.div.ad).length == 1) {
+            // Always hide ads :) unless we're on the post URL
+            if (
+              element.has(selector.Article.div.ad).length == 1 &&
+              !window.location.pathname.includes(postId)
+            ) {
               console.log(`hiding post ${profileId}/${postId} (Ad)`)
               element.addClass('hidden')
               return

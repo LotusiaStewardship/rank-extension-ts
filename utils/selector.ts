@@ -85,7 +85,7 @@ export namespace Selector {
         quoteTweet = `${tweet} div[${attr.roleLink}][tabindex]:has(div[${attr.profileAvatar}])`,
         notification = `article[${attr.notification}]`,
         directMessage = `div[${attr.directMessage}]`,
-        ad = `${tweet} div[dir="ltr"]:has(span:contains("Ad")) ~ div:has(button[data-testid="caret"])`,
+        ad = `div[data-testid="placementTracking"]:has(${tweet})`,
         //ad = `${tweet} div:not([${attr.tweetUserName}]) div[dir="ltr"]:has(span:contains("Ad")) + div:has(button)`,
         buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton}):only-of-type`,
         grokScrollList = `div[data-testid*="followups"] + nav:has(div[${attr.grokScrollList}])`,
