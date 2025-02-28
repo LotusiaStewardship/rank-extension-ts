@@ -142,7 +142,7 @@ class WalletManager {
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
-    this.wallet.utxos.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    this.wallet?.utxos?.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
     return outpoints
   }
   /** Update `UtxoCache` to remove spent `OutPoint`s and update runtime balance */
