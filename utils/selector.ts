@@ -40,6 +40,7 @@ export namespace Selector {
         voteNegativeButton = 'downvote',
         grokActions = 'Grok actions',
         grokProfileSummary = 'Profile Summary',
+        grokDrawer = 'GrokDrawer',
         scrollSnapList = 'ScrollSnap-List',
         roleLink = 'link',
       }
@@ -66,6 +67,7 @@ export namespace Selector {
         voteNegativeButton = `data-testid="${value.voteNegativeButton}"`,
         grokActions = `aria-label="${value.grokActions}"`,
         grokProfileSummary = `aria-label="${value.grokProfileSummary}"`,
+        grokDrawer = `data-testid="${value.grokDrawer}"`,
         grokScrollList = `data-testid="${value.scrollSnapList}"`,
         roleLink = `role="${value.roleLink}"`,
       }
@@ -89,6 +91,7 @@ export namespace Selector {
         //ad = `${tweet} div:not([${attr.tweetUserName}]) div[dir="ltr"]:has(span:contains("Ad")) + div:has(button)`,
         buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton}):only-of-type`,
         grokScrollList = `div[data-testid*="followups"] + nav:has(div[${attr.grokScrollList}])`,
+        grokDrawer = `div[${attr.grokDrawer}]`,
         tweetText = `${tweet} div[${attr.tweetText}]`,
         tweetUserName = `${tweet} div[${attr.tweetUserName}]`,
         profileAvatar = `div[${attr.profileAvatar}]:not([${attr.profileAvatarUnknown}])`,

@@ -225,18 +225,18 @@ export default defineContentScript({
        * @param element
        */
       async processButtons(element: JQuery<HTMLElement>) {
-        if (
-          element.has(selector.Article.button.grokActions).length > 0 ||
-          element.has(selector.Article.button.grokProfileSummary).length > 0
-        ) {
+        // hide the Grok actions button (top-right corner of post)
+        if (element.has(selector.Article.button.grokActions).length > 0) {
           //console.log('processing button elements', element)
-          // hide the Grok actions button (top-right corner of post)
-          element.find(selector.Article.button.grokActions)?.addClass('hidden')
-          // hide the Grok profile summary buttons
+          element.find(selector.Article.button.grokActions).addClass('hidden')
+        }
+        // hide the Grok profile summary buttons
+        if (element.has(selector.Article.button.grokProfileSummary).length > 0) {
+          //console.log('processing button elements', element)
           element
             // main button
             .find(selector.Article.button.grokProfileSummary)
-            ?.addClass('hidden')
+            .addClass('hidden')
             // big button in profile popup
             .has(selector.Article.span.grokProfileSummary)
             ?.parent()
@@ -339,10 +339,14 @@ export default defineContentScript({
        *
        * @param element
        */
-      async processGrokScrollList(element: JQuery<HTMLElement>) {
+      async processGrokElements(element: JQuery<HTMLElement>) {
+        // Grok scroll list embedded in post element
         if (element.has(selector.Article.div.grokScrollList).length == 1) {
-          //console.log('processing grokScrollList element', element)
-          element.find(selector.Article.div.grokScrollList).parent().addClass('hidden')
+          element.find(selector.Article.div.grokScrollList)?.parent().addClass('hidden')
+        }
+        // hovering grok drawer found on home page (and possibly elsewhere)
+        if (element.has(selector.Article.div.grokDrawer).length == 1) {
+          element.find(selector.Article.div.grokDrawer)?.addClass('hidden')
         }
       }
     }
@@ -377,7 +381,7 @@ export default defineContentScript({
       async processAvatarConversation(element: JQuery<HTMLElement>) {}
       async processAvatars(element: JQuery<HTMLElement>) {}
       async processProfileStats(element: JQuery<HTMLElement>) {}
-      async processGrokScrollList(element: JQuery<HTMLElement>) {}
+      async processGrokElements(element: JQuery<HTMLElement>) {}
     }
     /**
      *  Timers
@@ -1011,7 +1015,7 @@ export default defineContentScript({
       // process element as a post in a timeline (home, bookmarks, etc.)
       mutator.processPost(element)
       // process element for the Grok scroll list of buttons that we don't want
-      mutator.processGrokScrollList(element)
+      mutator.processGrokElements(element)
       // process element for button elements of interest
       mutator.processButtons(element)
       // process element for an action button row (e.g. contains comment, repost, like buttons)
