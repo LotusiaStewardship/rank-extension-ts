@@ -234,7 +234,11 @@ class WalletManager {
     this.wsPingInterval = setInterval(async () => {
       const connected = await this.ws.connected
       // check to make sure Chronik WebSocket is connected
-      if (connected?.target && connected.target.readyState !== WebSocket.OPEN) {
+      if (
+        connected?.target &&
+        (connected.target.readyState === WebSocket.CLOSED ||
+          connected.target.readyState === WebSocket.CLOSING)
+      ) {
         await this.wsWaitForOpen()
         console.warn(
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
