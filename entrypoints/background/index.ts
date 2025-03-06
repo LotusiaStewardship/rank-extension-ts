@@ -84,7 +84,24 @@ export default defineBackground({
           return (await walletManager.handlePopupSubmitRankVote(data)) as string
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
-          throw new Error(`error during 'content-script:submitRankVote': ${e.message}`)
+          throw new Error(
+            `error during 'content-script:submitRankVote': ${e.message}`,
+          )
+        }
+      },
+    )
+    /**  */
+    walletMessaging.onMessage(
+      'content-script:getScriptPayload',
+      async ({ sender, data }) => {
+        try {
+          validateWalletMessageSender(sender.id)
+          return walletManager.scriptPayload
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (e: any) {
+          throw new Error(
+            `error during 'content-script:getScriptPayload': ${e.message}`,
+          )
         }
       },
     )
