@@ -143,7 +143,8 @@ class WalletStore {
         assert(item, 'item is undefined.. corrupt walletStore?')
         const storeKey = item.key.split(':').pop() as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
-        assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
+        // fixes localStorage regression introduced in 0.4.0-alpha (i.e. scriptHex, scriptPayload)
+        //assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
         walletState[storeKey] = item.value as WxtStorageValueString
       }
       return walletState as WalletState
