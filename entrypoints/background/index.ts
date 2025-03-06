@@ -10,27 +10,10 @@ export default defineBackground({
     /** Instantiated `WalletManager` used during background service-worker runtime */
     const walletManager = new WalletManager()
     /**
-     * Initialize the `WalletManager` with provided `WalletState`, or load existing `WalletState` from local storage
-     * @param walletState If this is set, it is the `WalletState` returned by `WalletBuilder.buildWalletState`
+     *
+     *  Register Event Handlers
+     *
      */
-    const initWalletManager = async () => {
-      // Parse new or existing wallet state into usable wallet objects
-      await walletManager.init()
-      console.log('initialized wallet manager')
-    }
-    /**
-     * Validate if this extension requests background service-worker action
-     * @param senderId The ID of the message sender, usually extension ID
-     * @returns {boolean} `true` if the message sender is valid, `false` otherwise
-     */
-    const validateWalletMessageSender = (senderId?: string): boolean => {
-      assert(senderId, 'there is no sender ID to validate, will not proceed')
-      assert(
-        senderId === browser.runtime.id,
-        `sender ID "${senderId}" does not match our extension ID ${browser.runtime.id}`,
-      )
-      return true
-    }
     /**  */
     walletMessaging.onMessage(
       'popup:seedPhrase',
@@ -118,6 +101,34 @@ export default defineBackground({
       }
     })
     // Load wallet state, or open popup ui to generate seed for new wallet state
-    initWalletManager().catch(() => browser.action.openPopup())
+    walletManager
+      .init()
+      .catch(async () => {
+        browser.action.openPopup()
+      })
+      .then(() => console.log('initialized wallet manager'))
+    /*
+    browser.runtime.onSuspend.addListener(() => {
+      console.log('browser.runtime.onSuspend triggered')
+    })
+    */
+    /**
+     *
+     *  Function Definitions
+     *
+     */
+    /**
+     * Validate if this extension requests background service-worker action
+     * @param senderId The ID of the message sender, usually extension ID
+     * @returns {boolean} `true` if the message sender is valid, `false` otherwise
+     */
+    function validateWalletMessageSender(senderId?: string): boolean {
+      assert(senderId, 'there is no sender ID to validate, will not proceed')
+      assert(
+        senderId === browser.runtime.id,
+        `sender ID "${senderId}" does not match our extension ID ${browser.runtime.id}`,
+      )
+      return true
+    }
   },
 })
