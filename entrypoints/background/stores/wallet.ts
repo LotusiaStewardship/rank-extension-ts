@@ -111,6 +111,10 @@ class WalletStore {
   hasSeedPhrase = async () => {
     return Boolean(await this.wxtStorageItems.seedPhrase.getValue())
   }
+  /**
+   *
+   * @param state
+   */
   saveMutableWalletState = async (state: MutableWalletState) => {
     console.log('saving mutable wallet state to localStorage')
     try {
@@ -124,6 +128,10 @@ class WalletStore {
       console.error(`saveMutableWalletState: ${e}`)
     }
   }
+  /**
+   *
+   * @param state
+   */
   saveWalletState = async (state: WalletState) => {
     console.log('saving complete wallet state to localStorage')
     try {
@@ -137,6 +145,10 @@ class WalletStore {
       console.error(`saveWalletState: ${e}`)
     }
   }
+  /**
+   *
+   * @returns
+   */
   loadWalletState = async () => {
     try {
       const walletStoreItems = await storage.getItems(
