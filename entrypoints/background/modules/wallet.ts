@@ -464,7 +464,11 @@ class WalletManager {
   }
   private fetchScriptUtxoSet = async () => {
     try {
-      const [{ utxos }] = await this.scriptEndpoint.utxos()
+      const result = await this.scriptEndpoint.utxos()
+      if (!result.length) {
+        return
+      }
+      const [{ utxos }] = result
       let balance = 0n
       utxos.map(({ outpoint, value }) => {
         const { txid, outIdx } = outpoint
