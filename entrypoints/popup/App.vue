@@ -6,10 +6,9 @@ import Receive from '@/components/pages/Receive.vue'
 import Send from '@/components/pages/Send.vue'
 import Settings from '@/components/pages/Settings.vue'
 import { walletMessaging } from '@/entrypoints/background/messaging'
-import { walletStore } from '@/entrypoints/background/stores'
+import { instanceStore, walletStore } from '@/entrypoints/background/stores'
 import { WalletBuilder } from '@/entrypoints/background/modules/wallet'
 import { Unwatch } from 'wxt/storage'
-import { toXPI } from '@/utils/functions'
 import { ShallowRef } from 'vue'
 
 const walletBalance: ShallowRef<string, string> = shallowRef('')
@@ -19,7 +18,7 @@ const walletAddress: ShallowRef<string, string> = shallowRef('')
 const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 const renderComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 
-const watchers: Map<'balance', Unwatch> = new Map()
+const watchers: Map<'balance' | 'address', Unwatch> = new Map()
 
 const sendLotus = async (outAddress: string, outValue: number) => {
   walletMessaging.sendMessage('popup:sendLotus', {
@@ -33,7 +32,6 @@ const sendLotus = async (outAddress: string, outValue: number) => {
 // When operating in dev, this is triggered when saving changes to vue files
 onBeforeUnmount(() => {
   console.log('clean up, clean up')
-  walletMessaging.removeAllListeners()
   for (const [, unwatch] of watchers) {
     unwatch()
   }
@@ -41,11 +39,9 @@ onBeforeUnmount(() => {
 
 onBeforeMount(() => {
   console.log('before mount')
-  // set up message listeners
-  walletMessaging.onMessage('background:walletState', ({ data: walletState }) => {
-    walletAddress.value = walletState.address
-    walletBalance.value = toXPI(walletState.balance)
-    setupComplete.value = true
+  // write the platform OS to instanceStore
+  browser.runtime.getPlatformInfo().then(async platformInfo => {
+    await instanceStore.setOs(platformInfo.os)
   })
   // set up storage watchers
   watchers.set(
@@ -60,20 +56,24 @@ const onQrMounted = () => {
   renderComplete.value = true
 }
 
-onMounted(() => {
+onMounted(async () => {
   // if we don't have a seed phrase then create and send to background
   // background has no access to window.crypto so popup needs to generate
-  walletStore.hasSeedPhrase().then(boolean => {
-    if (!boolean) {
-      walletMessaging.sendMessage(
+  const hasSeedPhrase = await walletStore.hasSeedPhrase()
+  // request the ui wallet state from the background
+  const walletState = hasSeedPhrase
+    ? await walletMessaging.sendMessage('popup:loadWalletState', undefined)
+    : await walletMessaging.sendMessage(
         'popup:seedPhrase',
         WalletBuilder.newMnemonic().toString(),
       )
-    } else {
-      // request the ui wallet state from the background
-      walletMessaging.sendMessage('popup:loadWalletState', undefined)
-    }
-  })
+  if (walletState) {
+    await walletStore.setScriptPayload(walletState.scriptPayload)
+    await walletStore.setScripthex(walletState.scriptHex)
+    walletAddress.value = walletState.address
+    walletBalance.value = toXPI(walletState.balance)
+    setupComplete.value = true
+  }
 })
 </script>
 

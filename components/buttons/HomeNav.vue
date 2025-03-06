@@ -4,7 +4,10 @@ import { walletMessaging } from '@/entrypoints/background/messaging'
 defineProps({})
 const seedPhrase = shallowRef('')
 const loadSeedPhrase = async () => {
-  seedPhrase.value = await walletMessaging.sendMessage('popup:loadSeedPhrase', undefined)
+  seedPhrase.value = await walletMessaging.sendMessage(
+    'popup:loadSeedPhrase',
+    undefined,
+  )
 }
 const hideSeedPhrase = () => (seedPhrase.value = '')
 </script>

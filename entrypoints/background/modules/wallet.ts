@@ -1,7 +1,15 @@
 // @ts-expect-error package has no types
 import Mnemonic from '@abcpros/bitcore-mnemonic'
-import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
-import { toPlatformBuf, toProfileIdBuf, toPostIdBuf, toSentimentOpCode } from 'rank-lib'
+import type {
+  ScriptChunkPlatformUTF8,
+  ScriptChunkSentimentUTF8,
+} from 'rank-lib'
+import {
+  toPlatformBuf,
+  toProfileIdBuf,
+  toPostIdBuf,
+  toSentimentOpCode,
+} from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -42,7 +50,11 @@ type RankTransactionParams = {
   postId?: string
   comment?: string
 }
-type EventData = string | SendTransactionParams | RankTransactionParams | undefined
+type EventData =
+  | string
+  | SendTransactionParams
+  | RankTransactionParams
+  | undefined
 /** Messaging events between popup and background service worker */
 type EventProcessor = (data: EventData) => Promise<void | string>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
@@ -89,7 +101,8 @@ class WalletBuilder {
       xPrivkey: hdPrivkey.toString(),
       signingKey: signingKey.toWIF(),
       address: address.toXAddress(),
-      script: script.toHex(),
+      scriptPayload: script.getData().toString('hex'),
+      scriptHex: script.toHex(),
       utxos: serialize(utxos),
       balance: '0',
     }
@@ -97,7 +110,8 @@ class WalletBuilder {
   static newMnemonic = () => new Mnemonic() as Mnemonic
   static mnemonicFromSeedPhrase = (seedPhrase: string) =>
     new Mnemonic(seedPhrase) as Mnemonic
-  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed) as Mnemonic
+  static mnemonicFromSeed = (seed: Buffer) =>
+    Mnemonic.fromSeed(seed) as Mnemonic
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())
   static deriveSigningKey = (hdPrivkey: HDPrivateKey, path?: string) =>
@@ -142,7 +156,9 @@ class WalletManager {
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
-    this.wallet?.utxos?.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    this.wallet?.utxos?.forEach(({ outIdx }, txid) =>
+      outpoints.push({ txid, outIdx }),
+    )
     return outpoints
   }
   /** Update `UtxoCache` to remove spent `OutPoint`s and update runtime balance */
@@ -169,7 +185,8 @@ class WalletManager {
   get uiWalletState(): UIWalletState {
     return {
       address: this.wallet.address.toXAddress(),
-      script: this.wallet.script.toHex(),
+      scriptPayload: this.wallet.script.getData().toString('hex'),
+      scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.wallet.balance,
     }
@@ -181,7 +198,8 @@ class WalletManager {
       xPrivkey: this.wallet.xPrivkey.toString(),
       signingKey: this.wallet.signingKey.toWIF(),
       address: this.wallet.address.toXAddress(),
-      script: this.wallet.script.toHex(),
+      scriptPayload: this.wallet.script.getData().toString('hex'),
+      scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.wallet.balance,
     }
@@ -200,8 +218,8 @@ class WalletManager {
       xPrivkey: HDPrivateKey.fromString(walletState.xPrivkey),
       signingKey: PrivateKey.fromWIF(walletState.signingKey),
       address: Address.fromString(walletState.address),
-      script: Script.fromString(walletState.script),
-      utxos: deserialize(walletState.utxos),
+      script: Script.fromString(walletState.scriptHex),
+      utxos: deserialize(walletState.utxos) as UtxoCache,
       balance: walletState.balance,
     }
     // initialize Chronik API, scriptEndpoint, and WebSocket
@@ -209,7 +227,8 @@ class WalletManager {
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
     this.ws = this.chronik.ws({
       autoReconnect: false,
-      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
+      onConnect: () =>
+        console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.handleWsMessage,
       onError: async e => {
         console.error('chronik websocket error', e)
@@ -362,11 +381,6 @@ class WalletManager {
   handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
     const { platform, profileId, sentiment, postId, comment } =
       data as RankTransactionParams
-    // initialize the wallet if it isn't loaded
-    if (!this.outpoints) {
-      await this.deinit()
-      await this.init()
-    }
     // craft RANK tx
     const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
     // broadcast the crafted tx
@@ -386,11 +400,6 @@ class WalletManager {
    */
   handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
-    // initialize the wallet if it isn't loaded
-    if (!this.outpoints) {
-      await this.deinit()
-      await this.init()
-    }
     // craft send tx
     const [tx, spent] = this.craftSendTx(outAddress, outValue)
     // broadcast the crafted tx
@@ -455,7 +464,11 @@ class WalletManager {
   }
   private fetchScriptUtxoSet = async () => {
     try {
-      const [{ utxos }] = await this.scriptEndpoint.utxos()
+      const result = await this.scriptEndpoint.utxos()
+      if (!result.length) {
+        return
+      }
+      const [{ utxos }] = result
       let balance = 0n
       utxos.map(({ outpoint, value }) => {
         const { txid, outIdx } = outpoint

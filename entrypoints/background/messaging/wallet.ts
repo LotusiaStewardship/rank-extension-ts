@@ -1,12 +1,15 @@
 import { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
-import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
+import type {
+  ScriptChunkPlatformUTF8,
+  ScriptChunkSentimentUTF8,
+} from 'rank-lib'
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void
   'popup:loadSeedPhrase': () => string
-  'popup:seedPhrase': (seedPhrase: string) => void
-  'popup:loadWalletState': () => void
+  'popup:seedPhrase': (seedPhrase: string) => Promise<UIWalletState>
+  'popup:loadWalletState': () => UIWalletState
   'popup:sendLotus': ({
     outAddress,
     outValue,
@@ -14,6 +17,7 @@ interface WalletMessaging {
     outAddress: string
     outValue: number
   }) => Promise<string | void>
+  'content-script:getScriptPayload': () => Promise<string>
   'content-script:submitRankVote': ({
     platform,
     profileId,
