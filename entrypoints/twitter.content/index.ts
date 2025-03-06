@@ -227,7 +227,10 @@ export default defineContentScript({
           // bugfix: some race condition on mobile duplicated vote buttons
           // this makes sure we don't process button rows we've already mutated
           element.has(
-            `${SELECTOR.Article.button.postUpvoteButton}, ${SELECTOR.Article.button.postDownvoteButton}`,
+            [
+              SELECTOR.Article.button.postUpvoteButton,
+              SELECTOR.Article.button.postDownvoteButton,
+            ].join(', '),
           ).length
         ) {
           return
