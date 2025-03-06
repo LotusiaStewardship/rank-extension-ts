@@ -381,11 +381,6 @@ class WalletManager {
   handlePopupSubmitRankVote: EventProcessor = async (data: EventData) => {
     const { platform, profileId, sentiment, postId, comment } =
       data as RankTransactionParams
-    // initialize the wallet if it isn't loaded
-    if (!this.outpoints) {
-      await this.deinit()
-      await this.init()
-    }
     // craft RANK tx
     const [tx, spent] = this.craftRankTx(data as RankTransactionParams)
     // broadcast the crafted tx
@@ -405,11 +400,6 @@ class WalletManager {
    */
   handlePopupSendLotus: EventProcessor = async (data: EventData) => {
     const { outAddress, outValue } = data as SendTransactionParams
-    // initialize the wallet if it isn't loaded
-    if (!this.outpoints) {
-      await this.deinit()
-      await this.init()
-    }
     // craft send tx
     const [tx, spent] = this.craftSendTx(outAddress, outValue)
     // broadcast the crafted tx
