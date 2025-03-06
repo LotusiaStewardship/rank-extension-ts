@@ -1,101 +1,130 @@
+:root {
+  --positive-sentiment: rgb(79, 234, 79);
+  --negative-sentiment: rgb(255, 69, 69);
+  --neutral-sentiment: rgb(184, 193, 219);
+}
+
 .hidden {
   display: none !important;
   opacity: 0;
 }
 
+.upvote-button[aria-label*='Upvoted'] {
+  & > div {
+    color: var(--positive-sentiment) !important;
+  }
+}
+
+.upvote-button:hover {
+  & > div {
+    color: var(--positive-sentiment) !important;
+  }
+  & div:has(+ svg) {
+    background-color: rgba(0, 186, 124, 0.1) !important;
+    color: var(--positive-sentiment) !important;
+  }
+}
+
+.downvote-button[aria-label*='Downvoted'] {
+  & > div {
+    color: var(--negative-sentiment) !important;
+  }
+}
+
+.downvote-button:hover {
+  & > div {
+    color: var(--negative-sentiment) !important;
+  }
+  & div:has(+ svg) {
+    background-color: rgba(186, 37, 0, 0.1) !important;
+    color: var(--negative-sentiment) !important;
+  }
+}
+
 .blurred {
-  overflow: hidden !important;
-  pointer-events: none !important;
-  background-color: black !important;
-  border: 1px inherit solid;
-  opacity: 75%;
-  filter: blur(0.35rem);
-  & div:has(> img),
-  div[data-testid='videoPlayer'] {
-    filter: blur(1.15rem) grayscale(100%) !important;
+  & > div {
+    overflow: hidden !important;
+    pointer-events: none !important;
+    background-color: black !important;
+    border: 1px inherit solid;
+    opacity: 75%;
+    filter: blur(0.35rem);
+    & div:has(> img),
+    div[data-testid='videoPlayer'] {
+      filter: blur(1.15rem) grayscale(100%) !important;
+    }
+    /*
+    & div[aria-labelledby]:has(div[data-testid='videoPlayer']),
+    div[aria-labelledby]:has(div[data-testid='tweetPhoto']),
+    div[data-testid='birdwatch-pivot'],
+    div[data-testid='tweetText'] {
+      display: none !important;
+      opacity: 0;
+    }
+    */
   }
-}
-
-.blurred-overlay {
-  width: 90%;
-  height: auto;
-  position: absolute;
-  opacity: 100% !important;
-  left: 5%;
-  top: 30%;
-  margin-left: 0% !important;
-  margin-top: 0% !important;
-  padding: 2%;
-  /*background-color: #6b0080;*/
-  background-color: black !important;
-  border-radius: 24px;
-  box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20 !important;
-  border: 1px solid #9aa5c7;
-  text-align: center;
-  vertical-align: middle;
-  &:hover {
-    cursor: pointer;
+  & > button {
+    width: 90%;
+    height: auto;
+    position: absolute;
+    opacity: 100% !important;
+    left: 5%;
+    top: 30%;
+    margin-left: 0% !important;
+    margin-top: 0% !important;
+    padding: 2%;
+    /*background-color: #6b0080;*/
+    background-color: black !important;
+    border-radius: 24px;
+    box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20 !important;
+    border: 1px solid #9aa5c7;
+    text-align: center;
+    vertical-align: middle;
+    &:hover {
+      cursor: pointer;
+    }
+    & > span {
+      font-weight: 400;
+      font-size: 15px;
+      color: #9aa5c7;
+      font-family:
+        TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+        'Open Sans', 'Helvetica Neue', sans-serif !important;
+    }
   }
-}
-
-.blurred-overlay-text {
-  font-weight: 400;
-  font-size: 15px;
-  color: #9aa5c7;
-  font-family:
-    TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
-    'Helvetica Neue', sans-serif !important;
 }
 /**
  *
  * Post avatars
  *
  */
-.post-avatar-neutral-reputation {
+.post-avatar-reputation {
   position: relative;
   &::after {
     left: -2%;
     top: -2%;
     height: 20%;
     width: 20%;
-    background: #b8c1db;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.1em solid black;
     content: '';
     position: absolute;
   }
-}
-
-.post-avatar-positive-reputation {
-  position: relative;
-  &::after {
-    left: -2%;
-    top: -2%;
-    height: 20%;
-    width: 20%;
-    background: rgb(79, 234, 79);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='neutral'] {
+    &::after {
+      background: var(--neutral-sentiment) !important;
+    }
   }
-}
-
-.post-avatar-negative-reputation {
-  position: relative;
-  &::after {
-    left: -2%;
-    top: -2%;
-    height: 20%;
-    width: 20%;
-    background: rgb(255, 69, 69);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='positive'] {
+    &::after {
+      background: var(--positive-sentiment) !important;
+    }
+  }
+  &[data-sentiment~='negative'] {
+    &::after {
+      background: var(--negative-sentiment) !important;
+    }
   }
 }
 /**
@@ -103,51 +132,33 @@
  * Notification avatars
  *
  */
-.notification-avatar-neutral-reputation {
+.notification-avatar-reputation {
   position: relative;
   &::after {
     left: 0%;
     top: 0%;
     height: 25%;
     width: 25%;
-    background: #b8c1db;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.1em solid black;
     content: '';
     position: absolute;
   }
-}
-
-.notification-avatar-positive-reputation {
-  position: relative;
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 25%;
-    width: 25%;
-    background: rgb(79, 234, 79);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='neutral'] {
+    &::after {
+      background: var(--neutral-sentiment) !important;
+    }
   }
-}
-
-.notification-avatar-negative-reputation {
-  position: relative;
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 25%;
-    width: 25%;
-    background: rgb(255, 69, 69);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='positive'] {
+    &::after {
+      background: var(--positive-sentiment) !important;
+    }
+  }
+  &[data-sentiment~='negative'] {
+    &::after {
+      background: var(--negative-sentiment) !important;
+    }
   }
 }
 /**
@@ -155,51 +166,34 @@
  * Post popup avatars
  *
  */
-.post-popup-avatar-neutral-reputation {
+
+.post-popup-avatar-reputation {
   position: relative;
   &::after {
     left: -2%;
     top: -2%;
     height: 20%;
     width: 20%;
-    background: #b8c1db;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.1em solid black;
     content: '';
     position: absolute;
   }
-}
-
-.post-popup-avatar-positive-reputation {
-  position: relative;
-  &::after {
-    left: -2%;
-    top: -2%;
-    height: 20%;
-    width: 20%;
-    background: rgb(79, 234, 79);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='neutral'] {
+    &::after {
+      background: var(--neutral-sentiment) !important;
+    }
   }
-}
-
-.post-popup-avatar-negative-reputation {
-  position: relative;
-  &::after {
-    left: -2%;
-    top: -2%;
-    height: 20%;
-    width: 20%;
-    background: rgb(255, 69, 69);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='positive'] {
+    &::after {
+      background: var(--positive-sentiment) !important;
+    }
+  }
+  &[data-sentiment~='negative'] {
+    &::after {
+      background: var(--negative-sentiment) !important;
+    }
   }
 }
 /**
@@ -207,50 +201,32 @@
  * Profile avatars
  *
  */
-.profile-avatar-neutral-reputation {
+.profile-avatar-reputation {
   position: relative;
   &::after {
     left: 0%;
     top: 0%;
     height: 20%;
     width: 20%;
-    background: #b8c1db;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 0.15rem solid black;
+    border: 0.15em solid black;
     content: '';
     position: absolute;
   }
-}
-
-.profile-avatar-positive-reputation {
-  position: relative;
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 20%;
-    width: 20%;
-    background: rgb(79, 234, 79);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.15rem solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='neutral'] {
+    &::after {
+      background: var(--neutral-sentiment) !important;
+    }
   }
-}
-
-.profile-avatar-negative-reputation {
-  position: relative;
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 20%;
-    width: 20%;
-    background: rgb(255, 69, 69);
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.15rem solid black;
-    content: '';
-    position: absolute;
+  &[data-sentiment~='positive'] {
+    &::after {
+      background: var(--positive-sentiment) !important;
+    }
+  }
+  &[data-sentiment~='negative'] {
+    &::after {
+      background: var(--negative-sentiment) !important;
+    }
   }
 }
