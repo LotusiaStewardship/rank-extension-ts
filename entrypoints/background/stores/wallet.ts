@@ -10,7 +10,8 @@ export type WalletState = {
   xPrivkey: WxtStorageValueString
   signingKey: WxtStorageValueString
   address: WxtStorageValueString
-  script: WxtStorageValueString
+  scriptPayload: WxtStorageValueString
+  scriptHex: WxtStorageValueString
   utxos: WxtStorageValueString
   balance: WxtStorageValueString
 }
@@ -22,7 +23,8 @@ export const DefaultWalletState: WalletState = {
   xPrivkey: '',
   signingKey: '',
   address: '',
-  script: '',
+  scriptPayload: '',
+  scriptHex: '',
   utxos: '{}',
   balance: '0',
 }
@@ -32,28 +34,61 @@ class WalletStore {
 
   constructor() {
     this.wxtStorageItems = {
-      seedPhrase: storage.defineItem<WxtStorageValueString>('local:wallet:seedPhrase', {
-        init: () => '',
-      }),
-      xPrivkey: storage.defineItem<WxtStorageValueString>('local:wallet:xPrivkey', {
-        init: () => '',
-      }),
-      signingKey: storage.defineItem<WxtStorageValueString>('local:wallet:signingKey', {
-        init: () => '',
-      }),
-      address: storage.defineItem<WxtStorageValueString>('local:wallet:address', {
-        init: () => '',
-      }),
-      script: storage.defineItem<WxtStorageValueString>('local:wallet:script', {
-        init: () => '',
-      }),
+      seedPhrase: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:seedPhrase',
+        {
+          init: () => '',
+        },
+      ),
+      xPrivkey: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:xPrivkey',
+        {
+          init: () => '',
+        },
+      ),
+      signingKey: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:signingKey',
+        {
+          init: () => '',
+        },
+      ),
+      address: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:address',
+        {
+          init: () => '',
+        },
+      ),
+      scriptHex: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:scriptHex',
+        {
+          init: () => '',
+        },
+      ),
+      scriptPayload: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:scriptPayload',
+        {
+          init: () => '',
+        },
+      ),
       utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
-        init: () => '{}',
+        init: () => serialize(new Map()),
       }),
-      balance: storage.defineItem<WxtStorageValueString>('local:wallet:balance', {
-        init: () => '0',
-      }),
+      balance: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:balance',
+        {
+          init: () => '0',
+        },
+      ),
     }
+  }
+  async setScripthex(scriptHex: string) {
+    await this.wxtStorageItems.scriptHex.setValue(scriptHex)
+  }
+  async setScriptPayload(scriptPayload: string) {
+    await this.wxtStorageItems.scriptPayload.setValue(scriptPayload)
+  }
+  async getScriptPayload() {
+    return await this.wxtStorageItems.scriptPayload.getValue()
   }
   /** Popup UI tracks changes to balance */
   get balanceStorageItem() {
