@@ -89,7 +89,8 @@ class WalletBuilder {
       xPrivkey: hdPrivkey.toString(),
       signingKey: signingKey.toWIF(),
       address: address.toXAddress(),
-      script: script.toHex(),
+      scriptPayload: script.getData().toString('hex'),
+      scriptHex: script.toHex(),
       utxos: serialize(utxos),
       balance: '0',
     }
@@ -169,7 +170,8 @@ class WalletManager {
   get uiWalletState(): UIWalletState {
     return {
       address: this.wallet.address.toXAddress(),
-      script: this.wallet.script.toHex(),
+      scriptPayload: this.wallet.script.getData().toString('hex'),
+      scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.wallet.balance,
     }
@@ -181,7 +183,8 @@ class WalletManager {
       xPrivkey: this.wallet.xPrivkey.toString(),
       signingKey: this.wallet.signingKey.toWIF(),
       address: this.wallet.address.toXAddress(),
-      script: this.wallet.script.toHex(),
+      scriptPayload: this.wallet.script.getData().toString('hex'),
+      scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.wallet.balance,
     }
