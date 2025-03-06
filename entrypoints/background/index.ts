@@ -63,6 +63,9 @@ export default defineBackground({
       async ({ sender, data }) => {
         try {
           validateWalletMessageSender(sender.id)
+          if (!walletManager.outpoints) {
+            await walletManager.init()
+          }
           return (await walletManager.handlePopupSubmitRankVote(data)) as string
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
