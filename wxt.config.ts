@@ -28,7 +28,7 @@ export default defineConfig({
       commonjsOptions: {
         strictRequires: true,
         //ignoreDynamicRequires: true,
-        transformMixedEsModules: true,
+        //transformMixedEsModules: true,
       },
     },
     plugins: [
