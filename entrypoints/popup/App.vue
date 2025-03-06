@@ -18,7 +18,7 @@ const walletAddress: ShallowRef<string, string> = shallowRef('')
 const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 const renderComplete: ShallowRef<boolean, boolean> = shallowRef(false)
 
-const watchers: Map<'balance', Unwatch> = new Map()
+const watchers: Map<'balance' | 'address', Unwatch> = new Map()
 
 const sendLotus = async (outAddress: string, outValue: number) => {
   walletMessaging.sendMessage('popup:sendLotus', {
