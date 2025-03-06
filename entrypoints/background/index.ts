@@ -39,13 +39,10 @@ export default defineBackground({
       },
     )
     /**  */
-    walletMessaging.onMessage('popup:loadWalletState', async ({ sender }) => {
+    walletMessaging.onMessage('popup:loadWalletState', ({ sender }) => {
       try {
         validateWalletMessageSender(sender.id)
-        return await walletMessaging.sendMessage(
-          'background:walletState',
-          walletManager.uiWalletState,
-        )
+        return walletManager.uiWalletState
       } catch (e) {
         console.error(e)
       }
