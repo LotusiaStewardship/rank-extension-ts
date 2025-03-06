@@ -1,4 +1,7 @@
-import { WalletManager, WalletBuilder } from '@/entrypoints/background/modules/wallet'
+import {
+  WalletManager,
+  WalletBuilder,
+} from '@/entrypoints/background/modules/wallet'
 import { walletStore, instanceStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import assert from 'assert'
