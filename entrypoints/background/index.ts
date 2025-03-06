@@ -1,5 +1,5 @@
 import { WalletManager, WalletBuilder } from '@/entrypoints/background/modules/wallet'
-import { walletStore } from '@/entrypoints/background/stores'
+import { walletStore, instanceStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import assert from 'assert'
 
@@ -35,22 +35,24 @@ export default defineBackground({
     walletMessaging.onMessage(
       'popup:seedPhrase',
       async ({ sender, data: seedPhrase }) => {
-        try {
-          validateWalletMessageSender(sender.id)
-          // Build a new wallet state from the generated seed phrase
-          const walletState = WalletBuilder.buildWalletState(seedPhrase)
-          // Save the new wallet into local storage
-          await walletStore.saveWalletState(walletState)
-          await initWalletManager()
-          // Send the new wallet details to the popup UI
-          // TODO: Return the wallet state to popup UI directly without messaging API
-          return await walletMessaging.sendMessage(
-            'background:walletState',
-            walletManager.uiWalletState,
-          )
-        } catch (e) {
-          console.error(e)
-        }
+        validateWalletMessageSender(sender.id)
+        // Build a new wallet state from the generated seed phrase
+        const walletState = WalletBuilder.buildWalletState(seedPhrase)
+        // Save the new wallet into local storage
+        await walletStore.saveWalletState(walletState)
+        await walletManager.init()
+        // Create new instanceId before creating new wallet
+        const instanceId = await newInstanceId(browser.runtime.id)
+        await instanceStore.setInstanceId(instanceId)
+        // Send the new wallet details to the popup UI
+        // TODO: Return the wallet state to popup UI directly without messaging API
+        return walletManager.uiWalletState
+        /*
+        return await walletMessaging.sendMessage(
+          'background:walletState',
+          walletManager.uiWalletState,
+        )
+        */
       },
     )
     /**  */
