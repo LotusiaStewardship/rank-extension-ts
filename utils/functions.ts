@@ -22,10 +22,12 @@ export const toMinifiedNumber = (number: number) => {
   }
   return `${number}`
 }
-export const serialize = (cacheData: UtxoCache) =>
-  JSON.stringify(Array.from(cacheData.entries()))
+export const serialize = (cacheData: UtxoCache | PostMetaCache) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  JSON.stringify(Array.from(cacheData.entries() as any))
 export const deserialize = (storeData: string) => {
-  return new Map(JSON.parse(storeData)) as UtxoCache
+  return new Map(JSON.parse(storeData)) as UtxoCache | PostMetaCache
+}
 export const newInstanceId = async (runtimeId: string) => {
   const difficulty = 1
   let nonce = 0

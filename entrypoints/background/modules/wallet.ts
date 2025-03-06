@@ -1,7 +1,15 @@
 // @ts-expect-error package has no types
 import Mnemonic from '@abcpros/bitcore-mnemonic'
-import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
-import { toPlatformBuf, toProfileIdBuf, toPostIdBuf, toSentimentOpCode } from 'rank-lib'
+import type {
+  ScriptChunkPlatformUTF8,
+  ScriptChunkSentimentUTF8,
+} from 'rank-lib'
+import {
+  toPlatformBuf,
+  toProfileIdBuf,
+  toPostIdBuf,
+  toSentimentOpCode,
+} from 'rank-lib'
 import {
   HDPrivateKey,
   Script,
@@ -42,7 +50,11 @@ type RankTransactionParams = {
   postId?: string
   comment?: string
 }
-type EventData = string | SendTransactionParams | RankTransactionParams | undefined
+type EventData =
+  | string
+  | SendTransactionParams
+  | RankTransactionParams
+  | undefined
 /** Messaging events between popup and background service worker */
 type EventProcessor = (data: EventData) => Promise<void | string>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
@@ -98,7 +110,8 @@ class WalletBuilder {
   static newMnemonic = () => new Mnemonic() as Mnemonic
   static mnemonicFromSeedPhrase = (seedPhrase: string) =>
     new Mnemonic(seedPhrase) as Mnemonic
-  static mnemonicFromSeed = (seed: Buffer) => Mnemonic.fromSeed(seed) as Mnemonic
+  static mnemonicFromSeed = (seed: Buffer) =>
+    Mnemonic.fromSeed(seed) as Mnemonic
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())
   static deriveSigningKey = (hdPrivkey: HDPrivateKey, path?: string) =>
@@ -143,7 +156,9 @@ class WalletManager {
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
-    this.wallet?.utxos?.forEach(({ outIdx }, txid) => outpoints.push({ txid, outIdx }))
+    this.wallet?.utxos?.forEach(({ outIdx }, txid) =>
+      outpoints.push({ txid, outIdx }),
+    )
     return outpoints
   }
   /** Update `UtxoCache` to remove spent `OutPoint`s and update runtime balance */
@@ -212,7 +227,8 @@ class WalletManager {
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
     this.ws = this.chronik.ws({
       autoReconnect: false,
-      onConnect: () => console.log(`chronik websocket connected`, this.ws.ws?.url),
+      onConnect: () =>
+        console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.handleWsMessage,
       onError: async e => {
         console.error('chronik websocket error', e)

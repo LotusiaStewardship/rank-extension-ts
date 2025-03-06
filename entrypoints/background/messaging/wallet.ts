@@ -1,6 +1,9 @@
 import { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
-import type { ScriptChunkPlatformUTF8, ScriptChunkSentimentUTF8 } from 'rank-lib'
+import type {
+  ScriptChunkPlatformUTF8,
+  ScriptChunkSentimentUTF8,
+} from 'rank-lib'
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void

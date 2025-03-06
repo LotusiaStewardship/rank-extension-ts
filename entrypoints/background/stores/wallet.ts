@@ -2,7 +2,9 @@ import assert from 'assert'
 // Storage value types
 type WxtStorageValueString = string
 // Storage item definition types
-type WxtStorageItemString = ReturnType<typeof storage.defineItem<WxtStorageValueString>>
+type WxtStorageItemString = ReturnType<
+  typeof storage.defineItem<WxtStorageValueString>
+>
 type WxtStorageItem = WxtStorageItemString
 
 export type WalletState = {
@@ -16,7 +18,10 @@ export type WalletState = {
   balance: WxtStorageValueString
 }
 export type MutableWalletState = Pick<WalletState, 'utxos' | 'balance'>
-export type UIWalletState = Omit<WalletState, 'seedPhrase' | 'xPrivkey' | 'signingKey'>
+export type UIWalletState = Omit<
+  WalletState,
+  'seedPhrase' | 'xPrivkey' | 'signingKey'
+>
 
 export const DefaultWalletState: WalletState = {
   seedPhrase: '',
