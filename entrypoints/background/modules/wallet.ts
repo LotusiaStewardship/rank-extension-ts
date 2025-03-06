@@ -218,8 +218,8 @@ class WalletManager {
       xPrivkey: HDPrivateKey.fromString(walletState.xPrivkey),
       signingKey: PrivateKey.fromWIF(walletState.signingKey),
       address: Address.fromString(walletState.address),
-      script: Script.fromString(walletState.script),
-      utxos: deserialize(walletState.utxos),
+      script: Script.fromString(walletState.scriptHex),
+      utxos: deserialize(walletState.utxos) as UtxoCache,
       balance: walletState.balance,
     }
     // initialize Chronik API, scriptEndpoint, and WebSocket
