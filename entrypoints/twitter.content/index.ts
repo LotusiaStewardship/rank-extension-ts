@@ -1082,7 +1082,7 @@ export default defineContentScript({
         console.log(
           `unblurring post ${profileId}/${postId} (post reputation at or above treshold)`,
         )
-        element.removeClass('blurred').next().remove()
+        element.removeClass('blurred').find('> button').remove()
         //postParentElement.parent()!.style.overflow = 'hidden !important'
       }
     }
