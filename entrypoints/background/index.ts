@@ -22,6 +22,10 @@ export default defineBackground({
       'popup:seedPhrase',
       async ({ sender, data: seedPhrase }) => {
         validateWalletMessageSender(sender.id)
+        // if WalletManager is already initialized, deinitialize it
+        if (walletManager.seedPhrase) {
+          await walletManager.deinit()
+        }
         // Build a new wallet state from the generated seed phrase
         const walletState = WalletBuilder.buildWalletState(seedPhrase)
         // Save the new wallet into local storage
