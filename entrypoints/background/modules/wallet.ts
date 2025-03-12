@@ -108,6 +108,8 @@ class WalletBuilder {
     }
   }
   static newMnemonic = () => new Mnemonic() as Mnemonic
+  static isValidSeedPhrase = (seedPhrase: string) =>
+    Mnemonic.isValid(seedPhrase)
   static mnemonicFromSeedPhrase = (seedPhrase: string) =>
     new Mnemonic(seedPhrase) as Mnemonic
   static mnemonicFromSeed = (seed: Buffer) =>
