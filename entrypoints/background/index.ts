@@ -111,6 +111,15 @@ export default defineBackground({
         browser.action.openPopup()
       })
       .then(() => console.log('initialized wallet manager'))
+    // check if this instance has an ID generated
+    // if not, then generate one and save it to localStorage
+    instanceStore.getInstanceId().then(async instanceId => {
+      if (!instanceId) {
+        // Create new instanceId before creating new wallet
+        instanceId = await newInstanceId(browser.runtime.id)
+        await instanceStore.setInstanceId(instanceId)
+      }
+    })
     /*
     browser.runtime.onSuspend.addListener(() => {
       console.log('browser.runtime.onSuspend triggered')
