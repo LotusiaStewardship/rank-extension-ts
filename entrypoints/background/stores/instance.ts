@@ -87,6 +87,9 @@ class InstanceStore {
       console.error(`setOs: ${os}: ${e}`)
     }
   }
+  async getInstanceId() {
+    return await this.wxtStorageItems.id.getValue()
+  }
   /**
    * Set the value for the `id` localstorage item, which functions as the ID
    * for this extension instance
