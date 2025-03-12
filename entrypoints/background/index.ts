@@ -27,9 +27,6 @@ export default defineBackground({
         // Save the new wallet into local storage
         await walletStore.saveWalletState(walletState)
         await walletManager.init()
-        // Create new instanceId before creating new wallet
-        const instanceId = await newInstanceId(browser.runtime.id)
-        await instanceStore.setInstanceId(instanceId)
         // Send the new wallet details to the popup UI
         // TODO: Return the wallet state to popup UI directly without messaging API
         return walletManager.uiWalletState
