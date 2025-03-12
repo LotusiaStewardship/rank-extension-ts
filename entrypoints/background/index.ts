@@ -22,14 +22,15 @@ export default defineBackground({
       'popup:seedPhrase',
       async ({ sender, data: seedPhrase }) => {
         validateWalletMessageSender(sender.id)
+        // if WalletManager is already initialized, deinitialize it
+        if (walletManager.seedPhrase) {
+          await walletManager.deinit()
+        }
         // Build a new wallet state from the generated seed phrase
         const walletState = WalletBuilder.buildWalletState(seedPhrase)
         // Save the new wallet into local storage
         await walletStore.saveWalletState(walletState)
         await walletManager.init()
-        // Create new instanceId before creating new wallet
-        const instanceId = await newInstanceId(browser.runtime.id)
-        await instanceStore.setInstanceId(instanceId)
         // Send the new wallet details to the popup UI
         // TODO: Return the wallet state to popup UI directly without messaging API
         return walletManager.uiWalletState
@@ -110,6 +111,15 @@ export default defineBackground({
         browser.action.openPopup()
       })
       .then(() => console.log('initialized wallet manager'))
+    // check if this instance has an ID generated
+    // if not, then generate one and save it to localStorage
+    instanceStore.getInstanceId().then(async instanceId => {
+      if (!instanceId) {
+        // Create new instanceId before creating new wallet
+        instanceId = await newInstanceId(browser.runtime.id)
+        await instanceStore.setInstanceId(instanceId)
+      }
+    })
     /*
     browser.runtime.onSuspend.addListener(() => {
       console.log('browser.runtime.onSuspend triggered')

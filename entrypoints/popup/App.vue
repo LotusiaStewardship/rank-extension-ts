@@ -9,7 +9,7 @@ import { walletMessaging } from '@/entrypoints/background/messaging'
 import { instanceStore, walletStore } from '@/entrypoints/background/stores'
 import { WalletBuilder } from '@/entrypoints/background/modules/wallet'
 import { Unwatch } from 'wxt/storage'
-import { ShallowRef } from 'vue'
+import type { ShallowRef } from 'vue'
 
 const walletBalance: ShallowRef<string, string> = shallowRef('')
 const walletAddress: ShallowRef<string, string> = shallowRef('')
@@ -25,6 +25,27 @@ const sendLotus = async (outAddress: string, outValue: number) => {
     outAddress,
     outValue,
   })
+}
+
+const walletSetup = async (seedPhrase?: string) => {
+  setupComplete.value = false
+  // if we don't have a seed phrase then create and send to background
+  // background has no access to window.crypto so popup needs to generate
+  const hasSeedPhrase = await walletStore.hasSeedPhrase()
+  // request the ui wallet state from the background
+  const walletState =
+    hasSeedPhrase && !seedPhrase
+      ? await walletMessaging.sendMessage('popup:loadWalletState', undefined)
+      : await walletMessaging.sendMessage(
+          'popup:seedPhrase',
+          // use the imported seed phrase if avail, else generate new
+          seedPhrase ?? WalletBuilder.newMnemonic().toString(),
+        )
+  await walletStore.setScriptPayload(walletState.scriptPayload)
+  await walletStore.setScripthex(walletState.scriptHex)
+  walletAddress.value = walletState.address
+  walletBalance.value = toXPI(walletState.balance)
+  setupComplete.value = true
 }
 
 // Probably won't need this? vuejs doesn't detect when the extension
@@ -43,6 +64,13 @@ onBeforeMount(() => {
   browser.runtime.getPlatformInfo().then(async platformInfo => {
     await instanceStore.setOs(platformInfo.os)
   })
+  instanceStore.getInstanceId().then(async instanceId => {
+    if (!instanceId) {
+      // Create new instanceId before creating new wallet
+      instanceId = await newInstanceId(browser.runtime.id)
+      await instanceStore.setInstanceId(instanceId)
+    }
+  })
   // set up storage watchers
   watchers.set(
     'balance',
@@ -56,25 +84,7 @@ const onQrMounted = () => {
   renderComplete.value = true
 }
 
-onMounted(async () => {
-  // if we don't have a seed phrase then create and send to background
-  // background has no access to window.crypto so popup needs to generate
-  const hasSeedPhrase = await walletStore.hasSeedPhrase()
-  // request the ui wallet state from the background
-  const walletState = hasSeedPhrase
-    ? await walletMessaging.sendMessage('popup:loadWalletState', undefined)
-    : await walletMessaging.sendMessage(
-        'popup:seedPhrase',
-        WalletBuilder.newMnemonic().toString(),
-      )
-  if (walletState) {
-    await walletStore.setScriptPayload(walletState.scriptPayload)
-    await walletStore.setScripthex(walletState.scriptHex)
-    walletAddress.value = walletState.address
-    walletBalance.value = toXPI(walletState.balance)
-    setupComplete.value = true
-  }
-})
+onMounted(walletSetup)
 </script>
 
 <template>
@@ -85,22 +95,11 @@ onMounted(async () => {
       :render-address-caption="renderComplete"
       @qr-mounted="onQrMounted"
     />
-    <Footer />
+    <Footer @importSeedPhrase="walletSetup" />
   </template>
   <template v-else>
     <div>Please wait...</div>
   </template>
-  <!--
-  <div>
-    <a href="https://wxt.dev" target="_blank">
-      <img src="/wxt.svg" class="logo" alt="WXT logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="@/assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div>
-  <HelloWorld msg="WXT + Vue" />
-  -->
 </template>
 
 <style scoped>
