@@ -146,15 +146,15 @@ class WalletManager {
   }
   /** 12-word backup/restore seed phrase */
   get seedPhrase() {
-    return this.wallet.seedPhrase
+    return this.wallet?.seedPhrase
   }
   /** 20-byte public key hash to register Chronik `ScriptEndpoint` */
   get scriptPayload() {
-    return this.wallet.script.getData().toString('hex')
+    return this.wallet?.script.getData().toString('hex')
   }
   /** Hex-encoded output script for various bitcore-lib-xpi operations */
   get scriptHex() {
-    return this.wallet.script.toHex()
+    return this.wallet?.script.toHex()
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
