@@ -4,3 +4,4 @@ lib/nng-interface/**
 *.fbs
 **/*.json
 **/*.jsonc
+!tailwind.config.js
