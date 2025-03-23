@@ -3,7 +3,7 @@ const props = defineProps({
   balance: String,
 })
 </script>
-<template>
+<template class="container mx-auto">
   <div>
     <span class="balance-header">Lotus Balance</span>
   </div>
@@ -14,7 +14,7 @@ const props = defineProps({
     <span class="balance-suffix">.{{ props.balance!.split('.')[1] }}</span>
   </div>
 </template>
-<style lang="css" scoped>
+<style lang="css">
 .balance-header {
   font-size: 1.2rem;
 }

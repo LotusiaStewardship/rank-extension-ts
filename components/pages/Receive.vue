@@ -6,10 +6,11 @@ defineProps({
   renderAddressCaption: Boolean,
 })
 
-const emit = defineEmits(['qrMounted'])
+const emit = defineEmits(['qr-mounted'])
 </script>
 <template>
   <QRCode
+    class="qr-code"
     :value="address!"
     :height="options.height"
     :width="options.width"
@@ -20,8 +21,12 @@ const emit = defineEmits(['qrMounted'])
     :dots-options="options.dotsOptions"
     :qr-options="options.qrOptions"
     :background-options="options.backgroundOptions"
-    @vue:mounted="emit('qrMounted')"
+    @vue:mounted="emit('qr-mounted')"
   />
   <code v-if="renderAddressCaption">{{ address }}</code>
 </template>
-<style lang="scss" scoped></style>
+<style lang="css" scoped>
+.qr-code {
+  padding: 1em 1em;
+}
+</style>
