@@ -1,4 +1,3 @@
-import { MatchPattern } from 'wxt/sandbox'
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
 import { PostMeta, instanceStore } from '@/entrypoints/background/stores'
@@ -101,7 +100,8 @@ export default defineContentScript({
     console.log(
       `loaded POST_META_CACHE with ${POST_META_CACHE.size} entries in ${t1}ms`,
     )
-    const os = await instanceStore.getOs()
+    // TODO: try to remember why this was put here
+    //const os = await instanceStore.getOs()
     /** */
     const DEFAULT_RANKING: Partial<RankAPIResult> = {
       ranking: '0',
@@ -347,16 +347,16 @@ export default defineContentScript({
             .prop('href', `https://rank.lotusia.org/api/v1/twitter/${profileId}`)
             .each((index, spanContainer) => {
               const container = $(spanContainer)
+              const spans = $('span', container)
               switch (index) {
-                case 0:
-                  $('span:first', container)[0].innerHTML =
-                    toMinifiedNumber(votesPositive)
-                  $('span:last', container)[0].innerHTML = 'Upvotes'
+                case 0: {
+                  spans.first().html(toMinifiedNumber(votesPositive))
+                  spans.last.html('Upvotes')
                   return
+                }
                 case 1:
-                  $('span:first', container)[0].innerHTML =
-                    toMinifiedNumber(votesNegative)
-                  $('span:last', container)[0].innerHTML = 'Downvotes'
+                  spans.first().html(toMinifiedNumber(votesNegative))
+                  spans.last().html('Downvotes')
                   return
               }
             })
@@ -828,7 +828,7 @@ export default defineContentScript({
         const [, profileId, , postId] =
           postIdLink?.attr('href')?.split('/') ??
           window.location.pathname.split('/')
-        // validate the data we parsed
+        // TODO: validate the data we parsed
 
         // load cached post metadata if we have it
         const cachedPostMeta = POST_META_CACHE.get(
@@ -1096,9 +1096,8 @@ export default defineContentScript({
       // skip auto-updating this post since it will be updated below
       STATE.set('postIdBusy', postId)
       console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
-      let txid: string | void
       try {
-        txid = await walletMessaging.sendMessage(
+        const txid = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
           {
             platform: 'twitter',
@@ -1111,13 +1110,12 @@ export default defineContentScript({
           `successfully cast ${sentiment} vote for ${profileId}/${postId}`,
           txid,
         )
+        // proceed with button mutations and cache updates
+        // if we successfully broadcast the RANK transaction
         try {
           // load the button element into jQuery
           const button = $(this)
-          // update cached post data from API if the entry is expired
-          //
-          // since we just updated our vote count, tell updateCachedPost()
-          // to save postMeta to localStorage
+          // update cached post data from API and save postMeta to localStorage
           const { votesPositive, votesNegative, ranking, postMeta } =
             await updateCachedPost(profileId, postId, true)
           // Update the button color and vote count on the appropriate button
