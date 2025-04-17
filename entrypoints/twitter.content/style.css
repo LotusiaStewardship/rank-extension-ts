@@ -98,11 +98,11 @@
  * Post avatars
  *
  */
-.post-avatar-reputation {
+.avatar-reputation {
   position: relative;
   &::after {
-    left: -2%;
-    top: -2%;
+    left: 0%;
+    top: 0%;
     height: 20%;
     width: 20%;
     /* background-size: 0.4rem 0.4rem; */
@@ -139,41 +139,6 @@
     top: 0%;
     height: 25%;
     width: 25%;
-    /* background-size: 0.4rem 0.4rem; */
-    border-radius: 50%;
-    border: 0.1em solid black;
-    content: '';
-    position: absolute;
-  }
-  &[data-sentiment~='neutral'] {
-    &::after {
-      background: var(--neutral-sentiment) !important;
-    }
-  }
-  &[data-sentiment~='positive'] {
-    &::after {
-      background: var(--positive-sentiment) !important;
-    }
-  }
-  &[data-sentiment~='negative'] {
-    &::after {
-      background: var(--negative-sentiment) !important;
-    }
-  }
-}
-/**
- *
- * Post popup avatars
- *
- */
-
-.post-popup-avatar-reputation {
-  position: relative;
-  &::after {
-    left: -2%;
-    top: -2%;
-    height: 20%;
-    width: 20%;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.1em solid black;

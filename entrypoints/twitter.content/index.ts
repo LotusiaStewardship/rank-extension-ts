@@ -700,7 +700,9 @@ export default defineContentScript({
      * @returns
      */
     function setProfileAvatarBadge(avatar: JQuery<HTMLElement>) {
-      const elementWidth = avatar?.css('width') ?? `${avatar[0].offsetWidth}px`
+      const elementWidth = Number(
+        avatar?.css('width').replace('px', '') ?? `${avatar[0].offsetWidth}`,
+      )
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
       // Find the existing avatar badge class on the element to replace
@@ -710,34 +712,21 @@ export default defineContentScript({
         .filter((c: string) => c.includes('reputation'))
       // New badge class that will be applied to the avatar element
       let newClassName = ''
-      // Set the new class name according to the size of the avatar element
-      switch (elementWidth) {
-        // abort because cached element is no longer in the DOM
-        case '0px':
-          return
-        // e.g. embedded post avatars (i.e. quote tweets)
-        case '24px':
-        // e.g. profile avatars on notifications such as likes
-        // // eslint-disable-next-line no-fallthrough
-        case '32px': {
-          newClassName = `notification-avatar-reputation`
-          break
-        }
-        // e.g. profile avatars on timeline posts
-        case '40px': {
-          newClassName = `post-avatar-reputation`
-          break
-        }
-        // e.g. post avatar popover (i.e. mouseover avatar)
-        case '64px': {
-          newClassName = `post-popup-avatar-reputation`
-          break
-        }
-        default: {
-          console.log('default avatar width', avatar[0].offsetWidth)
-          newClassName = `profile-avatar-reputation`
-          break
-        }
+      if (elementWidth == 0) {
+        return
+      }
+      // ~24px: e.g. embedded post avatars (i.e. quote tweets)
+      // ~32px: e.g. profile avatars on notifications such as likes
+      else if (elementWidth > 0 && elementWidth <= 32) {
+        newClassName = `notification-avatar-reputation`
+      }
+      // ~32px: e.g. profile avatars on timeline posts
+      // ~64px: e.g. post avatar popover (i.e. mouseover avatar)
+      else if (elementWidth > 32 && elementWidth <= 64) {
+        newClassName = `avatar-reputation`
+      } else {
+        console.log('default avatar width', avatar[0].offsetWidth)
+        newClassName = `profile-avatar-reputation`
       }
       // set or replace the badge class on the avatar element
       return className.length
