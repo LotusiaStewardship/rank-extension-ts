@@ -250,7 +250,8 @@ class WalletManager {
     // Save mutable wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
-    await this.chronikWsSetup()
+    await this.wsWaitForOpen()
+    this.wsSubscribeP2PKH(this.scriptPayload)
     // Set up WebSocket ping interval to keep background service-worker alive
     this.wsPingInterval = setInterval(async () => {
       const connected = await this.ws.connected
@@ -287,13 +288,6 @@ class WalletManager {
     // revalidate and fetch UTXO set, in case of invalid/unreconciled UTXOs
     await this.validateUtxos()
     await this.fetchScriptUtxoSet()
-  }
-  /** Open WebSocket connection and subscribe to `scriptPayload` endpoint */
-  private chronikWsSetup = async () => {
-    // wait for websocket connection established
-    await this.wsWaitForOpen()
-    // subscribe for updates to primary wallet address (script)
-    this.wsSubscribeP2PKH(this.scriptPayload)
   }
   /**
    *
@@ -415,7 +409,6 @@ class WalletManager {
   /**  */
   private handleWsDisconnect = async () => {
     await this.hydrateUtxos()
-    await this.chronikWsSetup()
   }
   /**
    *

@@ -1,4 +1,3 @@
-import { MatchPattern } from 'wxt/sandbox'
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
 import { PostMeta, instanceStore } from '@/entrypoints/background/stores'
@@ -101,7 +100,8 @@ export default defineContentScript({
     console.log(
       `loaded POST_META_CACHE with ${POST_META_CACHE.size} entries in ${t1}ms`,
     )
-    const os = await instanceStore.getOs()
+    // TODO: try to remember why this was put here
+    //const os = await instanceStore.getOs()
     /** */
     const DEFAULT_RANKING: Partial<RankAPIResult> = {
       ranking: '0',
@@ -347,16 +347,16 @@ export default defineContentScript({
             .prop('href', `https://rank.lotusia.org/api/v1/twitter/${profileId}`)
             .each((index, spanContainer) => {
               const container = $(spanContainer)
+              const spans = $('span', container)
               switch (index) {
-                case 0:
-                  $('span:first', container)[0].innerHTML =
-                    toMinifiedNumber(votesPositive)
-                  $('span:last', container)[0].innerHTML = 'Upvotes'
+                case 0: {
+                  spans.first().html(toMinifiedNumber(votesPositive))
+                  spans.last.html('Upvotes')
                   return
+                }
                 case 1:
-                  $('span:first', container)[0].innerHTML =
-                    toMinifiedNumber(votesNegative)
-                  $('span:last', container)[0].innerHTML = 'Downvotes'
+                  spans.first().html(toMinifiedNumber(votesNegative))
+                  spans.last().html('Downvotes')
                   return
               }
             })
@@ -613,11 +613,7 @@ export default defineContentScript({
         // update cached profile with data received from API
         await updateCachedProfile(profileId, result.profile)
         // save updated metadata if avilable and specified to do so
-        if (
-          result.postMeta &&
-          setPostMeta &&
-          !POST_META_CACHE.get(toPostMetaKey(profileId, postId))
-        ) {
+        if (result.postMeta && setPostMeta) {
           instanceStore.setPostMeta(
             SCRIPT_PAYLOAD,
             'twitter',
@@ -656,12 +652,17 @@ export default defineContentScript({
           const voteButtons = DOCUMENT_ROOT.find(
             `button[data-postid="${postId}"]`,
           )
+          // updateCachedPosts may be called without valid buttons in DOM
+          // return if no valid buttons available
+          if (voteButtons.length < 1) {
+            return
+          }
           const [upvoteButton, downvoteButton] = voteButtons
           if (postMeta?.hasWalletUpvoted) {
             $(upvoteButton).attr('aria-label', 'Upvoted')
           }
           if (votesPositive > 0) {
-            const upvoteSpan = $('span:last', upvoteButton)
+            const upvoteSpan = $('span', upvoteButton).last()
             const upvoteCount = toMinifiedNumber(votesPositive)
             if (upvoteSpan.html() !== upvoteCount) {
               upvoteSpan.html(upvoteCount)
@@ -671,7 +672,7 @@ export default defineContentScript({
             $(downvoteButton).attr('aria-label', 'Downvoted')
           }
           if (votesNegative > 0) {
-            const downvoteSpan = $('span:last', downvoteButton)
+            const downvoteSpan = $('span', downvoteButton).last()
             const downvoteCount = toMinifiedNumber(votesNegative)
             if (downvoteSpan.html() !== downvoteCount) {
               downvoteSpan.html(downvoteCount)
@@ -699,7 +700,9 @@ export default defineContentScript({
      * @returns
      */
     function setProfileAvatarBadge(avatar: JQuery<HTMLElement>) {
-      const elementWidth = avatar?.css('width') ?? `${avatar[0].offsetWidth}px`
+      const elementWidth = Number(
+        avatar?.css('width').replace('px', '') ?? `${avatar[0].offsetWidth}`,
+      )
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
       // Find the existing avatar badge class on the element to replace
@@ -709,34 +712,21 @@ export default defineContentScript({
         .filter((c: string) => c.includes('reputation'))
       // New badge class that will be applied to the avatar element
       let newClassName = ''
-      // Set the new class name according to the size of the avatar element
-      switch (elementWidth) {
-        // abort because cached element is no longer in the DOM
-        case '0px':
-          return
-        // e.g. embedded post avatars (i.e. quote tweets)
-        case '24px':
-        // e.g. profile avatars on notifications such as likes
-        // // eslint-disable-next-line no-fallthrough
-        case '32px': {
-          newClassName = `notification-avatar-reputation`
-          break
-        }
-        // e.g. profile avatars on timeline posts
-        case '40px': {
-          newClassName = `post-avatar-reputation`
-          break
-        }
-        // e.g. post avatar popover (i.e. mouseover avatar)
-        case '64px': {
-          newClassName = `post-popup-avatar-reputation`
-          break
-        }
-        default: {
-          console.log('default avatar width', avatar[0].offsetWidth)
-          newClassName = `profile-avatar-reputation`
-          break
-        }
+      if (elementWidth == 0) {
+        return
+      }
+      // ~24px: e.g. embedded post avatars (i.e. quote tweets)
+      // ~32px: e.g. profile avatars on notifications such as likes
+      else if (elementWidth > 0 && elementWidth <= 32) {
+        newClassName = `notification-avatar-reputation`
+      }
+      // ~32px: e.g. profile avatars on timeline posts
+      // ~64px: e.g. post avatar popover (i.e. mouseover avatar)
+      else if (elementWidth > 32 && elementWidth <= 64) {
+        newClassName = `avatar-reputation`
+      } else {
+        console.log('default avatar width', avatar[0].offsetWidth)
+        newClassName = `profile-avatar-reputation`
       }
       // set or replace the badge class on the avatar element
       return className.length
@@ -830,15 +820,15 @@ export default defineContentScript({
     async function processButtonRowElement(element: JQuery<HTMLElement>) {
       try {
         const postButtonRow = element.closest(SELECTOR.Article.div.innerDiv)
-        const postIdLink = (
-          postButtonRow.length ? postButtonRow : element
-        ).find(`a[${SELECTOR.Article.attr.tweetId}]:last`)
+        const postIdLink = (postButtonRow.length ? postButtonRow : element)
+          .find(`a[${SELECTOR.Article.attr.tweetId}]`)
+          .last()
         // sometimes a full-screen photo has a button row without the post URL in href attribute
         // in this case, assume our browser is on the post URL page and use this for the info
         const [, profileId, , postId] =
           postIdLink?.attr('href')?.split('/') ??
           window.location.pathname.split('/')
-        // validate the data we parsed
+        // TODO: validate the data we parsed
 
         // load cached post metadata if we have it
         const cachedPostMeta = POST_META_CACHE.get(
@@ -861,7 +851,7 @@ export default defineContentScript({
           upvoteButton.attr('aria-label', 'Upvoted')
         }
         if (votesPositive > 0) {
-          const upvoteSpan = upvoteButton.find('span:last')
+          const upvoteSpan = upvoteButton.find('span').last()
           const upvoteCount = toMinifiedNumber(votesPositive)
           if (upvoteSpan.html() !== upvoteCount) {
             upvoteSpan.html(upvoteCount)
@@ -871,12 +861,15 @@ export default defineContentScript({
           downvoteButton.attr('aria-label', 'Downvoted')
         }
         if (votesNegative > 0) {
-          const downvoteSpan = downvoteButton.find('span:last')
+          const downvoteSpan = downvoteButton.find('span').last()
           const downvoteCount = toMinifiedNumber(votesNegative)
           if (downvoteSpan.html() !== downvoteCount) {
             downvoteSpan.html(downvoteCount)
           }
-          downvoteButton.find('span:last').html(toMinifiedNumber(votesNegative))
+          downvoteButton
+            .find('span')
+            .last()
+            .html(toMinifiedNumber(votesNegative))
         }
         // some button rows are part of post elements (i.e. have parent article element)
         const article = element.closest('article')
@@ -903,35 +896,28 @@ export default defineContentScript({
     function parsePostElement(element: JQuery<HTMLElement>): ParsedPostData {
       // Select elements
       //const tweetTextDiv = element.find(SELECTOR.Article.div.tweetText)
-      //const retweetUserNameLink = element.find(SELECTOR.Article.a.retweetUserName)
+
       //const quoteTweet = element.find(SELECTOR.Article.div.quoteTweet)
-      //const quoteUserNameDiv = element.find(SELECTOR.Article.div.quoteTweetUserName)
       // Parse elements for text data
       //const postText = Parser.Twitter.Article.postTextFromElement(tweetTextDiv)
 
-      const profileId = Parser.Twitter.Article.profileIdFromElement(
-        element.find(SELECTOR.Article.a.tweetUserName),
-      )
       //const quoteProfileId =
-      //  Parser.Twitter.Article.quoteProfileIdFromElement(quoteUserNameDiv)
-      //const retweetProfileId =
-      //  Parser.Twitter.Article.profileIdFromElement(retweetUserNameLink)
-      const postId = Parser.Twitter.Article.postIdFromElement(
-        element.find(SELECTOR.Article.a.tweetId).last(),
-      )
+      //
 
-      const data = {} as ParsedPostData
-      data.profileId = profileId as string
-      data.postId = postId
-      /*
-      if (retweetProfileId) {
-        data.retweetProfileId = retweetProfileId
-      }
-      if (quoteProfileId) {
-        data.quoteProfileId = quoteProfileId
-      }
-      */
-      return data
+      return {
+        profileId: Parser.Twitter.Article.profileIdFromElement(
+          element.find(SELECTOR.Article.a.tweetUserName),
+        ),
+        postId: Parser.Twitter.Article.postIdFromElement(
+          element.find(SELECTOR.Article.a.tweetId).last(),
+        ),
+        retweetProfileId: Parser.Twitter.Article.profileIdFromElement(
+          element.find(SELECTOR.Article.a.retweetUserName),
+        ),
+        quoteProfileId: Parser.Twitter.Article.quoteProfileIdFromElement(
+          element.find(SELECTOR.Article.div.quoteTweetUserName),
+        ),
+      } as ParsedPostData
     }
     /**
      * Mutate button rows with vote buttons (e.g. posts, photo/media viewer, etc.)
@@ -947,7 +933,7 @@ export default defineContentScript({
     ): [JQuery<HTMLButtonElement>, JQuery<HTMLButtonElement>] {
       // the like/unlike button will be the 3rd div element in the row
       const origButton = element.find(
-        `div:nth-child(3) button:not([data-sentiment])`,
+        `div:nth-child(3) button:has([data-testid]):not([data-sentiment])`,
       )
       if (origButton.length < 1) {
         throw new Error('button row already mutated')
@@ -955,9 +941,9 @@ export default defineContentScript({
       const origButtonContainer = origButton.parent()
       // Create upvote button and its container
       const upvoteButtonContainer = origButtonContainer.clone(true, true) // $(origButtonContainer[0].cloneNode() as Element)
-      const upvoteButton = upvoteButtonContainer.find(
-        'button:first',
-      ) as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
+      const upvoteButton = upvoteButtonContainer
+        .find('button')
+        .first() as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
       upvoteButton
         .attr({
           //'data-testid': 'upvote',
@@ -975,21 +961,21 @@ export default defineContentScript({
           null,
         )
       if (postMeta?.hasWalletUpvoted) {
-        upvoteButton.attr(`aria-label`, `Upvoted`)
-        //upvoteButton.find('div:first').addClass('upvote-button')
+        upvoteButton.attr('aria-label', 'Upvoted')
       }
       upvoteButton
-        .find('span:last')
+        .find('span')
+        .last()
         .html(String(postMeta?.txidsUpvoted.length || ''))
-      const upvoteSvg = $(VOTE_ARROW_UP) as JQuery<HTMLOrSVGElement>
-      const upvoteArrow = upvoteSvg.find('g path')
-      upvoteButton.find('g path').attr('d', upvoteArrow.attr('d')!)
+      upvoteButton
+        .find('g path')
+        .attr('d', $(VOTE_ARROW_UP).find('g path').attr('d')!)
       upvoteButtonContainer.append(upvoteButton)
       // Create downvote button and its container
       const downvoteButtonContainer = origButtonContainer.clone(true, true) // $(origButtonContainer[0].cloneNode() as Element)
-      const downvoteButton = downvoteButtonContainer.find(
-        'button:first',
-      ) as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
+      const downvoteButton = downvoteButtonContainer
+        .find('button')
+        .first() as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
       downvoteButton
         .attr({
           //'data-testid': 'downvote',
@@ -1008,14 +994,14 @@ export default defineContentScript({
         )
       if (postMeta?.hasWalletDownvoted) {
         downvoteButton.attr('aria-label', 'Downvoted')
-        //downvoteButton.find('div:first').addClass('downvote-button')
       }
       downvoteButton
-        .find('span:last')
+        .find('span')
+        .last()
         .html(String(postMeta?.txidsDownvoted.length || ''))
-      const downvoteSvg = $(VOTE_ARROW_DOWN) as JQuery<HTMLOrSVGElement>
-      const downvoteArrow = downvoteSvg.find('g path')
-      downvoteButton.find('g path').attr('d', downvoteArrow.attr('d')!)
+      downvoteButton
+        .find('g path')
+        .attr('d', $(VOTE_ARROW_DOWN).find('g path').attr('d')!)
       downvoteButtonContainer.append(downvoteButton)
       // Adjust the button row accordingly
       origButtonContainer.addClass('hidden')
@@ -1110,9 +1096,8 @@ export default defineContentScript({
       // skip auto-updating this post since it will be updated below
       STATE.set('postIdBusy', postId)
       console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
-      let txid: string | void
       try {
-        txid = await walletMessaging.sendMessage(
+        const txid = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
           {
             platform: 'twitter',
@@ -1125,17 +1110,16 @@ export default defineContentScript({
           `successfully cast ${sentiment} vote for ${profileId}/${postId}`,
           txid,
         )
+        // proceed with button mutations and cache updates
+        // if we successfully broadcast the RANK transaction
         try {
           // load the button element into jQuery
           const button = $(this)
-          // update cached post data from API if the entry is expired
-          //
-          // since we just updated our vote count, tell updateCachedPost()
-          // to save postMeta to localStorage
+          // update cached post data from API and save postMeta to localStorage
           const { votesPositive, votesNegative, ranking, postMeta } =
             await updateCachedPost(profileId, postId, true)
           // Update the button color and vote count on the appropriate button
-          const span = button.find('span:last')
+          const span = button.find('span').last()
           switch (sentiment) {
             case 'positive': {
               if (postMeta?.hasWalletUpvoted) {
