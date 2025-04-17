@@ -662,7 +662,7 @@ export default defineContentScript({
             $(upvoteButton).attr('aria-label', 'Upvoted')
           }
           if (votesPositive > 0) {
-            const upvoteSpan = $('span:last', upvoteButton)
+            const upvoteSpan = $('span', upvoteButton).last()
             const upvoteCount = toMinifiedNumber(votesPositive)
             if (upvoteSpan.html() !== upvoteCount) {
               upvoteSpan.html(upvoteCount)
@@ -672,7 +672,7 @@ export default defineContentScript({
             $(downvoteButton).attr('aria-label', 'Downvoted')
           }
           if (votesNegative > 0) {
-            const downvoteSpan = $('span:last', downvoteButton)
+            const downvoteSpan = $('span', downvoteButton).last()
             const downvoteCount = toMinifiedNumber(votesNegative)
             if (downvoteSpan.html() !== downvoteCount) {
               downvoteSpan.html(downvoteCount)
@@ -820,9 +820,9 @@ export default defineContentScript({
     async function processButtonRowElement(element: JQuery<HTMLElement>) {
       try {
         const postButtonRow = element.closest(SELECTOR.Article.div.innerDiv)
-        const postIdLink = (
-          postButtonRow.length ? postButtonRow : element
-        ).find(`a[${SELECTOR.Article.attr.tweetId}]:last`)
+        const postIdLink = (postButtonRow.length ? postButtonRow : element)
+          .find(`a[${SELECTOR.Article.attr.tweetId}]`)
+          .last()
         // sometimes a full-screen photo has a button row without the post URL in href attribute
         // in this case, assume our browser is on the post URL page and use this for the info
         const [, profileId, , postId] =
@@ -851,7 +851,7 @@ export default defineContentScript({
           upvoteButton.attr('aria-label', 'Upvoted')
         }
         if (votesPositive > 0) {
-          const upvoteSpan = upvoteButton.find('span:last')
+          const upvoteSpan = upvoteButton.find('span').last()
           const upvoteCount = toMinifiedNumber(votesPositive)
           if (upvoteSpan.html() !== upvoteCount) {
             upvoteSpan.html(upvoteCount)
@@ -861,12 +861,15 @@ export default defineContentScript({
           downvoteButton.attr('aria-label', 'Downvoted')
         }
         if (votesNegative > 0) {
-          const downvoteSpan = downvoteButton.find('span:last')
+          const downvoteSpan = downvoteButton.find('span').last()
           const downvoteCount = toMinifiedNumber(votesNegative)
           if (downvoteSpan.html() !== downvoteCount) {
             downvoteSpan.html(downvoteCount)
           }
-          downvoteButton.find('span:last').html(toMinifiedNumber(votesNegative))
+          downvoteButton
+            .find('span')
+            .last()
+            .html(toMinifiedNumber(votesNegative))
         }
         // some button rows are part of post elements (i.e. have parent article element)
         const article = element.closest('article')
@@ -938,9 +941,9 @@ export default defineContentScript({
       const origButtonContainer = origButton.parent()
       // Create upvote button and its container
       const upvoteButtonContainer = origButtonContainer.clone(true, true) // $(origButtonContainer[0].cloneNode() as Element)
-      const upvoteButton = upvoteButtonContainer.find(
-        'button:first',
-      ) as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
+      const upvoteButton = upvoteButtonContainer
+        .find('button')
+        .first() as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
       upvoteButton
         .attr({
           //'data-testid': 'upvote',
@@ -958,21 +961,21 @@ export default defineContentScript({
           null,
         )
       if (postMeta?.hasWalletUpvoted) {
-        upvoteButton.attr(`aria-label`, `Upvoted`)
-        //upvoteButton.find('div:first').addClass('upvote-button')
+        upvoteButton.attr('aria-label', 'Upvoted')
       }
       upvoteButton
-        .find('span:last')
+        .find('span')
+        .last()
         .html(String(postMeta?.txidsUpvoted.length || ''))
-      const upvoteSvg = $(VOTE_ARROW_UP) as JQuery<HTMLOrSVGElement>
-      const upvoteArrow = upvoteSvg.find('g path')
-      upvoteButton.find('g path').attr('d', upvoteArrow.attr('d')!)
+      upvoteButton
+        .find('g path')
+        .attr('d', $(VOTE_ARROW_UP).find('g path').attr('d')!)
       upvoteButtonContainer.append(upvoteButton)
       // Create downvote button and its container
       const downvoteButtonContainer = origButtonContainer.clone(true, true) // $(origButtonContainer[0].cloneNode() as Element)
-      const downvoteButton = downvoteButtonContainer.find(
-        'button:first',
-      ) as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
+      const downvoteButton = downvoteButtonContainer
+        .find('button')
+        .first() as JQuery<HTMLButtonElement> // $(origButton[0].cloneNode(true) as HTMLButtonElement)
       downvoteButton
         .attr({
           //'data-testid': 'downvote',
@@ -991,14 +994,14 @@ export default defineContentScript({
         )
       if (postMeta?.hasWalletDownvoted) {
         downvoteButton.attr('aria-label', 'Downvoted')
-        //downvoteButton.find('div:first').addClass('downvote-button')
       }
       downvoteButton
-        .find('span:last')
+        .find('span')
+        .last()
         .html(String(postMeta?.txidsDownvoted.length || ''))
-      const downvoteSvg = $(VOTE_ARROW_DOWN) as JQuery<HTMLOrSVGElement>
-      const downvoteArrow = downvoteSvg.find('g path')
-      downvoteButton.find('g path').attr('d', downvoteArrow.attr('d')!)
+      downvoteButton
+        .find('g path')
+        .attr('d', $(VOTE_ARROW_DOWN).find('g path').attr('d')!)
       downvoteButtonContainer.append(downvoteButton)
       // Adjust the button row accordingly
       origButtonContainer.addClass('hidden')
@@ -1118,7 +1121,7 @@ export default defineContentScript({
           const { votesPositive, votesNegative, ranking, postMeta } =
             await updateCachedPost(profileId, postId, true)
           // Update the button color and vote count on the appropriate button
-          const span = button.find('span:last')
+          const span = button.find('span').last()
           switch (sentiment) {
             case 'positive': {
               if (postMeta?.hasWalletUpvoted) {
