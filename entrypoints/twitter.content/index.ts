@@ -893,35 +893,28 @@ export default defineContentScript({
     function parsePostElement(element: JQuery<HTMLElement>): ParsedPostData {
       // Select elements
       //const tweetTextDiv = element.find(SELECTOR.Article.div.tweetText)
-      //const retweetUserNameLink = element.find(SELECTOR.Article.a.retweetUserName)
+
       //const quoteTweet = element.find(SELECTOR.Article.div.quoteTweet)
-      //const quoteUserNameDiv = element.find(SELECTOR.Article.div.quoteTweetUserName)
       // Parse elements for text data
       //const postText = Parser.Twitter.Article.postTextFromElement(tweetTextDiv)
 
-      const profileId = Parser.Twitter.Article.profileIdFromElement(
-        element.find(SELECTOR.Article.a.tweetUserName),
-      )
       //const quoteProfileId =
-      //  Parser.Twitter.Article.quoteProfileIdFromElement(quoteUserNameDiv)
-      //const retweetProfileId =
-      //  Parser.Twitter.Article.profileIdFromElement(retweetUserNameLink)
-      const postId = Parser.Twitter.Article.postIdFromElement(
-        element.find(SELECTOR.Article.a.tweetId).last(),
-      )
+      //
 
-      const data = {} as ParsedPostData
-      data.profileId = profileId as string
-      data.postId = postId
-      /*
-      if (retweetProfileId) {
-        data.retweetProfileId = retweetProfileId
-      }
-      if (quoteProfileId) {
-        data.quoteProfileId = quoteProfileId
-      }
-      */
-      return data
+      return {
+        profileId: Parser.Twitter.Article.profileIdFromElement(
+          element.find(SELECTOR.Article.a.tweetUserName),
+        ),
+        postId: Parser.Twitter.Article.postIdFromElement(
+          element.find(SELECTOR.Article.a.tweetId).last(),
+        ),
+        retweetProfileId: Parser.Twitter.Article.profileIdFromElement(
+          element.find(SELECTOR.Article.a.retweetUserName),
+        ),
+        quoteProfileId: Parser.Twitter.Article.quoteProfileIdFromElement(
+          element.find(SELECTOR.Article.div.quoteTweetUserName),
+        ),
+      } as ParsedPostData
     }
     /**
      * Mutate button rows with vote buttons (e.g. posts, photo/media viewer, etc.)
