@@ -933,7 +933,7 @@ export default defineContentScript({
     ): [JQuery<HTMLButtonElement>, JQuery<HTMLButtonElement>] {
       // the like/unlike button will be the 3rd div element in the row
       const origButton = element.find(
-        `div:nth-child(3) button:not([data-sentiment])`,
+        `div:nth-child(3) button:has([data-testid]):not([data-sentiment])`,
       )
       if (origButton.length < 1) {
         throw new Error('button row already mutated')
