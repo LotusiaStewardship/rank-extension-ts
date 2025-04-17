@@ -613,11 +613,7 @@ export default defineContentScript({
         // update cached profile with data received from API
         await updateCachedProfile(profileId, result.profile)
         // save updated metadata if avilable and specified to do so
-        if (
-          result.postMeta &&
-          setPostMeta &&
-          !POST_META_CACHE.get(toPostMetaKey(profileId, postId))
-        ) {
+        if (result.postMeta && setPostMeta) {
           instanceStore.setPostMeta(
             SCRIPT_PAYLOAD,
             'twitter',
