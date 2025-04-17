@@ -652,6 +652,11 @@ export default defineContentScript({
           const voteButtons = DOCUMENT_ROOT.find(
             `button[data-postid="${postId}"]`,
           )
+          // updateCachedPosts may be called without valid buttons in DOM
+          // return if no valid buttons available
+          if (voteButtons.length < 1) {
+            return
+          }
           const [upvoteButton, downvoteButton] = voteButtons
           if (postMeta?.hasWalletUpvoted) {
             $(upvoteButton).attr('aria-label', 'Upvoted')
