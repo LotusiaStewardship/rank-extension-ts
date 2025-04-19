@@ -759,7 +759,12 @@ export default defineContentScript({
             //console.warn('did not find profileId in message avatar element', elements)
             return
           }
-          const profileId = avatarLink.attr('href')!.split('/')[1]
+          const profileId = avatarLink
+            .attr('href')!
+            // bugfix: viewing post in pro.x.com deck prepends `https://twitter.com`
+            // so it is replaced with an empty string here to match site-wide convention
+            .replace('https://twitter.com', '')
+            .split('/')[1]
           // only proceed with setting badge if setting new reputation
           if (
             avatarDiv.attr('data-sentiment') &&
@@ -819,15 +824,19 @@ export default defineContentScript({
      */
     async function processButtonRowElement(element: JQuery<HTMLElement>) {
       try {
-        const postButtonRow = element.closest(SELECTOR.Article.div.innerDiv)
-        const postIdLink = (postButtonRow.length ? postButtonRow : element)
+        const postElement = element.closest(SELECTOR.Article.div.innerDiv)
+        const postIdLink = (postElement.length ? postElement : element)
           .find(`a[${SELECTOR.Article.attr.tweetId}]`)
           .last()
         // sometimes a full-screen photo has a button row without the post URL in href attribute
         // in this case, assume our browser is on the post URL page and use this for the info
         const [, profileId, , postId] =
-          postIdLink?.attr('href')?.split('/') ??
-          window.location.pathname.split('/')
+          postIdLink
+            ?.attr('href')
+            // bugfix: viewing post in pro.x.com deck prepends `https://twitter.com`
+            // so it is replaced with an empty string here to match site-wide convention
+            ?.replace('https://twitter.com', '')
+            .split('/') ?? window.location.pathname.split('/')
         // TODO: validate the data we parsed
 
         // load cached post metadata if we have it

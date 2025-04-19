@@ -93,7 +93,7 @@ export namespace Selector {
         directMessage = `div[${attr.directMessage}]`,
         ad = `div[data-testid="placementTracking"]:has(${tweet})`,
         //ad = `${tweet} div:not([${attr.tweetUserName}]) div[dir="ltr"]:has(span:contains("Ad")) + div:has(button)`,
-        buttonRow = `div[role="group"]:has(div:has(${button.tweetLikeButton}):not('.hidden'), div:has(${button.tweetUnlikeButton}):not('.hidden')):only-of-type`,
+        buttonRow = `div[role="group"]:has(${button.tweetLikeButton}, ${button.tweetUnlikeButton}):only-of-type`,
         grokScrollList = `div[data-testid*="followups"] + nav:has(div[${attr.grokScrollList}])`,
         grokDrawer = `div[${attr.grokDrawer}]`,
         tweetText = `${tweet} div[${attr.tweetText}]`,
