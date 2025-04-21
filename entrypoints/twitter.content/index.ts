@@ -1048,8 +1048,12 @@ export default defineContentScript({
       postId: string,
       ranking: bigint,
     ) {
-      // abort if we're on the post's URL
-      if (window.location.pathname.includes(postId)) {
+      if (
+        // abort if this post is the focused post on the page
+        element.has(
+          `a[${SELECTOR.Article.attr.tweetId}][aria-describedby] > time`,
+        ).length == 1
+      ) {
         return
       }
       // if post ranking is above default threshold, don't blur
