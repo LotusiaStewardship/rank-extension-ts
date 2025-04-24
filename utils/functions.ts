@@ -1,5 +1,8 @@
 import type { UtxoCache } from '@/entrypoints/background/modules/wallet'
-import type { PostMetaCache } from '@/entrypoints/background/stores'
+import type {
+  ExtensionInstance,
+  PostMetaCache,
+} from '@/entrypoints/background/stores'
 
 export const toXPI = (sats: string) =>
   (Number(sats) / 1_000_000).toLocaleString(undefined, {
@@ -29,20 +32,21 @@ export const serialize = (cacheData: UtxoCache | PostMetaCache) =>
 export const deserialize = (storeData: string) => {
   return new Map(JSON.parse(storeData)) as UtxoCache | PostMetaCache
 }
-export const newInstanceId = async (runtimeId: string) => {
-  const difficulty = 1
+export const newInstance = async (
+  runtimeId: string,
+): Promise<ExtensionInstance> => {
+  const difficulty = 4
   const leadingZeroes = String().padStart(difficulty, '0')
   let nonce = 0
-  let hash = ''
+  let instanceId = ''
   let checkpointTime = Date.now()
   const startTime = Date.now()
-  //console.log('mining for instanceId at', new Date(startTime).toISOString())
   while (true) {
     const data = Buffer.from(`${runtimeId}:${startTime}:${nonce}`)
     const computed = await crypto.subtle.digest('SHA-256', data)
-    hash = Buffer.from(computed).toString('hex')
-    if (hash.substring(0, difficulty) == leadingZeroes) {
-      console.log('mined instance id', hash, nonce, startTime)
+    instanceId = Buffer.from(computed).toString('hex')
+    if (instanceId.substring(0, difficulty) == leadingZeroes) {
+      console.log('mined instance id', instanceId, nonce, startTime)
       break
     }
     const now = Date.now()
@@ -53,5 +57,11 @@ export const newInstanceId = async (runtimeId: string) => {
     }
     nonce++
   }
-  return hash
+  return {
+    instanceId,
+    createdAt: new Date().toISOString(),
+    runtimeId,
+    startTime: startTime.toString(),
+    nonce,
+  }
 }

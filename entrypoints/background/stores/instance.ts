@@ -1,17 +1,23 @@
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import assert from 'assert'
+const { defineItem, setItem, setItems, getItem, getItems } = storage
 // Storage value types
 type WxtStorageValueString = string
+type WxtStorageValueNumber = number
+type WxtStorageValueBoolean = boolean | null
+type WxtStorageValueDate = Date
 // Storage item definition types
-type WxtStorageItemString = ReturnType<
-  typeof storage.defineItem<WxtStorageValueString>
+type WxtStorageItemString = ReturnType<typeof defineItem<WxtStorageValueString>>
+type WxtStorageItemNumber = ReturnType<typeof defineItem<WxtStorageValueNumber>>
+type WxtStorageItemBoolean = ReturnType<
+  typeof defineItem<WxtStorageValueBoolean>
 >
-type WxtStorageItem = WxtStorageItemString
-export type InstanceState = {
-  /** ID of the specific installed instance of the extension */
-  id: WxtStorageValueString
-  /** The operating system on which this extension instance was installed */
-  os: WxtStorageValueString
-}
+type WxtStorageItemDate = ReturnType<typeof defineItem<WxtStorageValueDate>>
+type WxtStorageItem =
+  | WxtStorageItemString
+  | WxtStorageItemNumber
+  | WxtStorageItemBoolean
+  | WxtStorageItemDate
 
 export type PostMetaCacheKey = `postMetaCache:${ScriptChunkPlatformUTF8}`
 export type PostMetaCache = Map<string, PostMeta>
@@ -21,12 +27,25 @@ export type PostMeta = {
   txidsUpvoted: string[]
   txidsDownvoted: string[]
 }
+export type ExtensionInstance = {
+  instanceId: string // sha256(`${runtimeId}:${startTime}:${nonce}`)
+  createdAt: string
+  runtimeId: string
+  startTime: string
+  nonce: number
+  optin?: boolean
+}
+
+export const DefaultExtensionInstance: ExtensionInstance = {
+  instanceId: '',
+  createdAt: '',
+  runtimeId: '',
+  startTime: '',
+  nonce: 0,
+}
 
 class InstanceStore {
-  private wxtStorageItems!: Record<
-    keyof InstanceState | PostMetaCacheKey,
-    WxtStorageItem
-  >
+  private wxtStorageItems: Record<keyof ExtensionInstance, WxtStorageItem>
   /** Key is in format: <platform>:<profileId>:<postId> */
   private postMetaCache: Map<string, PostMeta>
   /** 20-byte, hex-encoded PKH of the active wallet address */
@@ -34,13 +53,52 @@ class InstanceStore {
   constructor() {
     this.postMetaCache = new Map()
     this.wxtStorageItems = {
-      id: storage.defineItem<WxtStorageValueString>('local:instance:id', {
+      instanceId: defineItem<WxtStorageValueString>(
+        'local:instance:instanceId',
+        {
+          init: () => '',
+        },
+      ),
+      createdAt: defineItem<WxtStorageValueDate>('local:instance:createdAt', {
+        init: () => new Date(),
+      }),
+      runtimeId: defineItem<WxtStorageValueString>('local:instance:runtimeId', {
         init: () => '',
       }),
-      os: storage.defineItem<WxtStorageValueString>('local:instance:os', {
+      startTime: defineItem<WxtStorageValueString>('local:instance:startTime', {
         init: () => '',
       }),
-    } as typeof this.wxtStorageItems
+      nonce: defineItem<WxtStorageValueNumber>('local:instance:nonce', {
+        init: () => 0,
+      }),
+      optin: defineItem<WxtStorageValueBoolean>('local:instance:optin'),
+    }
+  }
+  /** Used by popup to watch changes to opt-in status */
+  get optinStorageItem() {
+    return this.wxtStorageItems.optin as WxtStorageItemBoolean
+  }
+  async getInstance() {
+    try {
+      const entries = await getItems(
+        (
+          Object.keys(this.wxtStorageItems) as Array<keyof ExtensionInstance>
+        ).map(key => this.wxtStorageItems[key]),
+      )
+      const instance: Partial<ExtensionInstance> = {}
+      while (entries.length > 0) {
+        const item = entries.shift()
+        assert(item, 'item is undefined.. corrupt instanceStore?')
+        const storeKey = item.key.split(':').pop() as keyof ExtensionInstance
+        instance[storeKey] = item.value
+      }
+      return instance as ExtensionInstance
+      //return Object.fromEntries(
+      //  entries.map(({ key, value }) => [key.split(':').pop(), value]),
+      //) as ExtensionInstance
+    } catch (e) {
+      console.error(`getInstance:`, e)
+    }
   }
   /**
    * Parse each `PostMeta` object from localStorage into the `postMetaCache` Map for
@@ -57,7 +115,7 @@ class InstanceStore {
       const itemKeys = (await browser.storage.local.getKeys())
         .filter((key: string) => key.includes(storageKey))
         .map(key => `local:${key}`) as `local:${string}`[]
-      const items = await storage.getItems(itemKeys)
+      const items = await getItems(itemKeys)
       items.forEach(item => {
         this.postMetaCache.set(
           item.key.replace(`local:${storageKey}:`, ''),
@@ -70,25 +128,26 @@ class InstanceStore {
     return this.postMetaCache
   }
   /**
-   * Get the value for the `os` localstorage item, e.g. `linux`, `mac`, etc.
-   * @returns
+   *
+   * @param instance
    */
-  async getOs() {
-    return await this.wxtStorageItems.os.getValue()
-  }
-  /**
-   * Set the value for the `os` localstorage item, e.g. `linux`, `mac`, etc.
-   * @param os
-   */
-  async setOs(os: string) {
+  async saveExtensionInstance(instance: ExtensionInstance) {
+    console.log('saving extension instance to localStorage')
     try {
-      await this.wxtStorageItems.os.setValue(os)
+      await setItems(
+        (Object.keys(instance) as Array<keyof ExtensionInstance>).map(key => ({
+          item: this.wxtStorageItems[key],
+          value: instance[key],
+        })),
+      )
     } catch (e) {
-      console.error(`setOs: ${os}: ${e}`)
+      console.error(`saveExtensionInstance:`, e)
     }
   }
   async getInstanceId() {
-    return await this.wxtStorageItems.id.getValue()
+    return await (
+      this.wxtStorageItems.instanceId as WxtStorageItemString
+    ).getValue()
   }
   /**
    * Set the value for the `id` localstorage item, which functions as the ID
@@ -97,9 +156,33 @@ class InstanceStore {
    */
   async setInstanceId(instanceId: string) {
     try {
-      await this.wxtStorageItems.id.setValue(instanceId)
+      await (this.wxtStorageItems.instanceId as WxtStorageItemString).setValue(
+        instanceId,
+      )
     } catch (e) {
       console.error(`setInstanceId: ${instanceId}:`, e)
+    }
+  }
+  /**
+   *
+   * @returns
+   */
+  async getOptin() {
+    return await (
+      this.wxtStorageItems.optin as WxtStorageItemBoolean
+    ).getValue()
+  }
+  /**
+   *
+   * @param answer
+   */
+  async setOptin(answer: boolean) {
+    try {
+      await (this.wxtStorageItems.optin as WxtStorageItemBoolean).setValue(
+        answer,
+      )
+    } catch (e) {
+      console.error(`setOptin: ${answer}:`, e)
     }
   }
   /**
@@ -119,13 +202,13 @@ class InstanceStore {
   ): Promise<void> {
     const storageKey = `instance:${scriptPayload}:postMetaCache:${platform}`
     try {
-      await storage.setItem(`local:${storageKey}:${profileId}:${postId}`, data)
+      await setItem(`local:${storageKey}:${profileId}:${postId}`, data)
       this.postMetaCache.set(`${profileId}:${postId}`, data)
       console.log(
         `saved post ${platform}/${profileId}/${postId} to localStorage`,
       )
     } catch (e) {
-      console.error(`saveCachedPost: ${platform}/${profileId}/${postId}: ${e}`)
+      console.error(`setPostMeta: ${platform}/${profileId}/${postId}: ${e}`)
     }
   }
   /**
@@ -140,7 +223,7 @@ class InstanceStore {
     profileId: string,
     postId: string,
   ): Promise<PostMeta> {
-    return await storage.getItem(
+    return await getItem(
       `local:instance:vote:${platform}:${profileId}:${postId}`,
       {
         fallback: {

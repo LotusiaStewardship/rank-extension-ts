@@ -16,6 +16,7 @@ import {
   PrivateKey,
   Transaction,
   Address,
+  Message,
 } from '@abcpros/bitcore-lib-xpi'
 import {
   walletStore,
@@ -78,6 +79,36 @@ type Wallet = {
   script: Script
   utxos: UtxoCache
   balance: string
+}
+/**
+ * Static methods used by popup and potentially elsewhere
+ */
+class WalletTools {
+  /**
+   *
+   * @param text
+   * @param privateKey
+   * @returns
+   */
+  static signMessage(text: string, privateKey: string) {
+    const message = new Message(text)
+    return message.sign(PrivateKey.fromWIF(privateKey))
+  }
+  /**
+   *
+   * @param text
+   * @param address
+   * @param signature
+   * @returns
+   */
+  static verifyMessage(
+    text: string,
+    address: Address | string,
+    signature: string,
+  ) {
+    const message = new Message(text)
+    return message.verify(address, signature)
+  }
 }
 /**
  *
@@ -147,6 +178,10 @@ class WalletManager {
   /** 12-word backup/restore seed phrase */
   get seedPhrase() {
     return this.wallet?.seedPhrase
+  }
+  /** Private key of wallet spending address in WIF format */
+  get signingKey() {
+    return this.wallet?.signingKey.toWIF()
   }
   /** 20-byte public key hash to register Chronik `ScriptEndpoint` */
   get scriptPayload() {
@@ -626,4 +661,4 @@ class WalletManager {
   }
 }
 
-export { WalletManager, WalletBuilder }
+export { WalletManager, WalletBuilder, WalletTools }
