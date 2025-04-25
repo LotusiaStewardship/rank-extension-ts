@@ -113,17 +113,17 @@
   }
   &[data-sentiment~='neutral'] {
     &::after {
-      background: var(--neutral-sentiment) !important;
+      background: var(--neutral-sentiment);
     }
   }
   &[data-sentiment~='positive'] {
     &::after {
-      background: var(--positive-sentiment) !important;
+      background: var(--positive-sentiment);
     }
   }
   &[data-sentiment~='negative'] {
     &::after {
-      background: var(--negative-sentiment) !important;
+      background: var(--negative-sentiment);
     }
   }
 }
@@ -147,17 +147,17 @@
   }
   &[data-sentiment~='neutral'] {
     &::after {
-      background: var(--neutral-sentiment) !important;
+      background: var(--neutral-sentiment);
     }
   }
   &[data-sentiment~='positive'] {
     &::after {
-      background: var(--positive-sentiment) !important;
+      background: var(--positive-sentiment);
     }
   }
   &[data-sentiment~='negative'] {
     &::after {
-      background: var(--negative-sentiment) !important;
+      background: var(--negative-sentiment);
     }
   }
 }
@@ -169,8 +169,8 @@
 .profile-avatar-reputation {
   position: relative;
   &::after {
-    left: 0%;
-    top: 0%;
+    left: 2%;
+    top: 2%;
     height: 20%;
     width: 20%;
     /* background-size: 0.4rem 0.4rem; */
@@ -181,17 +181,17 @@
   }
   &[data-sentiment~='neutral'] {
     &::after {
-      background: var(--neutral-sentiment) !important;
+      background: var(--neutral-sentiment);
     }
   }
   &[data-sentiment~='positive'] {
     &::after {
-      background: var(--positive-sentiment) !important;
+      background: var(--positive-sentiment);
     }
   }
   &[data-sentiment~='negative'] {
     &::after {
-      background: var(--negative-sentiment) !important;
+      background: var(--negative-sentiment);
     }
   }
 }

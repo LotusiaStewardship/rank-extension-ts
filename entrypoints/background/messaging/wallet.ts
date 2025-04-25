@@ -1,4 +1,4 @@
-import { UIWalletState } from '@/entrypoints/background/stores'
+import type { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
 import type {
   ScriptChunkPlatformUTF8,
@@ -7,6 +7,7 @@ import type {
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void
+  'popup:loadSigningKey': () => string
   'popup:loadSeedPhrase': () => string
   'popup:seedPhrase': (seedPhrase: string) => Promise<UIWalletState>
   'popup:loadWalletState': () => UIWalletState

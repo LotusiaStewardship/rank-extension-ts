@@ -2,8 +2,15 @@ import {
   WalletManager,
   WalletBuilder,
 } from '@/entrypoints/background/modules/wallet'
-import { walletStore, instanceStore } from '@/entrypoints/background/stores'
-import { walletMessaging } from '@/entrypoints/background/messaging'
+import {
+  walletStore,
+  instanceStore,
+  type ExtensionInstance,
+} from '@/entrypoints/background/stores'
+import {
+  instanceMessaging,
+  walletMessaging,
+} from '@/entrypoints/background/messaging'
 import assert from 'assert'
 
 export default defineBackground({
@@ -18,10 +25,39 @@ export default defineBackground({
      *
      */
     /**  */
+    instanceMessaging.onMessage(
+      'popup:registerInstance',
+      async ({ sender, data }) => {
+        validateMessageSender(sender.id)
+        const { optin, signature } = data
+        // this user is cringe
+        if (!optin) {
+          return void (await instanceStore.setOptin(false))
+        }
+        // this user is based
+        await instanceStore.setOptin(true)
+        const instance = await instanceStore.getInstance()
+        try {
+          const result = await registerInstance(instance!, signature)
+          console.log(result)
+          if (result.success) {
+            console.log('received onboarding fund from The Lotusia Stewardship')
+          }
+        } catch (e) {
+          console.warn(e)
+        }
+      },
+    )
+    /**  */
+    walletMessaging.onMessage('popup:loadSigningKey', ({ sender }) => {
+      validateMessageSender(sender.id)
+      return walletManager.signingKey
+    })
+    /**  */
     walletMessaging.onMessage(
       'popup:seedPhrase',
       async ({ sender, data: seedPhrase }) => {
-        validateWalletMessageSender(sender.id)
+        validateMessageSender(sender.id)
         // if WalletManager is already initialized, deinitialize it
         if (walletManager.seedPhrase) {
           await walletManager.deinit()
@@ -31,21 +67,20 @@ export default defineBackground({
         // Save the new wallet into local storage
         await walletStore.saveWalletState(walletState)
         await walletManager.init()
-        // Send the new wallet details to the popup UI
-        // TODO: Return the wallet state to popup UI directly without messaging API
+        // Genereate extension instanceId
+        const instanceId = await instanceStore.getInstanceId()
+        if (!instanceId) {
+          const instance = await newInstance(browser.runtime.id)
+          await instanceStore.saveExtensionInstance(instance)
+        }
+        // Return the new wallet details to the popup UI
         return walletManager.uiWalletState
-        /*
-        return await walletMessaging.sendMessage(
-          'background:walletState',
-          walletManager.uiWalletState,
-        )
-        */
       },
     )
     /**  */
     walletMessaging.onMessage('popup:loadWalletState', ({ sender }) => {
       try {
-        validateWalletMessageSender(sender.id)
+        validateMessageSender(sender.id)
         return walletManager.uiWalletState
       } catch (e) {
         console.error(e)
@@ -54,7 +89,7 @@ export default defineBackground({
     /**  */
     walletMessaging.onMessage('popup:sendLotus', async ({ sender, data }) => {
       try {
-        validateWalletMessageSender(sender.id)
+        validateMessageSender(sender.id)
         return (await walletManager.handlePopupSendLotus(data)) as string
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
@@ -66,7 +101,7 @@ export default defineBackground({
       'content-script:submitRankVote',
       async ({ sender, data }) => {
         try {
-          validateWalletMessageSender(sender.id)
+          validateMessageSender(sender.id)
           if (!walletManager.outpoints) {
             await walletManager.init()
           }
@@ -84,7 +119,7 @@ export default defineBackground({
       'content-script:getScriptPayload',
       async ({ sender, data }) => {
         try {
-          validateWalletMessageSender(sender.id)
+          validateMessageSender(sender.id)
           return walletManager.scriptPayload
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
@@ -97,7 +132,7 @@ export default defineBackground({
     /**  */
     walletMessaging.onMessage('popup:loadSeedPhrase', async ({ sender }) => {
       try {
-        validateWalletMessageSender(sender.id)
+        validateMessageSender(sender.id)
         return walletManager.seedPhrase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
@@ -107,19 +142,12 @@ export default defineBackground({
     // Load wallet state, or open popup ui to generate seed for new wallet state
     walletManager
       .init()
+      .then(async () => {
+        console.log('initialized wallet manager')
+      })
       .catch(async () => {
         browser.action.openPopup()
       })
-      .then(() => console.log('initialized wallet manager'))
-    // check if this instance has an ID generated
-    // if not, then generate one and save it to localStorage
-    instanceStore.getInstanceId().then(async instanceId => {
-      if (!instanceId) {
-        // Create new instanceId before creating new wallet
-        instanceId = await newInstanceId(browser.runtime.id)
-        await instanceStore.setInstanceId(instanceId)
-      }
-    })
     /*
     browser.runtime.onSuspend.addListener(() => {
       console.log('browser.runtime.onSuspend triggered')
@@ -135,13 +163,37 @@ export default defineBackground({
      * @param senderId The ID of the message sender, usually extension ID
      * @returns {boolean} `true` if the message sender is valid, `false` otherwise
      */
-    function validateWalletMessageSender(senderId?: string): boolean {
+    function validateMessageSender(senderId?: string): boolean {
       assert(senderId, 'there is no sender ID to validate, will not proceed')
       assert(
         senderId === browser.runtime.id,
         `sender ID "${senderId}" does not match our extension ID ${browser.runtime.id}`,
       )
       return true
+    }
+
+    async function registerInstance(
+      instance: ExtensionInstance,
+      signature: string,
+    ) {
+      // sign the instanceId hash with our wallet key
+      //const signature = walletManager.signMessage(generated.instanceId)
+      // send HTTP POST request with instance info to receive onboarding
+      const result = await fetch(
+        'https://rank.lotusia.org/api/v1/instance/register',
+        {
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...instance,
+            scriptPayload: walletManager.scriptPayload,
+            signature,
+          }),
+        },
+      )
+      return await result.json()
     }
   },
 })
