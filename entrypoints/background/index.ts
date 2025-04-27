@@ -93,7 +93,8 @@ export default defineBackground({
         return (await walletManager.handlePopupSendLotus(data)) as string
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
-        throw new Error(`error during 'popup:sendLotus': ${e.message}`)
+        console.error('error during "popup:sendLotus"', e)
+        return e.message
       }
     })
     /**  */
@@ -108,9 +109,8 @@ export default defineBackground({
           return (await walletManager.handlePopupSubmitRankVote(data)) as string
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
-          throw new Error(
-            `error during 'content-script:submitRankVote': ${e.message}`,
-          )
+          console.error('error during "content-script:submitRankVote"', e)
+          return e.message
         }
       },
     )
