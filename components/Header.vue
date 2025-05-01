@@ -1,25 +1,37 @@
 <script lang="ts" setup>
-const props = defineProps({
-  balance: String,
-})
+import { FwbImg } from 'flowbite-vue'
+import logoUrl from '~/assets/Lotusia-Logo.png'
+/**
+ * Constants
+ */
+/** Properties defined on this component */
+const props = defineProps<{
+  balance: string
+}>()
 </script>
-<template class="container mx-auto">
-  <div>
-    <span class="balance-header">Lotus Balance</span>
+<template>
+  <div class="flex h-12 py-8 items-center">
+    <div class="flex-grow absolute left-3">
+      <fwb-img :src="logoUrl" size="w-36"></fwb-img>
+    </div>
+    <div class="flex-grow absolute right-0 balance">
+      <span
+        class="bg-gray-100 text-pink-500 text-md font-medium me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300"
+        >{{ toMinifiedNumber(props.balance, 1_000_000) }}&nbsp;Lotus</span
+      >
+    </div>
   </div>
-  <div class="balance">
-    <!-- Need to always split balance prop to maintain reactivity -->
-    <span class="balance">{{ props.balance!.split('.')[0] }}</span>
-    <!-- Need to always split balance prop to maintain reactivity -->
-    <span class="balance-suffix">.{{ props.balance!.split('.')[1] }}</span>
-  </div>
+  <hr />
 </template>
-<style lang="css">
-.balance-header {
-  font-size: 1.2rem;
+<style lang="css" scoped>
+.left-3 {
+  left: 0.75rem;
+}
+.top-2 {
+  top: 0.5rem;
 }
 .balance {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 .balance-suffix {

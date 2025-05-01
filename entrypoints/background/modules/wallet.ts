@@ -109,6 +109,16 @@ class WalletTools {
     const message = new Message(text)
     return message.verify(address, signature)
   }
+  /**
+   * Returns `true` if Lotus address is valid, `false` otherwise
+   * @param address `Address` object or string in XAddress format
+   * @returns {boolean}
+   */
+  static isValidAddress(address: Address | string): boolean {
+    return Address.isValid(
+      address instanceof Address ? address.toXAddress() : address,
+    )
+  }
 }
 /**
  *

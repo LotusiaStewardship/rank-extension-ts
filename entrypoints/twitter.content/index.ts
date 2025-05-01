@@ -6,7 +6,7 @@ import type { ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
-import { toMinifiedNumber } from '@/utils/functions'
+import { toMinifiedNumber, isTxidString } from '@/utils/functions'
 import {
   CACHE_POST_ENTRY_EXPIRE_TIME,
   ROOT_URL,
@@ -1110,7 +1110,7 @@ export default defineContentScript({
       STATE.set('postIdBusy', postId)
       console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
       try {
-        const txid = await walletMessaging.sendMessage(
+        const txidOrError = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
           {
             platform: 'twitter',
@@ -1119,9 +1119,12 @@ export default defineContentScript({
             postId,
           },
         )
+        if (!isTxidString(txidOrError)) {
+          throw new Error(txidOrError)
+        }
         console.log(
           `successfully cast ${sentiment} vote for ${profileId}/${postId}`,
-          txid,
+          txidOrError,
         )
         // proceed with button mutations and cache updates
         // if we successfully broadcast the RANK transaction
@@ -1186,11 +1189,10 @@ export default defineContentScript({
           `failed to cast ${sentiment} vote for ${profileId}/${postId}`,
           e,
         )
-      } finally {
-        // enable button and allow this post to be auto-updated
-        this.disabled = false
-        STATE.delete('postIdBusy')
       }
+      // enable button and allow this post to be auto-updated
+      this.disabled = false
+      STATE.delete('postIdBusy')
 
       return false
     }
