@@ -123,7 +123,10 @@ onMounted(() => {
       view.chrome.windows.getCurrent().then(window => {
         console.log(window)
         // extension popup will be offset from browser
-        if (window.top! !== 0 && window.left! !== 0) {
+        if (
+          (window.top! !== 0 && window.left! !== 0) ||
+          window.state != 'normal'
+        ) {
           windowHeight.value = '600px'
           windowWidth.value = '380px'
           //windowType.value = 'popup'
