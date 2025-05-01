@@ -30,7 +30,7 @@ async function handleRestoreSeedPhrase() {
     if (isValidSeedPhrase(restoreSeedPhrase.value)) {
       // ancestor component watches changes to this value
       // only set this value when seed phrase is valid
-      injectSeedPhrase.value = restoreSeedPhrase
+      injectSeedPhrase.value = restoreSeedPhrase.value
     }
   } catch (e) {
     console.warn(e)
