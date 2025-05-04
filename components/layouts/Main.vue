@@ -122,18 +122,13 @@ onMounted(() => {
     .map(view => {
       view.chrome.windows.getCurrent().then(window => {
         console.log(window)
-        // extension popup will be offset from browser
-        if (
-          (window.top! !== 0 && window.left! !== 0) ||
-          window.state != 'normal'
-        ) {
-          windowHeight.value = '600px'
-          windowWidth.value = '380px'
-          //windowType.value = 'popup'
-        } else {
+        const isMobile = view.navigator.userAgent.match('Mobile')
+        if (isMobile) {
           windowHeight.value = `${window.height!}px`
           windowWidth.value = `${window.width!}px`
-          //windowType.value = 'normal'
+        } else {
+          windowHeight.value = '600px'
+          windowWidth.value = '380px'
         }
       })
     })
@@ -159,38 +154,48 @@ function unwatchStorage() {
   }
 }
 /**
- *
- * @param seedPhrase
+ * Initializes the wallet by either using the provided seed phrase or generating a new one.
+ * @param seedPhrase The optional seed phrase to use for wallet setup
  */
 async function walletSetup(seedPhrase?: string) {
   setupComplete.value = false
   // request the ui wallet state from the background
   let walletState: UIWalletState
-  // use the provided seed phrase to generate walletState
+  // use the provided seed phrase to generate new walletState
+  // apply this new walletState and return
   if (seedPhrase) {
     walletState = await walletMessaging.sendMessage(
       'popup:seedPhrase',
       seedPhrase,
     )
+    return await applyWalletState(walletState)
   }
-  // If no seed phrase provided, check for existing seed and do setup
-  // background has no access to window.crypto so popup needs to generate
+  // check for existing seed phrase
   const hasSeedPhrase = await walletStore.hasSeedPhrase()
-  // load existing walletState if not trying to import new one
-  if (hasSeedPhrase) {
-    walletState = await walletMessaging.sendMessage(
-      'popup:loadWalletState',
-      undefined,
-    )
-  }
-  // generate new seed and build the wallet
-  else {
-    const seedPhrase = WalletBuilder.newMnemonic().toString()
+  // if no seed phrase, generate new seed and build walletState
+  // apply this new walletState and return
+  if (!hasSeedPhrase) {
+    seedPhrase = WalletBuilder.newMnemonic().toString() as string
     walletState = await walletMessaging.sendMessage(
       'popup:seedPhrase',
       seedPhrase,
     )
+    return await applyWalletState(walletState)
   }
+  // load and apply existing walletState and return
+  walletState = await walletMessaging.sendMessage(
+    'popup:loadWalletState',
+    undefined,
+  )
+  return await applyWalletState(walletState)
+}
+/**
+ * Applies the provided wallet state by updating the wallet store and reactive values.
+ * Sets the script payload, script hex, address and balance from the wallet state.
+ * Clears any import seed phrase and marks setup as complete.
+ * @param walletState The wallet state containing script, address and balance info
+ */
+async function applyWalletState(walletState: UIWalletState) {
   // set walletStore and reactive values
   await walletStore.setScriptPayload(walletState.scriptPayload)
   await walletStore.setScripthex(walletState.scriptHex)
@@ -229,7 +234,7 @@ async function walletSetup(seedPhrase?: string) {
 <!--
   Vue style
 -->
-<style lang="css" scoped>
+<style lang="css">
 .main {
   min-width: v-bind(windowWidth);
   max-width: v-bind(windowWidth);

@@ -36,20 +36,20 @@ const Twitter = {
 /** RANK API endpoint */
 const API = {
   url: 'https://rank.lotusia.org/api/v1',
-  async topProfiles(platform: ScriptChunkPlatformUTF8) {
+  async topProfiles() {
     try {
       const result = await fetch(
-        `${this.url}/stats/${platform}/profiles/top-ranked/today`,
+        `${this.url}/stats/profiles/top-ranked/today`,
       )
       return (await result.json()) as TopProfile[]
     } catch (e) {
       return []
     }
   },
-  async topPosts(platform: ScriptChunkPlatformUTF8) {
+  async topPosts() {
     try {
       const result = await fetch(
-        `${this.url}/stats/${platform}/posts/top-ranked/today`,
+        `${this.url}/stats/posts/top-ranked/today`,
       )
       return (await result.json()) as TopPost[]
     } catch (e) {
@@ -73,8 +73,8 @@ const activeTab: ShallowRef<Tab> = shallowRef('topProfiles')
  */
 /**  */
 onMounted(() => {
-  API.topProfiles('twitter').then(result => (topProfiles.value = result))
-  API.topPosts('twitter').then(result => (topPosts.value = result))
+  API.topProfiles().then(result => (topProfiles.value = result))
+  API.topPosts().then(result => (topPosts.value = result))
 })
 </script>
 <template>
