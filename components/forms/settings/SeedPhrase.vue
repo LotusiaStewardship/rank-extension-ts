@@ -61,7 +61,7 @@ function isValidSeedPhrase(seedPhrase: string) {
       placeholder=""
       label="Reveal / Hide Wallet Password"
       v-model="existingSeedPhrase"
-      disabled
+      readonly
     >
       <template #footer>
         <FwbP class="text-red-500 dark:text-red-300"
