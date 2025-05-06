@@ -3,6 +3,10 @@
 import type { ShallowRef } from 'vue'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { WalletBuilder } from '@/entrypoints/background/modules/wallet'
+import {
+  WALLET_BIP39_MIN_WORDS,
+  WALLET_BIP39_MAX_WORDS,
+} from '@/utils/constants'
 import { FwbTextarea, FwbButton, FwbP } from 'flowbite-vue'
 /**
  * Constants
@@ -26,15 +30,10 @@ async function toggleExistingSeedPhrase() {
 }
 /** */
 async function handleRestoreSeedPhrase() {
-  try {
-    if (isValidSeedPhrase(restoreSeedPhrase.value)) {
-      // ancestor component watches changes to this value
-      // only set this value when seed phrase is valid
-      injectSeedPhrase.value = restoreSeedPhrase.value
-    }
-  } catch (e) {
-    console.warn(e)
-  } finally {
+  if (isValidSeedPhrase(restoreSeedPhrase.value)) {
+    // ancestor component watches changes to this value
+    // only set this value when seed phrase is valid
+    injectSeedPhrase.value = restoreSeedPhrase.value.trim()
     // reset form
     restoreSeedPhrase.value = ''
   }
@@ -45,10 +44,16 @@ async function handleRestoreSeedPhrase() {
  * @param seedPhrase
  */
 function isValidSeedPhrase(seedPhrase: string) {
-  return (
-    WalletBuilder.isValidSeedPhrase(seedPhrase) &&
-    existingSeedPhrase.value !== restoreSeedPhrase.value
-  )
+  try {
+    return (
+      WalletBuilder.isValidSeedPhrase(seedPhrase) &&
+      restoreSeedPhrase.value.split(' ').length >= WALLET_BIP39_MIN_WORDS &&
+      restoreSeedPhrase.value.split(' ').length <= WALLET_BIP39_MAX_WORDS &&
+      existingSeedPhrase.value !== restoreSeedPhrase.value
+    )
+  } catch (e) {
+    console.warn(e)
+  }
 }
 </script>
 <!--
@@ -89,7 +94,7 @@ function isValidSeedPhrase(seedPhrase: string) {
       :rows="3"
       placeholder="Input your wallet password here and click Restore Wallet"
       label="Restore Lotus Wallet"
-      v-model.trim="restoreSeedPhrase"
+      v-model="restoreSeedPhrase"
     >
     </fwb-textarea>
   </div>
