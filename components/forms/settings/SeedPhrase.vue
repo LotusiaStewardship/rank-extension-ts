@@ -18,7 +18,7 @@ const restoreSeedPhrase = shallowRef('')
  * Vue prop drilling
  */
 /** */
-const injectSeedPhrase = inject('import-seed-phrase') as ShallowRef
+const injectSeedPhrase = inject('inject-seed-phrase') as ShallowRef
 /**
  * Functions
  */
@@ -53,6 +53,7 @@ function isValidSeedPhrase(seedPhrase: string) {
     )
   } catch (e) {
     console.warn(e)
+    return false
   }
 }
 </script>
@@ -62,7 +63,7 @@ function isValidSeedPhrase(seedPhrase: string) {
 <template>
   <div class="py-2">
     <fwb-textarea
-      :rows="3"
+      :rows="2"
       placeholder=""
       label="Reveal / Hide Wallet Password"
       v-model="existingSeedPhrase"
@@ -91,7 +92,7 @@ function isValidSeedPhrase(seedPhrase: string) {
   </div>
   <div class="py-2">
     <fwb-textarea
-      :rows="3"
+      :rows="2"
       placeholder="Input your wallet password here and click Restore Wallet"
       label="Restore Lotus Wallet"
       v-model="restoreSeedPhrase"

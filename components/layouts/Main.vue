@@ -37,7 +37,7 @@ const walletBalance: ShallowRef<string, string> = shallowRef('0')
 /** Current Lotus address for send/receive/RANK */
 const walletAddress: ShallowRef<string, string> = shallowRef('')
 /** Prop-drill; this is ref contains seed phrase provided during import */
-const importSeedPhrase = shallowRef('')
+const injectSeedPhrase = shallowRef('')
 /** Current immature Lotus balance, i.e. mining outputs */
 // TODO: discuss how mining rewards will be sent to extension users
 //const walletBalanceImmature: ShallowRef<string, string> = shallowRef('')
@@ -56,16 +56,16 @@ const headerHeight = shallowRef(0)
 /**
  * Vue prop drilling
  */
-provide('import-seed-phrase', importSeedPhrase)
+provide('inject-seed-phrase', injectSeedPhrase)
 /**
  * Vue watchers
  */
-watch(importSeedPhrase, async (seedPhrase, oldValue) => {
+watch(injectSeedPhrase, async seedPhrase => {
   // ignore change when textarea resets
   if (seedPhrase == '') {
     return
   }
-  //
+  // setup the wallet
   await walletSetup(seedPhrase)
 })
 /**
@@ -202,14 +202,14 @@ async function applyWalletState(walletState: UIWalletState) {
   walletAddress.value = walletState.address
   walletBalance.value = walletState.balance
   // setup is done; load the main UI
-  importSeedPhrase.value = ''
+  injectSeedPhrase.value = ''
   setupComplete.value = true
 }
 </script>
 <!--
   Vue template
 -->
-<template>
+<template v-if="setupComplete">
   <div :class="[`main`, 'w-full', 'h-full', 'container', 'dark:bg-gray-800']">
     <Header id="main-header" :balance="walletBalance" />
     <HomePage v-if="activePage === 'home'" />
