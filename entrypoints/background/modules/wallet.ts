@@ -58,7 +58,7 @@ type EventData =
   | RankTransactionParams
   | undefined
 /** Messaging events between popup and background service worker */
-type EventProcessor = (data: EventData) => Promise<void | string>
+type EventProcessor = (data: EventData) => Promise<void | string | null>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
 type PendingEventProcessor = [EventProcessor, EventData]
 /** Runtime queue to store `PendingEventProcessor` until they are called */
@@ -310,8 +310,8 @@ class WalletManager {
         await this.resetUtxoCache()
       },
     })
-    // always reset UTXO cache on initialization
-    await this.resetUtxoCache()
+    // reconcile wallet state by removing spent UTXOs and adding new UTXOs
+    await this.reconcileWalletState()
     // Save mutable wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
@@ -332,6 +332,9 @@ class WalletManager {
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
         )
       }
+      if (!this.queue.busy && this.queue.pending.length > 0) {
+        return this.processEventQueue()
+      }
       /* // always reconcile wallet state after websocket ping interval
       this.queue.pending.push([this.reconcileWalletState, undefined])
       if (!this.queue.busy) {
@@ -350,7 +353,7 @@ class WalletManager {
    * @param msg WebSocket message from Chronik
    * @returns {void} Nothing
    */
-  private handleWsMessage = (msg: SubscribeMsg): void => {
+  private handleWsMessage = async (msg: SubscribeMsg): Promise<void> => {
     switch (msg.type) {
       case 'AddedToMempool':
         this.queue.pending.push(
@@ -372,8 +375,7 @@ class WalletManager {
     }
     // Try to resolve the queued `EventProcessor`s if not already busy doing so
     if (!this.queue.busy) {
-      this.processEventQueue()
-      return
+      return await this.processEventQueue()
     }
   }
   /**
@@ -433,48 +435,27 @@ class WalletManager {
   /**
    * Handles submitting a RANK vote transaction from the popup UI
    * @param data The RANK transaction parameters containing platform, profileId, sentiment, and optional postId/comment
-   * @returns {Promise<string|undefined>} The transaction ID if successful, undefined otherwise
+   * @returns {Promise<string|null>} The transaction ID if successful, undefined otherwise
    */
   handlePopupSubmitRankVote: EventProcessor = async (
     data: EventData,
-  ): Promise<string | undefined> => {
-    const { platform, profileId, sentiment, postId, comment } =
-      data as RankTransactionParams
-    // craft RANK tx
+  ): Promise<string | null> => {
+    // craft and send RANK tx
     const tx = this.craftRankTx(data as RankTransactionParams)
-    // broadcast the crafted tx
-    const result = await this.chronik.broadcastTx(tx.toBuffer())
-    if (result.txid) {
-      console.log(
-        `successfully cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
-        result.txid,
-      )
-      // Return the txid
-      return result.txid
-    }
-    return undefined
+    return await this.broadcastTx(tx.toBuffer())
   }
   /**
    * Handles sending Lotus tokens from the popup UI
    * @param data The send transaction parameters containing output address and value
-   * @returns {Promise<string|undefined>} The transaction ID if successful, undefined otherwise
+   * @returns {Promise<string|null>} The transaction ID if successful, undefined otherwise
    */
   handlePopupSendLotus: EventProcessor = async (
     data: EventData,
-  ): Promise<string | undefined> => {
+  ): Promise<string | null> => {
     const { outAddress, outValue } = data as SendTransactionParams
-    // craft send tx
+    // craft and send the give tx
     const tx = this.craftSendTx(outAddress, outValue)
-    const result = await this.chronik.broadcastTx(tx.toBuffer())
-    if (result.txid) {
-      console.log(
-        `successfully sent ${outValue} sats to ${outAddress}`,
-        result.txid,
-      )
-      // Return the txid
-      return result.txid
-    }
-    return undefined
+    return await this.broadcastTx(tx.toBuffer())
   }
   /**
    * Handles when a transaction is added to the mempool that pays to this wallet's address
@@ -619,6 +600,15 @@ class WalletManager {
       // no need for special error handling here
       // we have bigger problems if we get here
     }
+  }
+  /**
+   * Broadcasts a transaction to the Chronik API
+   * @param tx The transaction to broadcast
+   * @returns The transaction ID if successful, null otherwise
+   */
+  private broadcastTx = async (txBuf: Buffer): Promise<string> => {
+    const result = await this.chronik.broadcastTx(txBuf)
+    return result.txid
   }
   /**
    * Subscribes to the Chronik API with the given `scriptPayload`
