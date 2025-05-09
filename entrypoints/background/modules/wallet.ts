@@ -46,9 +46,9 @@ type SendTransactionParams = {
   outValue: number
 }
 type RankTransactionParams = {
+  sentiment: ScriptChunkSentimentUTF8
   platform: ScriptChunkPlatformUTF8
   profileId: string
-  sentiment: ScriptChunkSentimentUTF8
   postId?: string
   comment?: string
 }
@@ -66,11 +66,8 @@ type EventQueue = {
   busy: boolean
   pending: PendingEventProcessor[]
 }
-type Utxo = {
-  outIdx: number
-  value: string
-}
-export type UtxoCache = Map<string, Utxo> // Map key is txid
+// Map key is `${txid}_${outIdx}`, value is BigInt `value` as string
+export type UtxoCache = Map<string, string>
 
 type Wallet = {
   seedPhrase: string
@@ -228,9 +225,10 @@ class WalletManager {
   }
   get outpoints() {
     const outpoints: OutPoint[] = []
-    this.wallet?.utxos?.forEach(({ outIdx }, txid) =>
-      outpoints.push({ txid, outIdx }),
-    )
+    this.wallet?.utxos?.forEach((_value, outpoint) => {
+      const [txid, outIdx] = outpoint.split('_')
+      outpoints.push({ txid, outIdx: Number(outIdx) })
+    })
     return outpoints
   }
   /** Wallet state that gets saved to localStorage when changed */
@@ -301,15 +299,15 @@ class WalletManager {
       onMessage: this.handleWsMessage,
       onError: async e => {
         console.error('chronik websocket error', e)
-        //await this.reconcileWalletState()
+        //await this.resetUtxoCache()
       },
       onEnd: async e => {
         console.error('chronik websocket ended abruptly', e)
-        //await this.reconcileWalletState()
+        //await this.resetUtxoCache()
       },
       onReconnect: async e => {
         console.warn('chronik websocket reconnected', e)
-        await this.reconcileWalletState()
+        await this.resetUtxoCache()
       },
     })
     // always reset UTXO cache on initialization
@@ -334,11 +332,11 @@ class WalletManager {
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
         )
       }
-      // always reconcile wallet state after websocket ping interval
+      /* // always reconcile wallet state after websocket ping interval
       this.queue.pending.push([this.reconcileWalletState, undefined])
       if (!this.queue.busy) {
         return this.processEventQueue()
-      }
+      } */
     }, 5000)
   }
   /** Shutdown all active sockets and listeners */
@@ -396,11 +394,10 @@ class WalletManager {
       await EventProcessor(EventData)
     } catch (e) {
       console.error(e)
-    } finally {
-      if (this.queue.pending.length > 0) {
-        // eslint-disable-next-line no-unsafe-finally
-        return this.processEventQueue()
-      }
+    }
+    // recursively process the next event in the queue
+    if (this.queue.pending.length > 0) {
+      return await this.processEventQueue()
     }
     // Save mutable wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
@@ -488,18 +485,21 @@ class WalletManager {
     const txid = data as string
     const tx = await this.chronik.tx(txid)
     for (let i = 0; i < tx.outputs.length; i++) {
-      const output = tx.outputs[i]
-      if (this.scriptHex == output.outputScript) {
-        console.log(
-          `AddedToMempool: received ${toXPI(output.value)} Lotus, saving utxo to cache`,
-        )
-        // calculate total balance with new output
-        const balance = BigInt(this.wallet.balance)
-        const value = BigInt(output.value)
-        // add new data to wallet state
-        this.wallet.balance = (balance + value).toString()
-        this.wallet.utxos.set(txid, { outIdx: i, value: output.value })
-        return
+      const outpoint = `${txid}_${i}`
+      if (!this.wallet.utxos.has(outpoint)) {
+        const output = tx.outputs[i]
+        if (this.scriptHex == output.outputScript) {
+          console.log(
+            `AddedToMempool: received ${toXPI(output.value)} Lotus, saving utxo to cache`,
+          )
+          // calculate total balance with new output
+          const balance = BigInt(this.wallet.balance)
+          const value = BigInt(output.value)
+          // add new data to wallet state
+          this.wallet.balance = (balance + value).toString()
+          this.wallet.utxos.set(outpoint, output.value)
+          return
+        }
       }
     }
   }
@@ -517,11 +517,22 @@ class WalletManager {
     let balance = BigInt(this.wallet.balance)
     // remove invalid UTXOs from cache
     for await (const { txid, outIdx } of this.validateUtxos()) {
-      const utxo = this.wallet.utxos.get(txid)
-      if (utxo && utxo.outIdx == outIdx) {
-        console.log(`removing spent utxo ${txid}_${outIdx} from cache`)
-        balance -= BigInt(utxo.value)
-        this.wallet.utxos.delete(txid)
+      const outpoint = `${txid}_${outIdx}`
+      const value = this.wallet.utxos.get(outpoint)
+      if (value) {
+        console.log(`removing spent utxo ${outpoint} from cache`)
+        balance -= BigInt(value)
+        this.wallet.utxos.delete(outpoint)
+      }
+    }
+    // fetch and store the complete UTXO set
+    for await (const utxo of this.fetchScriptUtxoSet()) {
+      const { txid, outIdx } = utxo.outpoint
+      const outpoint = `${txid}_${outIdx}`
+      if (!this.wallet.utxos.has(outpoint)) {
+        console.log(`adding new utxo ${outpoint} to cache`)
+        balance += BigInt(utxo.value)
+        this.wallet.utxos.set(outpoint, utxo.value)
       }
     }
     // update the wallet balance
@@ -543,9 +554,10 @@ class WalletManager {
     // fetch and store the complete UTXO set
     for await (const utxo of this.fetchScriptUtxoSet()) {
       const { txid, outIdx } = utxo.outpoint
-      console.log(`adding utxo ${txid}_${outIdx} to cache`)
+      const outpoint = `${txid}_${outIdx}`
+      console.log(`adding utxo ${outpoint} to cache`)
       balance += BigInt(utxo.value)
-      this.wallet.utxos.set(txid, { outIdx, value: utxo.value })
+      this.wallet.utxos.set(outpoint, utxo.value)
     }
     // update the wallet's balance
     this.wallet.balance = balance.toString()
@@ -645,8 +657,8 @@ class WalletManager {
     tx.feePerByte(2)
     tx.change(this.wallet.address)
     // gather utxos until we have more than outValue
-    for (const [txid, utxo] of this.wallet.utxos) {
-      const { outIdx, value } = utxo
+    for (const { txid, outIdx } of this.outpoints) {
+      const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
         new Transaction.Input.PublicKeyHash({
           prevTxId: txid,
@@ -715,8 +727,8 @@ class WalletManager {
     tx.feePerByte(2)
     tx.change(this.wallet.address)
     // gather utxos until we have more than outValue
-    for (const [txid, utxo] of this.wallet.utxos) {
-      const { outIdx, value } = utxo
+    for (const { txid, outIdx } of this.outpoints) {
+      const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
         new Transaction.Input.PublicKeyHash({
           prevTxId: txid,
