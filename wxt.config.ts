@@ -1,7 +1,7 @@
 import { defineConfig } from 'wxt'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import svgLoader from 'vite-svg-loader'
-import tailwindcss from 'tailwindcss'
+import tailwindcss from '@tailwindcss/postcss'
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
