@@ -90,7 +90,12 @@ export default defineBackground({
     walletMessaging.onMessage('popup:sendLotus', async ({ sender, data }) => {
       try {
         validateMessageSender(sender.id)
-        return (await walletManager.handlePopupSendLotus(data)) as string
+        const txid = (await walletManager.handlePopupSendLotus(data)) as string
+        console.log(
+          `successfully sent ${data.outValue} sats to ${data.outAddress}`,
+          txid,
+        )
+        return txid
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         console.error('error during "popup:sendLotus"', e)
@@ -101,12 +106,17 @@ export default defineBackground({
     walletMessaging.onMessage(
       'content-script:submitRankVote',
       async ({ sender, data }) => {
+        const { platform, profileId, sentiment, postId } = data
         try {
           validateMessageSender(sender.id)
-          if (!walletManager.outpoints) {
-            await walletManager.init()
-          }
-          return (await walletManager.handlePopupSubmitRankVote(data)) as string
+          const txid = (await walletManager.handlePopupSubmitRankVote(
+            data,
+          )) as string
+          console.log(
+            `successfully cast ${sentiment} vote for ${platform}/${profileId}/${postId}`,
+            txid,
+          )
+          return txid
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
           console.error('error during "content-script:submitRankVote"', e)
