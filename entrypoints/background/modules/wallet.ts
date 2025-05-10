@@ -223,6 +223,19 @@ class WalletManager {
   get scriptHex() {
     return this.wallet?.script.toHex()
   }
+  /** Total balance of the wallet in satoshis */
+  get balance() {
+    let balance = 0n
+    for (const value of this.wallet?.utxos?.values() ?? []) {
+      balance += BigInt(value)
+    }
+    return balance.toString()
+  }
+  /** Set the balance of the wallet in satoshis */
+  set balance(value: string) {
+    this.wallet.balance = value
+  }
+  /** List of outpoints in the wallet's UTXO cache */
   get outpoints() {
     const outpoints: OutPoint[] = []
     this.wallet?.utxos?.forEach((_value, outpoint) => {
@@ -235,7 +248,7 @@ class WalletManager {
   get mutableWalletState(): MutableWalletState {
     return {
       utxos: serialize(this.wallet.utxos),
-      balance: this.wallet.balance,
+      balance: this.balance,
     }
   }
   /** Wallet state that gets sent to popup UI and potentially used elsewhere */
@@ -245,7 +258,7 @@ class WalletManager {
       scriptPayload: this.wallet.script.getData().toString('hex'),
       scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
-      balance: this.wallet.balance,
+      balance: this.balance,
     }
   }
   /** Complete wallet state */
@@ -258,7 +271,7 @@ class WalletManager {
       scriptPayload: this.wallet.script.getData().toString('hex'),
       scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
-      balance: this.wallet.balance,
+      balance: this.balance,
     }
   }
   /**
@@ -332,8 +345,8 @@ class WalletManager {
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
         )
       }
-      this.queue.pending.push([this.reconcileWalletState, undefined])
-      if (!this.queue.busy) {
+      if (!this.queue.busy && this.queue.pending.length < 1) {
+        this.queue.pending.push([this.reconcileWalletState, undefined])
         return this.processEventQueue()
       }
       /* // always reconcile wallet state after websocket ping interval
@@ -482,10 +495,10 @@ class WalletManager {
             `AddedToMempool: received ${toXPI(output.value)} Lotus, saving utxo to cache`,
           )
           // calculate total balance with new output
-          const balance = BigInt(this.wallet.balance)
+          const balance = BigInt(this.balance)
           const value = BigInt(output.value)
           // add new data to wallet state
-          this.wallet.balance = (balance + value).toString()
+          this.balance = (balance + value).toString()
           this.wallet.utxos.set(outpoint, output.value)
           return
         }
@@ -498,7 +511,7 @@ class WalletManager {
    * @returns void after updating the wallet's balance and UTXO cache
    */
   private reconcileSpentUtxos = (spentInputs: OutPoint[]) => {
-    let balance = BigInt(this.wallet.balance)
+    let balance = BigInt(this.balance)
     for (const { txid, outIdx } of spentInputs) {
       const outpoint = `${txid}_${outIdx}`
       const value = this.wallet.utxos.get(outpoint)
@@ -507,7 +520,7 @@ class WalletManager {
         this.wallet.utxos.delete(outpoint)
       }
     }
-    this.wallet.balance = balance.toString()
+    this.balance = balance.toString()
   }
   /**
    * Reconciles the wallet's state by validating and updating the UTXO cache and balance.
@@ -520,7 +533,7 @@ class WalletManager {
    */
   private reconcileWalletState = async () => {
     // current balance
-    let balance = BigInt(this.wallet.balance)
+    let balance = BigInt(this.balance)
     // Validate UTXO set against Chronik API, remove invalid UTXOs from cache
     for await (const { txid, outIdx } of this.validateUtxos()) {
       const outpoint = `${txid}_${outIdx}`
@@ -542,7 +555,7 @@ class WalletManager {
       }
     }
     // update the wallet balance
-    this.wallet.balance = balance.toString()
+    this.balance = balance.toString()
   }
   /**
    * Resets the UTXO cache to the complete UTXO set from the Chronik API.
@@ -566,7 +579,7 @@ class WalletManager {
       this.wallet.utxos.set(outpoint, utxo.value)
     }
     // update the wallet's balance
-    this.wallet.balance = balance.toString()
+    this.balance = balance.toString()
     console.log('UTXO cache reset complete')
   }
   /**
