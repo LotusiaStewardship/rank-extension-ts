@@ -311,7 +311,7 @@ class WalletManager {
       },
     })
     // reconcile wallet state by removing spent UTXOs and adding new UTXOs
-    await this.reconcileWalletState()
+    await this.resetUtxoCache()
     // Save mutable wallet state
     await walletStore.saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
@@ -332,7 +332,8 @@ class WalletManager {
           `chronik websocket reconnected after state "${connected.target.readyState}"`,
         )
       }
-      if (!this.queue.busy && this.queue.pending.length > 0) {
+      this.queue.pending.push([this.reconcileWalletState, undefined])
+      if (!this.queue.busy) {
         return this.processEventQueue()
       }
       /* // always reconcile wallet state after websocket ping interval
@@ -356,10 +357,7 @@ class WalletManager {
   private handleWsMessage = async (msg: SubscribeMsg): Promise<void> => {
     switch (msg.type) {
       case 'AddedToMempool':
-        this.queue.pending.push(
-          [this.reconcileWalletState, undefined],
-          [this.handleWsAddedToMempool, msg.txid],
-        )
+        this.queue.pending.push([this.handleWsAddedToMempool, msg.txid])
         break
       case 'RemovedFromMempool':
         // TODO: need to implement this handler
@@ -439,10 +437,15 @@ class WalletManager {
    */
   handlePopupSubmitRankVote: EventProcessor = async (
     data: EventData,
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     // craft and send RANK tx
-    const tx = this.craftRankTx(data as RankTransactionParams)
-    return await this.broadcastTx(tx.toBuffer())
+    const [tx, spentInputs] = this.craftRankTx(data as RankTransactionParams)
+    // send tx
+    const txid = await this.broadcastTx(tx.toBuffer())
+    // remove the spent inputs from the wallet's UTXO cache
+    this.reconcileSpentUtxos(spentInputs)
+    // return the txid
+    return txid
   }
   /**
    * Handles sending Lotus tokens from the popup UI
@@ -451,11 +454,16 @@ class WalletManager {
    */
   handlePopupSendLotus: EventProcessor = async (
     data: EventData,
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     const { outAddress, outValue } = data as SendTransactionParams
     // craft and send the give tx
-    const tx = this.craftSendTx(outAddress, outValue)
-    return await this.broadcastTx(tx.toBuffer())
+    const [tx, spentInputs] = this.craftSendTx(outAddress, outValue)
+    // send tx
+    const txid = await this.broadcastTx(tx.toBuffer())
+    // remove the spent inputs from the wallet's UTXO cache
+    this.reconcileSpentUtxos(spentInputs)
+    // return the txid
+    return txid
   }
   /**
    * Handles when a transaction is added to the mempool that pays to this wallet's address
@@ -485,6 +493,23 @@ class WalletManager {
     }
   }
   /**
+   * Reconciles the wallet's state by removing spent UTXOs and updating the balance
+   * @param spentInputs The list of spent UTXOs to reconcile
+   * @returns void after updating the wallet's balance and UTXO cache
+   */
+  private reconcileSpentUtxos = (spentInputs: OutPoint[]) => {
+    let balance = BigInt(this.wallet.balance)
+    for (const { txid, outIdx } of spentInputs) {
+      const outpoint = `${txid}_${outIdx}`
+      const value = this.wallet.utxos.get(outpoint)
+      if (value) {
+        balance -= BigInt(value)
+        this.wallet.utxos.delete(outpoint)
+      }
+    }
+    this.wallet.balance = balance.toString()
+  }
+  /**
    * Reconciles the wallet's state by validating and updating the UTXO cache and balance.
    * This method:
    * 1. Starts with current wallet balance
@@ -496,7 +521,7 @@ class WalletManager {
   private reconcileWalletState = async () => {
     // current balance
     let balance = BigInt(this.wallet.balance)
-    // remove invalid UTXOs from cache
+    // Validate UTXO set against Chronik API, remove invalid UTXOs from cache
     for await (const { txid, outIdx } of this.validateUtxos()) {
       const outpoint = `${txid}_${outIdx}`
       const value = this.wallet.utxos.get(outpoint)
@@ -506,7 +531,7 @@ class WalletManager {
         this.wallet.utxos.delete(outpoint)
       }
     }
-    // fetch and store the complete UTXO set
+    // Fetch missing UTXOs from Chronik API, add to cache
     for await (const utxo of this.fetchScriptUtxoSet()) {
       const { txid, outIdx } = utxo.outpoint
       const outpoint = `${txid}_${outIdx}`
@@ -641,11 +666,13 @@ class WalletManager {
     sentiment: ScriptChunkSentimentUTF8
     postId?: string
     comment?: string
-  }): Transaction => {
+  }): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)
     tx.change(this.wallet.address)
+    // track the inputs used in the tx
+    const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
     for (const { txid, outIdx } of this.outpoints) {
       const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
@@ -660,6 +687,7 @@ class WalletManager {
           script: this.wallet.script,
         }),
       )
+      spentInputs.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
       if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
         break
@@ -698,7 +726,7 @@ class WalletManager {
     const verified = tx.verify()
     switch (typeof verified) {
       case 'boolean':
-        return tx
+        return [tx, spentInputs]
       case 'string':
         throw new Error(
           `craftRankTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
@@ -711,11 +739,16 @@ class WalletManager {
    * @param outValue The value to send in the transaction
    * @returns {Transaction} The crafted send transaction
    */
-  private craftSendTx = (outAddress: string, outValue: number): Transaction => {
+  private craftSendTx = (
+    outAddress: string,
+    outValue: number,
+  ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)
     tx.change(this.wallet.address)
+    // track the inputs used in the tx
+    const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
     for (const { txid, outIdx } of this.outpoints) {
       const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
@@ -730,6 +763,7 @@ class WalletManager {
           script: this.wallet.script,
         }),
       )
+      spentInputs.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
       if (tx.inputAmount > outValue) {
         break
@@ -747,7 +781,7 @@ class WalletManager {
     const verified = tx.verify()
     switch (typeof verified) {
       case 'boolean':
-        return tx
+        return [tx, spentInputs]
       case 'string':
         throw new Error(
           `craftSendTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
