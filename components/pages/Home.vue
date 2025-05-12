@@ -63,18 +63,34 @@ const API = {
 /**
  * Constants
  */
+/** Window functions */
+const { setInterval, clearInterval } = window
 /** Top 5 daily profiles */
 const topProfiles: Ref<TopProfile[]> = ref([])
 /** Top 5 daily posts */
 const topPosts: Ref<TopPost[]> = ref([])
+/** Active tab */
 const activeTab: ShallowRef<Tab> = shallowRef('topProfiles')
+/** Auto-update interval */
+const interval: Ref<number> = ref(0)
+/**
+ * Functions
+ */
+async function fetchPlatformStats() {
+  API.topProfiles().then(result => (topProfiles.value = result))
+  API.topPosts().then(result => (topPosts.value = result))
+}
 /**
  * Vue lifecycle hooks
  */
 /**  */
 onMounted(() => {
-  API.topProfiles().then(result => (topProfiles.value = result))
-  API.topPosts().then(result => (topPosts.value = result))
+  fetchPlatformStats()
+  interval.value = setInterval(fetchPlatformStats, 5_000)
+})
+/**  */
+onBeforeUnmount(() => {
+  clearInterval(interval.value)
 })
 </script>
 <template>
