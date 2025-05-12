@@ -270,6 +270,11 @@ export default defineContentScript({
             ?.parent()
             .addClass('hidden')
         }
+
+        // hide the grok ask button
+        if (element.is(SELECTOR.Article.button.grokAsk)) {
+          element.addClass('hidden')
+        }
       }
       /**
        *
