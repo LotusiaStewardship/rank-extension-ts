@@ -42,6 +42,7 @@ export namespace Selector {
         votePositiveButton = 'upvote',
         voteNegativeButton = 'downvote',
         grokActions = 'Grok actions',
+        grokAsk = 'Ask Grok yourself',
         grokProfileSummary = 'Profile Summary',
         grokDrawer = 'GrokDrawer',
         scrollSnapList = 'ScrollSnap-List',
@@ -83,6 +84,7 @@ export namespace Selector {
         // this button does not get loaded with post, but is added afterwards
         // so we cannot use the tweet selector as an ancesotor
         grokActions = `button[${attr.grokActions}]`,
+        grokAsk = `button:has(span:contains("${value.grokAsk}"))`,
         grokProfileSummary = `button[${attr.grokProfileSummary}], button:has(span:contains("${value.grokProfileSummary}"))`,
       }
       export enum div {
