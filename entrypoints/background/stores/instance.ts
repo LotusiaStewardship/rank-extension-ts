@@ -1,11 +1,13 @@
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
 import assert from 'assert'
+import { AuthorizationHeader } from '../modules/instance'
 const { defineItem, setItem, setItems, getItem, getItems } = storage
 // Storage value types
 type WxtStorageValueString = string
 type WxtStorageValueNumber = number
-type WxtStorageValueBoolean = boolean | null
+type WxtStorageValueBoolean = boolean
 type WxtStorageValueDate = Date
+type WxtStorageValueObject = BlockDataSig
 // Storage item definition types
 type WxtStorageItemString = ReturnType<typeof defineItem<WxtStorageValueString>>
 type WxtStorageItemNumber = ReturnType<typeof defineItem<WxtStorageValueNumber>>
@@ -13,11 +15,13 @@ type WxtStorageItemBoolean = ReturnType<
   typeof defineItem<WxtStorageValueBoolean>
 >
 type WxtStorageItemDate = ReturnType<typeof defineItem<WxtStorageValueDate>>
+type WxtStorageItemObject = ReturnType<typeof defineItem<WxtStorageValueObject>>
 type WxtStorageItem =
   | WxtStorageItemString
   | WxtStorageItemNumber
   | WxtStorageItemBoolean
   | WxtStorageItemDate
+  | WxtStorageItemObject
 
 export type PostMetaCacheKey = `postMetaCache:${ScriptChunkPlatformUTF8}`
 export type PostMetaCache = Map<string, PostMeta>
@@ -27,13 +31,16 @@ export type PostMeta = {
   txidsUpvoted: string[]
   txidsDownvoted: string[]
 }
+export type BlockDataSig = Record<'blockhash' | 'blockheight', string>
 export type ExtensionInstance = {
   instanceId: string // sha256(`${runtimeId}:${startTime}:${nonce}`)
   createdAt: string
   runtimeId: string
   startTime: string
   nonce: number
-  optin?: boolean
+  registered: boolean
+  blockDataSig?: BlockDataSig
+  authorizationHeader?: string
 }
 
 export const DefaultExtensionInstance: ExtensionInstance = {
@@ -42,6 +49,7 @@ export const DefaultExtensionInstance: ExtensionInstance = {
   runtimeId: '',
   startTime: '',
   nonce: 0,
+  registered: false,
 }
 
 class InstanceStore {
@@ -71,34 +79,83 @@ class InstanceStore {
       nonce: defineItem<WxtStorageValueNumber>('local:instance:nonce', {
         init: () => 0,
       }),
-      optin: defineItem<WxtStorageValueBoolean>('local:instance:optin'),
+      registered: defineItem<WxtStorageValueBoolean>('local:instance:optin', {
+        init: () => false,
+      }),
+      blockDataSig: defineItem<BlockDataSig>('local:instance:blockDataSig', {
+        init: () => ({
+          blockhash: '',
+          blockheight: '',
+        }),
+      }),
+      authorizationHeader: defineItem<WxtStorageValueString>(
+        'local:instance:authorizationHeader',
+        {
+          init: () => '',
+        },
+      ),
     }
   }
-  /** Used by popup to watch changes to opt-in status */
-  get optinStorageItem() {
-    return this.wxtStorageItems.optin as WxtStorageItemBoolean
+  get instanceIdStorageItem(): WxtStorageItemString {
+    return this.wxtStorageItems.instanceId as WxtStorageItemString
   }
-  async getInstance() {
+  /**
+   * Used by popup to watch changes to opt-in status
+   * @returns {WxtStorageItemBoolean}
+   */
+  get registeredStorageItem(): WxtStorageItemBoolean {
+    return this.wxtStorageItems.registered as WxtStorageItemBoolean
+  }
+  /**
+   * Get the `authorizationHeader` value from localStorage
+   * @returns {Promise<string>}
+   */
+  async getAuthorizationHeader(): Promise<string> {
+    return await (
+      this.wxtStorageItems.authorizationHeader as WxtStorageItemString
+    ).getValue()
+  }
+  /**
+   * Set the `authorizationHeader` value in localStorage
+   * @param authorizationHeader - The `authorizationHeader` value to set
+   * @returns {Promise<void>}
+   */
+  async setAuthorizationHeader(
+    authorizationHeader: AuthorizationHeader,
+  ): Promise<void> {
+    try {
+      await (
+        this.wxtStorageItems.authorizationHeader as WxtStorageItemString
+      ).setValue(authorizationHeader)
+    } catch (e) {
+      console.error(`setAuthorizationHeader: ${authorizationHeader}:`, e)
+    }
+  }
+  /**
+   * Get the `ExtensionInstance` object from localStorage
+   * @returns {Promise<ExtensionInstance>}
+   */
+  async getInstance(): Promise<ExtensionInstance> {
+    const instance: Partial<ExtensionInstance> = {}
     try {
       const entries = await getItems(
         (
           Object.keys(this.wxtStorageItems) as Array<keyof ExtensionInstance>
         ).map(key => this.wxtStorageItems[key]),
       )
-      const instance: Partial<ExtensionInstance> = {}
       while (entries.length > 0) {
         const item = entries.shift()
         assert(item, 'item is undefined.. corrupt instanceStore?')
         const storeKey = item.key.split(':').pop() as keyof ExtensionInstance
         instance[storeKey] = item.value
       }
-      return instance as ExtensionInstance
       //return Object.fromEntries(
       //  entries.map(({ key, value }) => [key.split(':').pop(), value]),
       //) as ExtensionInstance
     } catch (e) {
       console.error(`getInstance:`, e)
     }
+    return instance as ExtensionInstance
   }
   /**
    * Parse each `PostMeta` object from localStorage into the `postMetaCache` Map for
@@ -167,22 +224,44 @@ class InstanceStore {
    *
    * @returns
    */
-  async getOptin() {
+  async getRegisterStatus() {
     return await (
-      this.wxtStorageItems.optin as WxtStorageItemBoolean
+      this.wxtStorageItems.registered as WxtStorageItemBoolean
     ).getValue()
   }
   /**
    *
    * @param answer
    */
-  async setOptin(answer: boolean) {
+  async setRegisterStatus(answer: boolean) {
     try {
-      await (this.wxtStorageItems.optin as WxtStorageItemBoolean).setValue(
+      await (this.wxtStorageItems.registered as WxtStorageItemBoolean).setValue(
         answer,
       )
     } catch (e) {
-      console.error(`setOptin: ${answer}:`, e)
+      console.error(`setRegisterStatus: ${answer}:`, e)
+    }
+  }
+  /**
+   *
+   * @returns
+   */
+  async getBlockDataSig() {
+    return await (
+      this.wxtStorageItems.blockDataSig as WxtStorageItemObject
+    ).getValue()
+  }
+  /**
+   *
+   * @param block
+   */
+  async setBlockDataSig(block: { blockhash: string; blockheight: string }) {
+    try {
+      await (
+        this.wxtStorageItems.blockDataSig as WxtStorageItemObject
+      ).setValue(block)
+    } catch (e) {
+      console.error(`setBlockDataSig: ${block}:`, e)
     }
   }
   /**

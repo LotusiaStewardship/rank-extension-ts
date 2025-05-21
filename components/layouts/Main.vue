@@ -22,10 +22,15 @@ import {
   WalletTools,
 } from '@/entrypoints/background/modules/wallet'
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
+import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
 /**
  * Local types
  */
-export type StorageWatcher = 'balance' | 'address' | 'instance:optin'
+export type StorageWatcher =
+  | 'balance'
+  | 'address'
+  | 'instance:required'
+  | 'instance:id'
 export type Page = 'home' | 'receive' | 'give' | 'settings'
 /**
  * Constants
@@ -36,15 +41,23 @@ const watchers: Map<StorageWatcher, UnwatchFunction> = new Map()
 const walletBalance: ShallowRef<string, string> = shallowRef('0')
 /** Current Lotus address for send/receive/RANK */
 const walletAddress: ShallowRef<string, string> = shallowRef('')
+/** Current Lotus scriptPayload for API calls */
+const walletScriptPayload: ShallowRef<string> = shallowRef('')
 /** Prop-drill; this is ref contains seed phrase provided during import */
-const injectSeedPhrase = shallowRef('')
+const walletSeedPhrase = shallowRef('')
 /** Current immature Lotus balance, i.e. mining outputs */
 // TODO: discuss how mining rewards will be sent to extension users
 //const walletBalanceImmature: ShallowRef<string, string> = shallowRef('')
+/** Instance ID */
+const instanceId: ShallowRef<string> = shallowRef('')
 /** Current status of extension registration with Lotusia Stewardship */
 const registerStatus: ShallowRef<null, boolean> = shallowRef(null)
+/** Current block data signature */
+const blockDataSig: Ref<BlockDataSig> = ref({ blockhash: '', blockheight: '' })
+/** Current authorization header */
+const authorizationHeader: ShallowRef<string> = shallowRef('')
 /** This is true if the `WalletManager` has been initialized with a mnemonic phrase */
-const setupComplete: ShallowRef<boolean, boolean> = shallowRef(false)
+const setupComplete: ShallowRef<boolean> = shallowRef(false)
 /** Which page to display */
 const activePage = shallowRef<Page>('home')
 //const windowType = shallowRef('popup')
@@ -56,17 +69,39 @@ const headerHeight = shallowRef(0)
 /**
  * Vue prop drilling
  */
-provide('inject-seed-phrase', injectSeedPhrase)
+provide('wallet-seed-phrase', walletSeedPhrase)
+provide('wallet-script-payload', walletScriptPayload)
+provide('instance-id', instanceId)
+provide('instance-register-status', registerStatus)
+provide('instance-block-data-sig', blockDataSig)
+provide('instance-authorization-header', authorizationHeader)
 /**
  * Vue watchers
  */
-watch(injectSeedPhrase, async seedPhrase => {
+watch(walletSeedPhrase, async seedPhrase => {
   // ignore change when textarea resets
   if (seedPhrase == '') {
     return
   }
   // setup the wallet
   await walletSetup(seedPhrase)
+})
+/**
+ * Watch for changes to `BlockDataSig` for auto-updating the instanceStore
+ */
+watch(blockDataSig, async blockDataSig => {
+  await instanceStore.setBlockDataSig(blockDataSig)
+  console.log('blockDataSig updated and saved to instanceStore', blockDataSig)
+})
+/**
+ * Watch for changes to `AuthorizationHeader` for auto-updating the instanceStore
+ */
+watch(authorizationHeader, async authorizationHeader => {
+  await instanceStore.setAuthorizationHeader(authorizationHeader)
+  console.log(
+    'authorizationHeader updated and saved to instanceStore',
+    authorizationHeader,
+  )
 })
 /**
  * Vue lifecycle hooks
@@ -94,28 +129,47 @@ onBeforeMount(() => {
     ),
   )
   watchers.set(
-    'instance:optin',
-    instanceStore.optinStorageItem.watch(
+    'instance:required',
+    instanceStore.registeredStorageItem.watch(
       newValue => (registerStatus.value = newValue!),
     ),
   )
-  instanceStore.getOptin().then(optin => {
-    registerStatus.value = optin!
-    //registerPromptAck.value = optin!
+  watchers.set(
+    'instance:id',
+    instanceStore.instanceIdStorageItem.watch(
+      newValue => (instanceId.value = newValue!),
+    ),
+  )
+  // set initial instanceStore values
+  instanceStore.getInstanceId().then(_instanceId => {
+    instanceId.value = _instanceId
   })
+  instanceStore.getRegisterStatus().then(_registerStatus => {
+    registerStatus.value = _registerStatus
+  })
+  instanceStore.getBlockDataSig().then(_blockDataSig => {
+    blockDataSig.value = _blockDataSig
+  })
+  instanceStore.getAuthorizationHeader().then(_authorizationHeader => {
+    authorizationHeader.value = _authorizationHeader
+  })
+  // set initial walletStore values
   walletStore.balanceStorageItem
     .getValue()
     .then(balance => (walletBalance.value = balance))
   walletStore.addressStorageItem
     .getValue()
     .then(address => (walletAddress.value = address))
+  walletStore
+    .getScriptPayload()
+    .then(scriptPayload => (walletScriptPayload.value = scriptPayload))
 })
 /**  */
 onMounted(() => {
   walletSetup()
   headerHeight.value = document.getElementById('main-header')?.offsetHeight ?? 0
   footerHeight.value = document.getElementById('main-footer')?.offsetHeight ?? 0
-  chrome.extension
+  browser.extension
     .getViews({
       type: 'popup',
     })
@@ -133,9 +187,10 @@ onMounted(() => {
       })
     })
 })
+/* 
 onUpdated(() => {
   console.log(`onUpdated()`)
-})
+}) */
 
 /**
  * Functions
@@ -201,8 +256,9 @@ async function applyWalletState(walletState: UIWalletState) {
   await walletStore.setScripthex(walletState.scriptHex)
   walletAddress.value = walletState.address
   walletBalance.value = walletState.balance
+  walletScriptPayload.value = walletState.scriptPayload
   // setup is done; load the main UI
-  injectSeedPhrase.value = ''
+  walletSeedPhrase.value = ''
   setupComplete.value = true
 }
 </script>

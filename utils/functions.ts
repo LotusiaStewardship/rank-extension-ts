@@ -1,3 +1,4 @@
+import { AuthorizationHeader } from '@/entrypoints/background/modules/instance'
 import type { UtxoCache } from '@/entrypoints/background/modules/wallet'
 import type {
   ExtensionInstance,
@@ -9,7 +10,7 @@ export const toXPI = (sats: string) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   })
-export function isTxidString(string: string) {
+export function isSha256(string: string) {
   return !!string.match(/^[a-f0-9]{64}$/)
 }
 export const toLotusUnits = (sats: string | number) => Number(sats) / 1_000_000
@@ -71,5 +72,19 @@ export const newInstance = async (
     runtimeId,
     startTime: startTime.toString(),
     nonce,
+    registered: false,
   }
+}
+/**
+ * Fetch data from a URL with GET method using the provided authorization header
+ * @param url - The URL to fetch data from
+ * @param header - The authorization header to use
+ * @returns The response from the URL
+ */
+export async function authorizedFetch(
+  url: string,
+  headers: Record<'Authorization', AuthorizationHeader>,
+) {
+  const result = await fetch(url, { headers, method: 'GET' })
+  return result.json()
 }

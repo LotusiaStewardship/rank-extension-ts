@@ -18,7 +18,7 @@ const restoreSeedPhrase = shallowRef('')
  * Vue prop drilling
  */
 /** */
-const injectSeedPhrase = inject('inject-seed-phrase') as ShallowRef
+const walletSeedPhrase = inject('wallet-seed-phrase') as ShallowRef<string>
 /**
  * Functions
  */
@@ -33,7 +33,7 @@ async function handleRestoreSeedPhrase() {
   if (isValidSeedPhrase(restoreSeedPhrase.value)) {
     // ancestor component watches changes to this value
     // only set this value when seed phrase is valid
-    injectSeedPhrase.value = restoreSeedPhrase.value.trim()
+    walletSeedPhrase.value = restoreSeedPhrase.value.trim()
     // reset form
     restoreSeedPhrase.value = ''
   }
