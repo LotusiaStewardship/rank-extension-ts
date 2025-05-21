@@ -32,10 +32,10 @@ export default defineBackground({
         const { optin, signature } = data
         // this user is cringe
         if (!optin) {
-          return void (await instanceStore.setOptin(false))
+          return void (await instanceStore.setRegisterStatus(false))
         }
         // this user is based
-        await instanceStore.setOptin(true)
+        await instanceStore.setRegisterStatus(true)
         const instance = await instanceStore.getInstance()
         try {
           const result = await registerInstance(instance!, signature)

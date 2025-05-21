@@ -8,3 +8,4 @@
 [submodule "utils/bitcore-lib-xpi"]
 	path = utils/bitcore-lib-xpi
 	url = https://github.com/LotusiaStewardship/bitcore-lib-xpi.git
+	branch = main

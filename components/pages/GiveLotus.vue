@@ -5,7 +5,6 @@ import AddressScanButton from '../buttons/AddressScanButton.vue'
 /** Modules and type imports */
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { WalletTools } from '@/entrypoints/background/modules/wallet'
-import { isTxidString, toLotusUnits, toSatoshiUnits } from '@/utils/functions'
 import {
   DEFAULT_EXPLORER_URL,
   WALLET_LOTUS_DECIMAL_PRECISION,
@@ -67,7 +66,7 @@ async function giveLotus({ outAddress, outValue }: GiveLotusInputData) {
     outAddress,
     outValue,
   })
-  if (!isTxidString(txidOrError)) {
+  if (!isSha256(txidOrError)) {
     sendLotusResult.value = {
       success: false,
       error: txidOrError,

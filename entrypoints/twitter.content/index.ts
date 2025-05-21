@@ -1124,7 +1124,7 @@ export default defineContentScript({
             postId,
           },
         )
-        if (!isTxidString(txidOrError)) {
+        if (!isSha256(txidOrError)) {
           throw new Error(txidOrError)
         }
         console.log(
