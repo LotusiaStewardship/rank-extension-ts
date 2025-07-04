@@ -1,9 +1,6 @@
 import type { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
-import type {
-  ScriptChunkPlatformUTF8,
-  ScriptChunkSentimentUTF8,
-} from 'rank-lib'
+import type { RankOutput } from 'rank-lib'
 
 interface WalletMessaging {
   'background:walletState': (walletState: UIWalletState) => void
@@ -19,19 +16,7 @@ interface WalletMessaging {
     outValue: number
   }) => Promise<string>
   'content-script:getScriptPayload': () => Promise<string>
-  'content-script:submitRankVote': ({
-    platform,
-    profileId,
-    sentiment,
-    postId,
-    comment,
-  }: {
-    platform: ScriptChunkPlatformUTF8
-    profileId: string
-    sentiment: ScriptChunkSentimentUTF8
-    postId?: string
-    comment?: string
-  }) => Promise<string>
+  'content-script:submitRankVote': (outputs: RankOutput[]) => Promise<string>
 }
 
 const walletMessaging = defineExtensionMessaging<WalletMessaging>()
