@@ -2,7 +2,7 @@ import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
 import { PostMeta, instanceStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
-import type { ScriptChunkSentimentUTF8 } from 'rank-lib'
+import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
@@ -1105,24 +1105,47 @@ export default defineContentScript({
     async function handlePostVoteButtonClick(this: HTMLButtonElement) {
       // disable the button first
       this.disabled = true
+      const ranks: RankOutput[] = []
       // gather required data for submitting vote to Lotus network
       const profileId = this.getAttribute('data-profileid')!
       const postId = this.getAttribute('data-postid')!
       const sentiment = this.getAttribute(
         'data-sentiment',
       )! as ScriptChunkSentimentUTF8
+      // push the paid RANK output to the array
+      ranks.push({
+        sentiment,
+        platform: 'twitter',
+        profileId,
+        postId,
+      })
+      // gather two more outputs for the free (neutral) RANK outputs
+      const postCacheArray = POST_CACHE.entries().toArray()
+      const neutralPostOutputOne = postCacheArray.pop()
+      if (neutralPostOutputOne) {
+        ranks.push({
+          sentiment: 'neutral',
+          platform: 'twitter',
+          profileId: neutralPostOutputOne[1].profileId,
+          postId: neutralPostOutputOne[0],
+        })
+      }
+      const neutralPostOutputTwo = postCacheArray.pop()
+      if (neutralPostOutputTwo) {
+        ranks.push({
+          sentiment: 'neutral',
+          platform: 'twitter',
+          profileId: neutralPostOutputTwo[1].profileId,
+          postId: neutralPostOutputTwo[0],
+        })
+      }
       // skip auto-updating this post since it will be updated below
       STATE.set('postIdBusy', postId)
-      console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
       try {
+        console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
         const txidOrError = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
-          {
-            platform: 'twitter',
-            profileId,
-            sentiment,
-            postId,
-          },
+          ranks,
         )
         if (!isSha256(txidOrError)) {
           throw new Error(txidOrError)

@@ -106,7 +106,9 @@ export default defineBackground({
     walletMessaging.onMessage(
       'content-script:submitRankVote',
       async ({ sender, data }) => {
-        const { platform, profileId, sentiment, postId } = data
+        // get the first RANK output to log the vote
+        // first output is the paid RANK output
+        const { platform, profileId, sentiment, postId } = data[0]
         try {
           validateMessageSender(sender.id)
           const txid = (await walletManager.handlePopupSubmitRankVote(

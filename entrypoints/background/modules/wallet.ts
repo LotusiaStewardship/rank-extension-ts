@@ -55,7 +55,7 @@ type RankTransactionParams = {
 type EventData =
   | string
   | SendTransactionParams
-  | RankTransactionParams
+  | RankTransactionParams[]
   | undefined
 /** Messaging events between popup and background service worker */
 type EventProcessor = (data: EventData) => Promise<void | string | null>
@@ -452,7 +452,7 @@ class WalletManager {
     data: EventData,
   ): Promise<string> => {
     // craft and send RANK tx
-    const [tx, spentInputs] = this.craftRankTx(data as RankTransactionParams)
+    const [tx, spentInputs] = this.craftRankTx(data as RankTransactionParams[])
     // send tx
     const txid = await this.broadcastTx(tx.toBuffer())
     // remove the spent inputs from the wallet's UTXO cache
@@ -663,27 +663,82 @@ class WalletManager {
   private wsUnsubscribeP2PKH = (scriptPayload: string): void =>
     this.ws.unsubscribe('p2pkh', scriptPayload)
   /**
+   * Crafts a RANK output with the given parameters
+   * @param satoshis The value for the output, in satoshis
+   * @param sentiment The sentiment for the output
+   * @param platform The platform for the output
+   * @param profileId The profile ID for the output
+   * @param postId The post ID for the output
+   * @param comment The comment for the output
+   * @returns {Transaction.Output} The crafted RANK output
+   */
+  private craftRankOutput = ({
+    satoshis,
+    sentiment,
+    platform,
+    profileId,
+    postId,
+    comment,
+  }: {
+    satoshis: number
+    sentiment: ScriptChunkSentimentUTF8
+    platform: ScriptChunkPlatformUTF8
+    profileId: string
+    postId?: string
+    comment?: string
+  }): Transaction.Output => {
+    const script = new Script('')
+    script.add('OP_RETURN')
+    script.add(Buffer.from('RANK'))
+    // Add sentiment opcode
+    script.add(toSentimentOpCode(sentiment))
+    // Add platform byte
+    script.add(toPlatformBuf(platform))
+    // Add LOWERCASE profileId bytes
+    script.add(toProfileIdBuf(platform, profileId.toLowerCase()))
+    // Add postId bytes if applicable
+    if (postId) {
+      script.add(toPostIdBuf(platform, postId))
+    }
+    // TODO: some additional script stuff here
+
+    return new Transaction.Output({ satoshis, script })
+  }
+  /**
    * Crafts a RANK transaction with the given parameters
    * @param param0 The parameters for the RANK transaction
    * @returns {Transaction} The crafted RANK transaction
    */
-  private craftRankTx = ({
-    platform,
-    profileId,
-    sentiment,
-    postId,
-    comment,
-  }: {
-    platform: ScriptChunkPlatformUTF8
-    profileId: string
-    sentiment: ScriptChunkSentimentUTF8
-    postId?: string
-    comment?: string
-  }): [Transaction, OutPoint[]] => {
+  private craftRankTx = (
+    ranks: RankTransactionParams[],
+  ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
     tx.feePerByte(2)
     tx.change(this.wallet.address)
+    // Add the paid RANK output to the tx
+    const paidRankOutput = ranks.shift()!
+    tx.addOutput(
+      this.craftRankOutput({
+        satoshis: RANK_OUTPUT_MIN_VALUE,
+        ...paidRankOutput,
+      }),
+    )
+    // Add neutral RANK outputs to the tx
+    for (const rank of ranks) {
+      tx.addOutput(
+        this.craftRankOutput({
+          satoshis: 0,
+          ...rank,
+        }),
+      )
+    }
+    /*
+    if (comment) {
+      // TODO: add comment bytes to 2nd OP_RETURN output
+    }
+    */
+    const txFee = tx._estimateSize() * 2
     // track the inputs used in the tx
     const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
@@ -702,38 +757,11 @@ class WalletManager {
       )
       spentInputs.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
-      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
+      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE + txFee) {
         break
       }
     }
 
-    // Add RANK chunks to output script
-    const rankScript = new Script('')
-    rankScript.add('OP_RETURN')
-    rankScript.add(Buffer.from('RANK'))
-    // Add sentiment opcode
-    rankScript.add(toSentimentOpCode(sentiment))
-    // Add platform byte
-    rankScript.add(toPlatformBuf(platform))
-    // Add LOWERCASE profielId bytes
-    rankScript.add(toProfileIdBuf(platform, profileId.toLowerCase()))
-    // Add postId bytes if applicable
-    if (postId) {
-      rankScript.add(toPostIdBuf(platform, postId))
-    }
-    // Add the RANK output to the tx
-    tx.addOutput(
-      new Transaction.Output({
-        // TODO: use user-defined value; fallback to default
-        satoshis: RANK_OUTPUT_MIN_VALUE,
-        script: rankScript,
-      }),
-    )
-    /*
-    if (comment) {
-      // TODO: add comment bytes to 2nd OP_RETURN output
-    }
-    */
     // Finalize tx
     tx.sign(this.wallet.signingKey)
     const verified = tx.verify()
