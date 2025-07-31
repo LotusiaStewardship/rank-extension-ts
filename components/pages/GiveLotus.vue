@@ -12,12 +12,14 @@ import {
 /**
  * Local types
  */
+/** Input data for the give Lotus form */
 export type GiveLotusInputData = {
   /** Destination Lotus address */
   outAddress: string
   /** Amount of Lotus to send */
   outValue: number
 }
+/** Result of the give Lotus operation */
 export type GiveLotusResult = {
   success: boolean
   txid?: string
@@ -40,6 +42,12 @@ const sending = shallowRef(false)
 const props = defineProps<{
   balance: string
 }>()
+/**
+ * Vue computed properties
+ */
+const spendableBalanceXPI = computed(() => toLotusUnits(props.balance).toString().split('.')[0])
+const spendableBalanceDecimal = computed(() => toLotusUnits(props.balance).toString().split('.')[1])
+const isInputDataValid = computed(() => inputValidated.value.outAddress && inputValidated.value.outValue)
 /**
  * Functions
  */
@@ -71,6 +79,7 @@ async function giveLotus({ outAddress, outValue }: GiveLotusInputData) {
       success: false,
       error: txidOrError,
     }
+    sending.value = false
     return
   }
   sendLotusResult.value = {
@@ -111,9 +120,9 @@ function validateOutValue() {
   inputValidated.value.outValue = false
 }
 /** Boolean conditional to enable submit buttion if all form data is valid */
-function isInputDataValid() {
-  return inputValidated.value.outAddress && inputValidated.value.outValue
-}
+// function isInputDataValid() {
+//   return inputValidated.value.outAddress && inputValidated.value.outValue
+// }
 async function openScanner() {
   const device = await navigator.mediaDevices.getUserMedia({
     video: true,
@@ -162,15 +171,23 @@ async function openScanner() {
         </template>
       </FwbInput>
     </div>
-    <div class="py-2">
+    <div class="py-2 flex justify-between items-center">
+      <div>
       <FwbButton
         color="pink"
         size="sm"
-        :disabled="!isInputDataValid() || sending"
+        :disabled="!isInputDataValid || sending"
         :outline="true"
         @click="giveLotus({ outAddress, outValue: toSatoshiUnits(outValue) })"
         >Give Now</FwbButton
       >
+      </div>
+      <div>
+        <span class="text-sm text-pink-500 dark:text-pink-300">
+          {{ spendableBalanceXPI }}.<span class="text-xs text-pink-500 dark:text-pink-300">{{ spendableBalanceDecimal }}</span>
+          XPI spendable
+        </span>
+      </div>
     </div>
     <div class="py-2">
       <template v-if="sendLotusResult.success === true">
