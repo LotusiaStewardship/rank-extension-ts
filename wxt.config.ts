@@ -18,8 +18,8 @@ export default defineConfig({
     name: 'Lotusia',
     description:
       'A decentralized, community-moderated reputation system for social media, powered by Lotus',
-    version: '1.0.3',
-    version_name: '1.0.3-beta',
+    version: '1.1.0',
+    version_name: '1.1.0-beta',
     host_permissions: [
       '*://rank.lotusia.org/api/v1/*',
       '*://chronik.lotusia.org/*',
