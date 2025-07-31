@@ -21,8 +21,10 @@ import {
 import {
   walletStore,
   WalletState,
+  ChainState,
   MutableWalletState,
   UIWalletState,
+  WalletBalance,
 } from '@/entrypoints/background/stores'
 import {
   ChronikClient,
@@ -50,7 +52,6 @@ type RankTransactionParams = {
   platform: ScriptChunkPlatformUTF8
   profileId: string
   postId?: string
-  comment?: string
 }
 type EventData =
   | string
@@ -66,8 +67,17 @@ type EventQueue = {
   busy: boolean
   pending: PendingEventProcessor[]
 }
+/** Object describing a UTXO in the wallet's UTXO cache */
+export type Utxo = {
+  /** Value of the UTXO in satoshis */
+  value: string
+  /** Height of the UTXO in the blockchain, -1 if in mempool */
+  height: number
+  /** Whether the UTXO is a coinbase, i.e. from a block reward */
+  isCoinbase: boolean
+}
 // Map key is `${txid}_${outIdx}`, value is BigInt `value` as string
-export type UtxoCache = Map<string, string>
+export type UtxoCache = Map<string, Utxo>
 
 type Wallet = {
   seedPhrase: string
@@ -76,7 +86,9 @@ type Wallet = {
   address: Address
   script: Script
   utxos: UtxoCache
-  balance: string
+  balance: WalletBalance
+  tipHeight: number
+  tipHash: string
 }
 /**
  * Static methods used by popup and potentially elsewhere
@@ -143,6 +155,10 @@ class WalletBuilder {
     const address = signingKey.toAddress()
     const script = this.scriptFromAddress(address)
     const utxos: UtxoCache = new Map()
+    const balance: WalletBalance = {
+      total: '0',
+      spendable: '0',
+    }
 
     assert(mnemonic, 'unable to get Mnemonic from seedPhrase')
     assert(hdPrivkey, 'unable to generate HDPrivateKey from Mnemonic')
@@ -157,7 +173,9 @@ class WalletBuilder {
       scriptPayload: script.getData().toString('hex'),
       scriptHex: script.toHex(),
       utxos: serialize(utxos),
-      balance: '0',
+      balance,
+      tipHeight: 0,
+      tipHash: '',
     }
   }
   /** Generates a new random BIP39 mnemonic phrase */
@@ -223,16 +241,27 @@ class WalletManager {
   get scriptHex() {
     return this.wallet?.script.toHex()
   }
-  /** Total balance of the wallet in satoshis */
-  get balance() {
-    let balance = 0n
-    for (const value of this.wallet?.utxos?.values() ?? []) {
-      balance += BigInt(value)
+  /** All balances of the wallet in satoshis, calculated from UTXO cache */
+  get balance(): WalletBalance {
+    let total = 0n
+    let spendable = 0n
+    for (const [outpoint, utxo] of this.wallet?.utxos?.entries() ?? []) {
+      const value = BigInt(utxo.value)
+      total += value
+      // UTXO is spendable if it is a coinbase and the tip height is 100 blocks or more
+      // or it is not a coinbase transaction
+      const [txid, outIdx] = outpoint.split('_')
+      if (this.isUtxoSpendable({ txid, outIdx: Number(outIdx) })) {
+        spendable += value
+      }
     }
-    return balance.toString()
+    return {
+      total: total.toString(),
+      spendable: spendable.toString(),
+    }
   }
-  /** Set the balance of the wallet in satoshis */
-  set balance(value: string) {
+  /** Set the total balance of the wallet in satoshis */
+  set balance(value: WalletBalance) {
     this.wallet.balance = value
   }
   /** List of outpoints in the wallet's UTXO cache */
@@ -243,6 +272,13 @@ class WalletManager {
       outpoints.push({ txid, outIdx: Number(outIdx) })
     })
     return outpoints
+  }
+  /** Blockchain state, updated by `handleWsBlockConnected` */
+  get chainState(): ChainState {
+    return {
+      tipHeight: this.wallet.tipHeight,
+      tipHash: this.wallet.tipHash,
+    }
   }
   /** Wallet state that gets saved to localStorage when changed */
   get mutableWalletState(): MutableWalletState {
@@ -259,6 +295,8 @@ class WalletManager {
       scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.balance,
+      tipHeight: this.wallet.tipHeight,
+      tipHash: this.wallet.tipHash,
     }
   }
   /** Complete wallet state */
@@ -272,6 +310,8 @@ class WalletManager {
       scriptHex: this.wallet.script.toHex(),
       utxos: serialize(this.wallet.utxos),
       balance: this.balance,
+      tipHeight: this.wallet.tipHeight,
+      tipHash: this.wallet.tipHash,
     }
   }
   /**
@@ -292,6 +332,14 @@ class WalletManager {
         'tried to initialize wallet, but no wallet state saved to localStorage',
       )
     }
+    // validate balance data from localStorage
+    // this is a hack to support old wallet state format
+    if (typeof walletState.balance === 'string') {
+      walletState.balance = {
+        total: '0',
+        spendable: '0',
+      } as WalletBalance
+    }
     // initialize the wallet from the existing state
     this.wallet = {
       seedPhrase: walletState.seedPhrase,
@@ -301,6 +349,8 @@ class WalletManager {
       script: Script.fromString(walletState.scriptHex),
       utxos: deserialize(walletState.utxos) as UtxoCache,
       balance: walletState.balance,
+      tipHeight: walletState.tipHeight,
+      tipHash: walletState.tipHash,
     }
     // initialize Chronik API, scriptEndpoint, and WebSocket
     this.chronik = new ChronikClient(WALLET_CHRONIK_URL)
@@ -373,13 +423,15 @@ class WalletManager {
         this.queue.pending.push([this.handleWsAddedToMempool, msg.txid])
         break
       case 'RemovedFromMempool':
-        // TODO: need to implement this handler
-        // this.queue.pending.push([this.handleWsRemovedFromMempool, msg.txid])
-        // replace the following `return` with a `break` once handler is ready
-        return
+        this.queue.pending.push([this.handleWsRemovedFromMempool, msg.txid])
+        break
       case 'Confirmed':
-        // can return here, don't care about blocks
-        return
+      case 'Reorg':
+        this.queue.pending.push([this.handleWsConfirmedOrReorg, msg.txid])
+        break
+      case 'BlockConnected':
+        this.queue.pending.push([this.handleWsBlockConnected, msg.blockHash])
+        break
       default:
         // always return when no handler to push to queue
         return
@@ -412,8 +464,6 @@ class WalletManager {
     if (this.queue.pending.length > 0) {
       return await this.processEventQueue()
     }
-    // Save mutable wallet state
-    await walletStore.saveMutableWalletState(this.mutableWalletState)
     // queue is no longer busy
     this.queue.busy = false
   }
@@ -495,15 +545,88 @@ class WalletManager {
             `AddedToMempool: received ${toXPI(output.value)} Lotus, saving utxo to cache`,
           )
           // calculate total balance with new output
-          const balance = BigInt(this.balance)
+          const balance = BigInt(this.balance.total)
           const value = BigInt(output.value)
           // add new data to wallet state
-          this.balance = (balance + value).toString()
-          this.wallet.utxos.set(outpoint, output.value)
-          return
+          this.balance.total = (balance + value).toString()
+          // height is -1 for mempool utxos
+          this.wallet.utxos.set(outpoint, {
+            value: output.value,
+            height: -1,
+            isCoinbase: tx.isCoinbase,
+          })
+          // save mutable wallet state to localStorage and return
+          return await walletStore.saveMutableWalletState(
+            this.mutableWalletState,
+          )
         }
       }
     }
+  }
+  /**
+   * Handles when a transaction is removed from the mempool
+   * @param data String containing the transaction ID (txid) of the removed transaction
+   * @returns void after updating the wallet's UTXO cache if applicable
+   */
+  private handleWsRemovedFromMempool: EventProcessor = async (
+    data: EventData,
+  ) => {
+    const txid = data as string
+    const tx = await this.chronik.tx(txid)
+    for (let i = 0; i < tx.outputs.length; i++) {
+      const outpoint = `${txid}_${i}`
+      const utxo = this.wallet.utxos.get(outpoint)
+      if (utxo) {
+        console.log(`RemovedFromMempool: removing utxo ${outpoint}`)
+        this.wallet.utxos.delete(outpoint)
+        // save mutable wallet state to localStorage and return
+        return await walletStore.saveMutableWalletState(this.mutableWalletState)
+      }
+    }
+  }
+  /**
+   * Handles when a transaction is confirmed in the blockchain
+   * @param data String containing the transaction ID (txid) of the confirmed transaction
+   * @returns void after updating the wallet's UTXO cache if applicable
+   */
+  private handleWsConfirmedOrReorg: EventProcessor = async (
+    data: EventData,
+  ) => {
+    const txid = data as string
+    const tx = await this.chronik.tx(txid)
+    for (let i = 0; i < tx.outputs.length; i++) {
+      const outpoint = `${txid}_${i}`
+      const utxo = this.wallet.utxos.get(outpoint)
+      if (utxo) {
+        console.log(`Confirmed: updating utxo ${outpoint}`)
+        this.wallet.utxos.set(outpoint, {
+          // keep the same value
+          value: utxo.value,
+          // update the height
+          height: tx.block?.height ?? -1,
+          isCoinbase: tx.isCoinbase,
+        })
+        // save mutable wallet state to localStorage and return
+        // we don't need to process any more outputs from the tx
+        return await walletStore.saveMutableWalletState(this.mutableWalletState)
+      }
+    }
+  }
+  /**
+   * Handles when a block is connected to the blockchain
+   * @param data String containing the block hash
+   * @returns void after updating the wallet's tip height and hash
+   */
+  private handleWsBlockConnected: EventProcessor = async (data: EventData) => {
+    const blockHash = data as string
+    const block = await this.chronik.block(blockHash)
+    console.log(
+      `BlockConnected: updating tip height to ${block.blockInfo.height} with tipHash ${blockHash}`,
+    )
+    this.wallet.tipHeight = block.blockInfo.height
+    this.wallet.tipHash = blockHash
+    // save blockchain state to localStorage and return
+    return await walletStore.saveChainState(this.chainState)
   }
   /**
    * Reconciles the wallet's state by removing spent UTXOs and updating the balance
@@ -511,16 +634,21 @@ class WalletManager {
    * @returns void after updating the wallet's balance and UTXO cache
    */
   private reconcileSpentUtxos = (spentInputs: OutPoint[]) => {
-    let balance = BigInt(this.balance)
+    let total = BigInt(this.balance.total)
+    let spendable = BigInt(this.balance.spendable)
     for (const { txid, outIdx } of spentInputs) {
       const outpoint = `${txid}_${outIdx}`
-      const value = this.wallet.utxos.get(outpoint)
-      if (value) {
-        balance -= BigInt(value)
+      const utxo = this.wallet.utxos.get(outpoint)
+      if (utxo) {
+        total -= BigInt(utxo.value)
+        spendable -= BigInt(utxo.value)
         this.wallet.utxos.delete(outpoint)
       }
     }
-    this.balance = balance.toString()
+    this.balance = {
+      total: total.toString(),
+      spendable: spendable.toString(),
+    }
   }
   /**
    * Reconciles the wallet's state by validating and updating the UTXO cache and balance.
@@ -533,14 +661,16 @@ class WalletManager {
    */
   private reconcileWalletState = async () => {
     // current balance
-    let balance = BigInt(this.balance)
+    let total = BigInt(this.balance.total)
+    let spendable = BigInt(this.balance.spendable)
     // Validate UTXO set against Chronik API, remove invalid UTXOs from cache
     for await (const { txid, outIdx } of this.validateUtxos()) {
       const outpoint = `${txid}_${outIdx}`
-      const value = this.wallet.utxos.get(outpoint)
-      if (value) {
+      const utxo = this.wallet.utxos.get(outpoint)
+      if (utxo) {
         console.log(`removing spent utxo ${outpoint} from cache`)
-        balance -= BigInt(value)
+        total -= BigInt(utxo.value)
+        spendable -= BigInt(utxo.value)
         this.wallet.utxos.delete(outpoint)
       }
     }
@@ -550,12 +680,22 @@ class WalletManager {
       const outpoint = `${txid}_${outIdx}`
       if (!this.wallet.utxos.has(outpoint)) {
         console.log(`adding new utxo ${outpoint} to cache`)
-        balance += BigInt(utxo.value)
-        this.wallet.utxos.set(outpoint, utxo.value)
+        total += BigInt(utxo.value)
+        this.wallet.utxos.set(outpoint, {
+          value: utxo.value,
+          height: utxo.blockHeight,
+          isCoinbase: utxo.isCoinbase,
+        })
+        if (this.isUtxoSpendable(utxo.outpoint)) {
+          spendable += BigInt(utxo.value)
+        }
       }
     }
     // update the wallet balance
-    this.balance = balance.toString()
+    this.balance.total = total.toString()
+    this.balance.spendable = spendable.toString()
+    // save mutable wallet state to localStorage
+    await walletStore.saveMutableWalletState(this.mutableWalletState)
   }
   /**
    * Resets the UTXO cache to the complete UTXO set from the Chronik API.
@@ -568,18 +708,29 @@ class WalletManager {
   private resetUtxoCache = async (): Promise<void> => {
     // clear wallet balance and UTXO cache
     console.log('resetting UTXO cache')
-    let balance = 0n
+    let total = 0n
+    let spendable = 0n
     this.wallet.utxos.clear()
     // fetch and store the complete UTXO set
     for await (const utxo of this.fetchScriptUtxoSet()) {
       const { txid, outIdx } = utxo.outpoint
       const outpoint = `${txid}_${outIdx}`
       console.log(`adding utxo ${outpoint} to cache`)
-      balance += BigInt(utxo.value)
-      this.wallet.utxos.set(outpoint, utxo.value)
+      total += BigInt(utxo.value)
+      this.wallet.utxos.set(outpoint, {
+        value: utxo.value,
+        height: utxo.blockHeight,
+        isCoinbase: utxo.isCoinbase,
+      })
+      if (this.isUtxoSpendable(utxo.outpoint)) {
+        spendable += BigInt(utxo.value)
+      }
     }
     // update the wallet's balance
-    this.balance = balance.toString()
+    this.balance = {
+      total: total.toString(),
+      spendable: spendable.toString(),
+    }
     console.log('UTXO cache reset complete')
   }
   /**
@@ -743,13 +894,17 @@ class WalletManager {
     const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
     for (const { txid, outIdx } of this.outpoints) {
-      const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
+      // skip non-spendable UTXOs
+      if (!this.isUtxoSpendable({ txid, outIdx })) {
+        continue
+      }
+      const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
         new Transaction.Input.PublicKeyHash({
           prevTxId: txid,
           outputIndex: outIdx,
           output: new Transaction.Output({
-            satoshis: value,
+            satoshis: utxo.value,
             script: this.scriptHex,
           }),
           script: this.wallet.script,
@@ -792,13 +947,17 @@ class WalletManager {
     const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
     for (const { txid, outIdx } of this.outpoints) {
-      const value = this.wallet.utxos.get(`${txid}_${outIdx}`)!
+      // skip non-spendable UTXOs
+      if (!this.isUtxoSpendable({ txid, outIdx })) {
+        continue
+      }
+      const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
         new Transaction.Input.PublicKeyHash({
           prevTxId: txid,
           outputIndex: outIdx,
           output: new Transaction.Output({
-            satoshis: value,
+            satoshis: utxo.value,
             script: this.scriptHex,
           }),
           script: this.wallet.script,
@@ -828,6 +987,18 @@ class WalletManager {
           `craftSendTx produced an invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
         )
     }
+  }
+  /**
+   * Checks if a UTXO is spendable
+   * @param utxo The UTXO to check
+   * @returns True if the UTXO is spendable, false otherwise
+   */
+  private isUtxoSpendable = ({ txid, outIdx }: OutPoint): boolean => {
+    const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
+    if (utxo.isCoinbase) {
+      return this.chainState.tipHeight - utxo.height >= 100
+    }
+    return true
   }
 }
 

@@ -4,7 +4,7 @@ import Header from '@/components/Header.vue'
 import Footer from '@/components/Footer.vue'
 import HomePage from '@/components/pages/Home.vue'
 import ReceiveLotusPage from '@/components/pages/ReceiveLotus.vue'
-import SendLotusPage from '@/components/pages/GiveLotus.vue'
+import GiveLotusPage from '@/components/pages/GiveLotus.vue'
 import SettingsPage from '@/components/pages/Settings.vue'
 /** Modules and types */
 import type { ShallowRef } from 'vue'
@@ -14,6 +14,7 @@ import {
 } from '@/entrypoints/background/messaging'
 import {
   instanceStore,
+  WalletBalance,
   walletStore,
   type UIWalletState,
 } from '@/entrypoints/background/stores'
@@ -38,7 +39,11 @@ export type Page = 'home' | 'receive' | 'give' | 'settings'
 /** Map of storage watchers */
 const watchers: Map<StorageWatcher, UnwatchFunction> = new Map()
 /** Current spendable Lotus balance */
-const walletBalance: ShallowRef<string, string> = shallowRef('0')
+const walletBalance: ShallowRef<WalletBalance> = shallowRef({
+  total: '0',
+  spendable: '0',
+  immature: '0',
+})
 /** Current Lotus address for send/receive/RANK */
 const walletAddress: ShallowRef<string, string> = shallowRef('')
 /** Current Lotus scriptPayload for API calls */
@@ -125,7 +130,7 @@ onBeforeMount(() => {
   watchers.set(
     'balance',
     walletStore.balanceStorageItem.watch(
-      newValue => (walletBalance.value = newValue),
+      newValue => (walletBalance.value = newValue as WalletBalance),
     ),
   )
   watchers.set(
@@ -156,13 +161,13 @@ onBeforeMount(() => {
   // set initial walletStore values
   walletStore.balanceStorageItem
     .getValue()
-    .then(balance => (walletBalance.value = balance))
+    .then(balance => (walletBalance.value = balance as WalletBalance))
   walletStore.addressStorageItem
     .getValue()
-    .then(address => (walletAddress.value = address))
+    .then(address => (walletAddress.value = address as string))
   walletStore
     .getScriptPayload()
-    .then(scriptPayload => (walletScriptPayload.value = scriptPayload))
+    .then(scriptPayload => (walletScriptPayload.value = scriptPayload as string))
 })
 /**  */
 onMounted(() => {
@@ -267,17 +272,11 @@ async function applyWalletState(walletState: UIWalletState) {
 -->
 <template v-if="setupComplete">
   <div :class="[`main`, 'w-full', 'h-full', 'container', 'dark:bg-gray-800']">
-    <Header id="main-header" :balance="walletBalance" />
+    <Header id="main-header" :balance="walletBalance.total" />
     <HomePage v-if="activePage === 'home'" />
-    <ReceiveLotusPage
-      :address="walletAddress"
-      v-else-if="activePage == 'receive'"
-    />
-    <SendLotusPage :balance="walletBalance" v-else-if="activePage == 'give'" />
-    <SettingsPage
-      @import-seed-phrase="walletSetup"
-      v-else-if="activePage == 'settings'"
-    />
+    <ReceiveLotusPage :address="walletAddress" v-else-if="activePage == 'receive'" />
+    <GiveLotusPage :balance="walletBalance.spendable" v-else-if="activePage == 'give'" />
+    <SettingsPage @import-seed-phrase="walletSetup" v-else-if="activePage == 'settings'" />
     <Footer id="main-footer" @active-page="setActivePage" />
   </div>
   <!-- 
@@ -297,6 +296,7 @@ async function applyWalletState(walletState: UIWalletState) {
   min-height: v-bind(windowHeight);
   /* max-height: v-bind(windowHeight); */
 }
+
 /*
 div {
   place-items: center;

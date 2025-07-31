@@ -1,12 +1,30 @@
 import assert from 'assert'
 // Storage value types
 type WxtStorageValueString = string
+type WxtStorageValueNumber = number
+type WxtStorageValueObject = WalletBalance
 // Storage item definition types
 type WxtStorageItemString = ReturnType<
   typeof storage.defineItem<WxtStorageValueString>
 >
-type WxtStorageItem = WxtStorageItemString
+type WxtStorageItemNumber = ReturnType<
+  typeof storage.defineItem<WxtStorageValueNumber>
+>
+type WxtStorageItemObject = ReturnType<
+  typeof storage.defineItem<WxtStorageValueObject>
+>
+type WxtStorageItem =
+  | WxtStorageItemString
+  | WxtStorageItemNumber
+  | WxtStorageItemObject
 
+/** Object containing the total, spendable, and immature balances of the wallet */
+export type WalletBalance = {
+  /** Sum of spendable and immature balance */
+  total: string
+  /** Spendable (i.e. mature) balance of the wallet in satoshis */
+  spendable: string
+}
 export type WalletState = {
   seedPhrase: WxtStorageValueString
   xPrivkey: WxtStorageValueString
@@ -15,8 +33,11 @@ export type WalletState = {
   scriptPayload: WxtStorageValueString
   scriptHex: WxtStorageValueString
   utxos: WxtStorageValueString
-  balance: WxtStorageValueString
+  balance: WalletBalance
+  tipHeight: WxtStorageValueNumber
+  tipHash: WxtStorageValueString
 }
+export type ChainState = Pick<WalletState, 'tipHeight' | 'tipHash'>
 export type MutableWalletState = Pick<WalletState, 'utxos' | 'balance'>
 export type UIWalletState = Omit<
   WalletState,
@@ -30,8 +51,13 @@ export const DefaultWalletState: WalletState = {
   address: '',
   scriptPayload: '',
   scriptHex: '',
-  utxos: '{}',
-  balance: '0',
+  utxos: '[]',
+  balance: {
+    total: '0',
+    spendable: '0',
+  },
+  tipHeight: 0,
+  tipHash: '',
 }
 
 class WalletStore {
@@ -76,21 +102,39 @@ class WalletStore {
         },
       ),
       utxos: storage.defineItem<WxtStorageValueString>('local:wallet:utxos', {
-        init: () => serialize(new Map()),
+        init: () => '[]',
       }),
-      balance: storage.defineItem<WxtStorageValueString>(
+      balance: storage.defineItem<WxtStorageValueObject>(
         'local:wallet:balance',
         {
-          init: () => '0',
+          init: () => ({
+            total: '0',
+            spendable: '0',
+          }),
+        },
+      ),
+      tipHeight: storage.defineItem<WxtStorageValueNumber>(
+        'local:wallet:tipHeight',
+        {
+          init: () => 0,
+        },
+      ),
+      tipHash: storage.defineItem<WxtStorageValueString>(
+        'local:wallet:tipHash',
+        {
+          init: () => '',
         },
       ),
     }
   }
   async setScripthex(scriptHex: string) {
-    await this.wxtStorageItems.scriptHex.setValue(scriptHex)
+    const scriptHexItem = this.wxtStorageItems.scriptHex as WxtStorageItemString
+    await scriptHexItem.setValue(scriptHex)
   }
   async setScriptPayload(scriptPayload: string) {
-    await this.wxtStorageItems.scriptPayload.setValue(scriptPayload)
+    const scriptPayloadItem = this.wxtStorageItems
+      .scriptPayload as WxtStorageItemString
+    await scriptPayloadItem.setValue(scriptPayload)
   }
   async getScriptPayload() {
     return await this.wxtStorageItems.scriptPayload.getValue()
@@ -129,6 +173,23 @@ class WalletStore {
     }
   }
   /**
+   * Save the blockchain state to localStorage
+   * @param state The chain state to save
+   */
+  saveChainState = async (state: ChainState) => {
+    console.log('saving chain state to localStorage')
+    try {
+      await storage.setItems(
+        (Object.keys(state) as Array<keyof ChainState>).map(key => ({
+          item: this.wxtStorageItems[key],
+          value: state[key],
+        })),
+      )
+    } catch (e) {
+      console.error(`saveChainState: ${e}`)
+    }
+  }
+  /**
    *
    * @param state
    */
@@ -163,9 +224,20 @@ class WalletStore {
         assert(item, 'item is undefined.. corrupt walletStore?')
         const storeKey = item.key.split(':').pop() as keyof WalletState
         assert(storeKey, `walletStore key incorrectly formatted: ${storeKey}`)
-        // fixes localStorage regression introduced in 0.4.0-alpha (i.e. scriptHex, scriptPayload)
+        // disabling this assertion fixes localStorage regression introduced in 0.4.0-alpha (i.e. scriptHex, scriptPayload)
         //assert(item.value, `tried to get value for ${item.key}, got "${item.value}"`)
-        walletState[storeKey] = item.value as WxtStorageValueString
+        switch (storeKey) {
+          case 'balance':
+            walletState[storeKey] = item.value as WxtStorageValueObject
+            break
+          case 'tipHeight':
+            walletState[storeKey] = item.value as WxtStorageValueNumber
+            break
+          // default to string storage values
+          default:
+            walletState[storeKey] = item.value as WxtStorageValueString
+            break
+        }
       }
       return walletState as WalletState
     } catch (e) {
