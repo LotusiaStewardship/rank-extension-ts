@@ -41,6 +41,8 @@ import {
   WALLET_CHRONIK_URL,
   WALLET_BIP44_COINTYPE,
   WALLET_BIP44_PURPOSE,
+  WALLET_MAX_TX_SIZE,
+  WALLET_MAX_TX_INPUTS,
 } from '@/utils/constants'
 
 type SendTransactionParams = {
@@ -272,6 +274,21 @@ class WalletManager {
       outpoints.push({ txid, outIdx: Number(outIdx) })
     })
     return outpoints
+  }
+  /** List of outpoints in the wallet's UTXO cache sorted by value ascending */
+  get outpointsSortedByValue(): OutPoint[] {
+    return Array.from(this.wallet?.utxos?.entries() ?? [])
+      .map(([outpoint, utxo]) => {
+        const [txid, outIdx] = outpoint.split('_')
+        return {
+          outpoint: { txid, outIdx: Number(outIdx) },
+          value: BigInt(utxo.value),
+        }
+      })
+      .sort((first, second) =>
+        first.value < second.value ? -1 : first.value > second.value ? 1 : 0,
+      )
+      .map(({ outpoint }) => outpoint)
   }
   /** Blockchain state, updated by `handleWsBlockConnected` */
   get chainState(): ChainState {
@@ -521,6 +538,7 @@ class WalletManager {
     const { outAddress, outValue } = data as SendTransactionParams
     // craft and send the give tx
     const [tx, spentInputs] = this.craftSendTx(outAddress, outValue)
+    console.log('crafted spend tx', tx.toJSON())
     // send tx
     const txid = await this.broadcastTx(tx.toBuffer())
     // remove the spent inputs from the wallet's UTXO cache
@@ -969,6 +987,16 @@ class WalletManager {
         break
       }
     }
+    // remove inputs if the tx size is too large
+    while (tx._estimateSize() > WALLET_MAX_TX_SIZE) {
+      console.log(
+        `tx size ${tx._estimateSize()} bytes is too large, removing last input`,
+      )
+      const lastInput = tx.inputs.pop()
+      if (lastInput) {
+        spentInputs.pop()
+      }
+    }
     // tx fee 2sat/byte default
     const txFee = tx._estimateSize() * 2
     tx.addOutput(
@@ -999,6 +1027,99 @@ class WalletManager {
       return this.chainState.tipHeight - utxo.height >= 100
     }
     return true
+  }
+  /**
+   * Consolidates the wallet's UTXO cache by spending all low-value UTXOs
+   * and reducing the total wallet UTXO set.
+   * @returns {Promise<{ txids: string[], spentInputs: OutPoint[] }>} The txids of consolidation transactions and spent inputs
+   */
+  private consolidateUtxos = async (): Promise<{
+    txids: string[]
+    spentInputs: OutPoint[]
+  }> => {
+    // Define a threshold for "low-value" UTXOs (e.g., 0.01 XPI = 1,000,000 sats)
+    const CONSOLIDATION_THRESHOLD = RANK_OUTPUT_MIN_VALUE // 100 XPI in satoshis
+
+    // Gather all spendable low-value UTXOs
+    const lowValueUtxos: { outpoint: OutPoint; utxo: Utxo }[] = []
+    for (const { txid, outIdx } of this.outpoints) {
+      const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
+      if (
+        this.isUtxoSpendable({ txid, outIdx }) &&
+        BigInt(utxo.value) <= BigInt(CONSOLIDATION_THRESHOLD)
+      ) {
+        lowValueUtxos.push({ outpoint: { txid, outIdx }, utxo })
+      }
+    }
+
+    if (lowValueUtxos.length === 0) {
+      return { txids: [], spentInputs: [] }
+    }
+
+    // For simplicity, consolidate all low-value UTXOs into a single transaction if possible
+    // If too many inputs, split into multiple transactions
+    const txids: string[] = []
+    const spentInputs: OutPoint[] = []
+
+    // We'll send the consolidated output back to our own address
+    const outAddress = this.wallet.address.toString()
+
+    for (let i = 0; i < lowValueUtxos.length; i += WALLET_MAX_TX_INPUTS) {
+      const chunk = lowValueUtxos.slice(i, i + WALLET_MAX_TX_INPUTS)
+      const inputs: OutPoint[] = []
+      const totalValue = chunk.reduce(
+        (sum, { utxo }) => sum + BigInt(utxo.value),
+        0n,
+      )
+
+      // Estimate fee: 2 sat/byte, rough size estimate
+      // We'll use bitcore-lib-xpi's Transaction to estimate
+      const tx = new Transaction()
+      for (const {
+        outpoint: { txid, outIdx },
+        utxo,
+      } of chunk) {
+        tx.addInput(
+          new Transaction.Input.PublicKeyHash({
+            prevTxId: txid,
+            outputIndex: outIdx,
+            output: new Transaction.Output({
+              satoshis: utxo.value,
+              script: this.scriptHex,
+            }),
+            script: this.wallet.script,
+          }),
+        )
+        inputs.push({ txid, outIdx })
+      }
+      // Add a dummy output to estimate size
+      tx.to(outAddress, Number(totalValue))
+      const estimatedSize = tx._estimateSize()
+      const fee = BigInt(estimatedSize * 2)
+      // Remove dummy output and add real output with fee subtracted
+      tx.outputs = []
+      const outputValue = totalValue > fee ? totalValue - fee : 0n
+      if (outputValue <= 0n) {
+        // Not enough to cover fee, skip this chunk
+        continue
+      }
+      tx.to(outAddress, Number(outputValue))
+      tx.sign(this.wallet.signingKey)
+      const verified = tx.verify()
+      if (verified !== true) {
+        // If not valid, skip this chunk
+        console.error(
+          `consolidateUtxos: invalid transaction: ${verified}\r\n${tx.toJSON().toString()}`,
+        )
+        continue
+      }
+      // Broadcast the transaction
+      const txid = await this.broadcastTx(tx.toBuffer())
+      txids.push(txid)
+      spentInputs.push(...inputs)
+    }
+
+    return { txids, spentInputs }
   }
 }
 
