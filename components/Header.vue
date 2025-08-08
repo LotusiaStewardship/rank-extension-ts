@@ -6,7 +6,7 @@ import logoUrl from '~/assets/Lotusia-Logo.png'
  */
 /** Properties defined on this component */
 const props = defineProps<{
-  balance: string
+  totalBalance: string
 }>()
 </script>
 <template>
@@ -16,24 +16,25 @@ const props = defineProps<{
     </div>
     <div class="flex-grow absolute right-0 balance">
       <span
-        class="bg-gray-100 text-pink-500 text-md font-medium me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300"
-        >{{ toMinifiedNumber(props.balance, 1_000_000) }}&nbsp;Lotus</span
-      >
+        class="bg-gray-100 text-pink-500 text-md font-medium me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300">{{
+          toMinifiedNumber(props.totalBalance, 1_000_000) }}&nbsp;XPI</span>
     </div>
   </div>
-  <hr />
 </template>
 <style lang="css" scoped>
 .left-3 {
   left: 0.75rem;
 }
+
 .top-2 {
   top: 0.5rem;
 }
+
 .balance {
   font-size: 1.25rem;
   font-weight: 700;
 }
+
 .balance-suffix {
   font-size: 0.8rem;
   font-weight: 700;

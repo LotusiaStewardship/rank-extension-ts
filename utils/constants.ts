@@ -8,6 +8,8 @@ export const WALLET_BIP44_COINTYPE = 10605
 export const WALLET_BIP39_MIN_WORDS = 12
 export const WALLET_BIP39_MAX_WORDS = 24
 export const WALLET_LOTUS_DECIMAL_PRECISION = 6
+export const WALLET_MAX_TX_SIZE = 100_000 // bytes
+export const WALLET_MAX_TX_INPUTS = 600 // inputs
 // RANK tx constants
 export const RANK_OUTPUT_MIN_VALUE = 100_000_000
 // Explorer constants

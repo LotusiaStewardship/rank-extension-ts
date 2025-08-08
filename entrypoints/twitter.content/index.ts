@@ -6,7 +6,7 @@ import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
-import { toMinifiedNumber, isTxidString } from '@/utils/functions'
+import { toMinifiedNumber, isSha256 } from '@/utils/functions'
 import {
   CACHE_POST_ENTRY_EXPIRE_TIME,
   ROOT_URL,
@@ -722,12 +722,12 @@ export default defineContentScript({
       }
       // ~24px: e.g. embedded post avatars (i.e. quote tweets)
       // ~32px: e.g. profile avatars on notifications such as likes
-      else if (elementWidth > 0 && elementWidth <= 32) {
+      else if (elementWidth <= 32) {
         newClassName = `notification-avatar-reputation`
       }
       // ~32px: e.g. profile avatars on timeline posts
       // ~64px: e.g. post avatar popover (i.e. mouseover avatar)
-      else if (elementWidth > 32 && elementWidth <= 64) {
+      else if (elementWidth <= 64) {
         newClassName = `avatar-reputation`
       } else {
         console.log('default avatar width', avatar[0].offsetWidth)

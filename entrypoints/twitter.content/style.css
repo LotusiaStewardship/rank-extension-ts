@@ -103,11 +103,11 @@
   &::after {
     left: 0%;
     top: 0%;
-    height: 20%;
-    width: 20%;
+    height: 22%;
+    width: 22%;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 0.1em solid black;
+    border: 0.075rem solid black;
     content: '';
     position: absolute;
   }
@@ -141,7 +141,7 @@
     width: 25%;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
-    border: 0.1em solid black;
+    border: 0.05rem solid black;
     content: '';
     position: absolute;
   }

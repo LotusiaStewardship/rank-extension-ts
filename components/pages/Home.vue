@@ -1,22 +1,24 @@
 <script lang="ts" setup>
 /** Vue components */
-import { FwbHeading, FwbP, FwbTab, FwbTabs } from 'flowbite-vue'
-/** Modules and types */
-import { Util, type ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import { FwbHeading, FwbP, FwbTab, FwbTabs, FwbSpinner } from 'flowbite-vue'
+import HomeMyStats from './home/HomeMyStats.vue'
+/** Types */
 import type { ShallowRef } from 'vue'
+import type { Unwatch as UnwatchFunction } from 'wxt/storage'
+import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import type { AuthorizationHeader, AuthorizationHeaderPrefix, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
+/** Modules */
+import { InstanceTools } from '@/entrypoints/background/modules/instance'
+import { instanceStore } from '@/entrypoints/background/stores/instance'
 import { WalletTools } from '@/entrypoints/background/modules/wallet'
 import { walletMessaging } from '@/entrypoints/background/messaging'
-import {
-  InstanceTools,
-  type AuthenticateHeader,
-} from '@/entrypoints/background/modules/instance'
-import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
+import { authorizedFetch } from '@/utils/functions'
 
 /**
  * Local types
  */
 /**  */
-type ScriptPayloadActivitySummary = {
+type MyStats = {
   firstSeen: string
   lastSeen: string
   scriptPayload: string
@@ -70,38 +72,30 @@ const API = {
   },
 }
 /**
- * Constants
+ * Vue refs
  */
+const watchers: Map<'instanceId', UnwatchFunction> = new Map()
+/** My stats */
+const myStats: Ref<MyStats | null> = ref(null)
 /** Top 5 daily profiles */
 const topProfiles: Ref<TopProfile[]> = ref([])
 /** Top 5 daily posts */
 const topPosts: Ref<TopPost[]> = ref([])
 /** Active tab */
 const activeTab: ShallowRef<Tab> = shallowRef('myStats')
+/** Loading message */
+const loadingMessage: Ref<string> = ref('')
 /** Auto-update interval */
 const interval: Ref<number> = ref(0)
-/**
- * Vue prop drilling
- */
-const storedInstanceId = inject('instance-id') as ShallowRef<string>
-const storedBlockDataSig = inject(
-  'instance-block-data-sig',
-) as Ref<BlockDataSig>
-const storedAuthorizationHeader = inject(
-  'instance-authorization-header',
-) as Ref<string>
-const registerStatus = inject('instance-register-status') as ShallowRef<boolean>
-const walletScriptPayload = inject(
-  'wallet-script-payload',
-) as ShallowRef<string>
-/**
- * Vue computed
- */
-const hasInstanceId = computed(() => !!storedInstanceId.value)
-const hasWalletScriptPayload = computed(() => !!walletScriptPayload.value)
-const hasStoredAuthorizationHeader = computed(
-  () => !!storedAuthorizationHeader.value,
-)
+/** Instance ID */
+const instanceId: ShallowRef<string> = shallowRef('')
+/** Current status of extension registration with Lotusia Stewardship */
+const registerStatus: ShallowRef<boolean> = shallowRef(false)
+/** Current authorization header */
+const authorizationHeader = ref('')
+/** Current wallet script payload */
+const walletScriptPayload = inject('wallet-script-payload') as ShallowRef<string>
+
 /**
  * Functions
  */
@@ -110,23 +104,31 @@ const { setInterval, clearInterval } = window
 /**
  * Get home page data
  */
-async function getHomePageData() {
+async function hydrateHomePage() {
+  console.log('hydrating home page')
   // 5/20/25: disabled until backend registration is enabled
-  /* getMyStats().then(result => console.log(result)) */
-  getTopProfiles().then(result => (topProfiles.value = result))
-  getTopPosts().then(result => (topPosts.value = result))
+  // 8/6/25: enabled again 
+  if (instanceId.value && walletScriptPayload.value) {
+    myStats.value = (await getMyStats()) || ({} as MyStats)
+  }
+  topProfiles.value = await getTopProfiles()
+  topPosts.value = await getTopPosts()
+  //getMyStats().then(result => myStats.value = result!.pop() as ScriptPayloadActivitySummary)
+  //getTopProfiles().then(result => (topProfiles.value = result))
+  //getTopPosts().then(result => (topPosts.value = result))
 }
 /**
  * Get my stats
  * @returns {Promise<ScriptPayloadActivitySummary | null>}
  */
-async function getMyStats(): Promise<ScriptPayloadActivitySummary | null> {
+async function getMyStats(): Promise<MyStats | null> {
   const headers = await createAuthorizationHeader()
   if (!headers) {
     return null
   }
+  loadingMessage.value = 'Fetching stats...'
   const result = await authorizedFetch(API.myStatsSummary(), headers)
-  return result as ScriptPayloadActivitySummary
+  return result[0] as MyStats | null
 }
 /**
  * Get top profiles
@@ -156,120 +158,103 @@ async function getTopPosts(): Promise<TopPost[]> {
  * Create a new authorization header
  * @returns {Promise<AuthorizationHeader | null>}
  */
-async function createAuthorizationHeader(): Promise<Record<
-  string,
-  string
-> | null> {
-  // ensure we are registered first
-  /* if (!registerStatus.value) {
-    console.log('not registered')
+async function createAuthorizationHeader(): Promise<
+  | Record<AuthorizationHeaderPrefix, AuthorizationHeader>
+  | null
+> {
+  if (authorizationHeader.value) {
+    return { Authorization: authorizationHeader.value }
+  }
+  // make sure we have an instance ID
+  if (!instanceId.value) {
+    loadingMessage.value = 'Awaiting instance ID...'
     return null
-  } */
-  const headers = {
-    Authorization: '',
   }
-  // Use stored authorization header if available
-  if (hasStoredAuthorizationHeader) {
-    headers.Authorization = storedAuthorizationHeader.value
-  }
-  console.log('getMyStats headers', headers)
+  // make sure we have a wallet script payload
   // create new authorization header if not available
-  if (!headers.Authorization) {
-    try {
-      // fetch without authorization header to get authenticate header
-      const result = await fetch(API.myStatsSummary())
-      const authenticateHeader = result.headers.get(
-        'www-authenticate',
-      )! as AuthenticateHeader
-      const blockData =
-        InstanceTools.parseAuthenticateHeader(authenticateHeader)
-      console.log('blockData', blockData)
-      if (!blockData || !InstanceTools.isValidBlockData(blockData)) {
-        console.error(
-          'Failed to parse authenticate header',
-          authenticateHeader,
-          blockData,
-        )
-        return null
-      }
-      // set new value, which will trigger watcher in Main to update instanceStore
-      storedBlockDataSig.value = blockData
-      // create the authorization data string (payload)
-      console.log(storedInstanceId.value, walletScriptPayload.value, blockData)
-      const authDataStr = JSON.stringify({
-        instanceId: storedInstanceId.value,
-        scriptPayload: walletScriptPayload.value,
-        ...blockData,
-      })
-      // sign the payload using the stored signing key for one-time use
-      const signature = WalletTools.signMessage(
-        authDataStr,
-        await walletMessaging.sendMessage('popup:loadSigningKey', undefined),
+  try {
+    loadingMessage.value = 'Refreshing auth data...'
+    // fetch without authorization header to get authenticate header
+    const result = await fetch(API.myStatsSummary())
+    const authenticateHeader = result.headers.get(
+      'www-authenticate',
+    )! as AuthenticateHeader
+    const blockData = InstanceTools.parseAuthenticateHeader(authenticateHeader)
+    if (!blockData || !InstanceTools.isValidBlockData(blockData)) {
+      console.error(
+        'Failed to parse authenticate header',
+        authenticateHeader,
+        blockData,
       )
-      // use the new authorization header
-      // setting the storedAuthorizationHeader will trigger the watcher in Main
-      // which will save the new authorization header to instanceStore
-      headers.Authorization = storedAuthorizationHeader.value =
-        InstanceTools.toAuthorizationPayload(authDataStr, signature)
-    } catch (e) {
-      console.error('createAuthorizationHeader failed:', e)
+      return null
     }
-  }
-  // if we still don't have an authorization header, return null
-  if (!headers.Authorization) {
-    console.error(
-      'no authorization header possible',
-      storedInstanceId.value,
-      walletScriptPayload.value,
-      storedBlockDataSig.value,
-      storedAuthorizationHeader.value,
+    // create the authorization data string (payload)
+    const authDataStr = JSON.stringify({
+      instanceId: instanceId.value,
+      scriptPayload: walletScriptPayload.value,
+      ...blockData,
+    })
+    // sign the payload using the stored signing key for one-time use
+    const signature = WalletTools.signMessage(
+      authDataStr,
+      await walletMessaging.sendMessage('popup:loadSigningKey', undefined),
     )
+    // set the new authorization header in the Vue ref
+    authorizationHeader.value = InstanceTools.toAuthorizationPayload(authDataStr, signature)
+    // store all of the new authorization data, including the generated header
+    await instanceStore.setBlockDataSig(blockData)
+    await instanceStore.setAuthorizationHeader(authorizationHeader.value)
+    return { Authorization: authorizationHeader.value }
+  } catch (e) {
+    console.error('createAuthorizationHeader failed:', e)
     return null
   }
-  return headers
 }
 /**
  * Vue lifecycle hooks
  */
 //onBeforeMount(async () => {})
 /**  */
-onBeforeUpdate(async () => {
-  if (hasInstanceId && hasWalletScriptPayload && hasStoredAuthorizationHeader) {
-    await getHomePageData()
-    if (!interval.value) {
-      interval.value = setInterval(getHomePageData, 5_000)
-    }
+onMounted(async () => {
+  // hydrate refs from storage
+  instanceId.value = await instanceStore.getInstanceId()
+  authorizationHeader.value = await instanceStore.getAuthorizationHeader()
+  registerStatus.value = await instanceStore.getRegisterStatus()
+  watchers.set('instanceId', instanceStore.instanceIdStorageItem.watch(
+    (newInstanceId) => {
+      instanceId.value = newInstanceId
+    },
+  ))
+  // hydrate refs from RANK API
+  await hydrateHomePage()
+  // set up auto-update interval if not already set
+  if (!interval.value) {
+    interval.value = setInterval(hydrateHomePage, 5_000)
   }
 })
 /**  */
 onBeforeUnmount(() => {
   clearInterval(interval.value)
+  watchers.forEach((unwatch) => unwatch())
 })
 </script>
+
 <template>
-  <!-- Use computed properties in hidden div to trigger onUpdated hook -->
-  <div style="display: none">
-    {{ hasInstanceId }}
-    {{ hasWalletScriptPayload }}
-    {{ hasStoredAuthorizationHeader }}
-  </div>
   <FwbTabs v-model="activeTab" variant="underline">
     <!--
       Only show myStats if registered
       5/20/25: Registration is currently disabled
+      8/3/25: Registration is enabled
     -->
-    <FwbTab name="myStats" title="My Stats" v-if="registerStatus">
-      <div>
-        <div>
-          <FwbHeading tag="h6" title="My Stats"> My Stats </FwbHeading>
-        </div>
+    <FwbTab name="myStats" title="My Stats">
+      <div v-show="!myStats" class="flex justify-center items-center py-4">
+        <FwbSpinner size="8" />
+        <span class="font-medium text-xl text-gray-300 dark:text-gray-500 ml-2">{{ loadingMessage }}</span>
       </div>
+      <HomeMyStats v-show="myStats" :data="myStats" />
     </FwbTab>
     <FwbTab name="topProfiles" title="Trending Profiles">
-      <template
-        v-for="({ profileId, changed, total, platform }, index) in topProfiles"
-        :key="index"
-      >
+      <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow items-start text-left">
             <a :href="Twitter.profileUrl(profileId)" target="_blank">
@@ -280,47 +265,35 @@ onBeforeUnmount(() => {
             <fwb-p>{{ platform }}</fwb-p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total"
-              >+{{
-                toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;Lotus</FwbHeading
-            >
-            <fwb-p style="color: pink"
-              >{{
-                toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;Lotus</fwb-p
-            >
+            <FwbHeading tag="h6" title="total">+{{
+              toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</FwbHeading>
+            <fwb-p style="color: pink">{{
+              toMinifiedNumber(total.ranking, 1_000_000)
+              }}&nbsp;XPI</fwb-p>
           </div>
         </div>
       </template>
     </FwbTab>
     <FwbTab name="topPosts" title="Trending Posts">
-      <template
-        v-for="(
-          { profileId, postId, changed, total, platform }, index
-        ) in topPosts"
-        :key="index"
-      >
+      <template v-for="(
+{ profileId, postId, changed, total, platform }, index
+        ) in topPosts" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow justify-start">
             <a :href="Twitter.postUrl(profileId, postId)" target="_blank">
               <FwbHeading tag="h6" :title="profileId">
-                {{ profileId }}</FwbHeading
-              >
+                {{ profileId }}</FwbHeading>
             </a>
             <fwb-p>{{ platform }}&nbsp;<span class="text-xs">post</span></fwb-p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total"
-              >+{{
-                toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;Lotus</FwbHeading
-            >
-            <fwb-p style="color: pink"
-              >{{
-                toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;Lotus</fwb-p
-            >
+            <FwbHeading tag="h6" title="total">+{{
+              toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</FwbHeading>
+            <fwb-p style="color: pink">{{
+              toMinifiedNumber(total.ranking, 1_000_000)
+              }}&nbsp;XPI</fwb-p>
           </div>
         </div>
       </template>
