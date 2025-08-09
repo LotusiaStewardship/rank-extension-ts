@@ -390,6 +390,10 @@ class WalletManager {
         await this.resetUtxoCache()
       },
     })
+    // fetch latest chain state from Chronik API if existing values are default
+    if (!this.wallet.tipHeight && !this.wallet.tipHash) {
+      await this.updateChainState()
+    }
     // reconcile wallet state by removing spent UTXOs and adding new UTXOs
     await this.resetUtxoCache()
     // Save mutable wallet state
@@ -428,6 +432,13 @@ class WalletManager {
     clearInterval(this.wsPingInterval)
     this.wsUnsubscribeP2PKH(this.scriptPayload)
     this.ws.close()
+  }
+  /** Update the wallet's chain state from the Chronik API */
+  private updateChainState = async () => {
+    const blockchainInfo = await this.chronik.blockchainInfo()
+    this.wallet.tipHeight = blockchainInfo.tipHeight
+    this.wallet.tipHash = blockchainInfo.tipHash
+    return await walletStore.saveChainState(this.chainState)
   }
   /**
    * Handle incoming websocket messages from Chronik
