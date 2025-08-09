@@ -9,7 +9,7 @@ import SettingsPage from '@/components/pages/Settings.vue'
 import { FwbSpinner } from 'flowbite-vue'
 /** Types */
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
-import type { UIWalletState } from '@/entrypoints/background/stores/wallet'
+import type { ChainState, UIWalletState } from '@/entrypoints/background/stores/wallet'
 /** Modules and types */
 import {
   walletMessaging,
@@ -26,6 +26,8 @@ import {
  */
 export type StorageWatcher =
   | 'balance'
+  | 'tipHeight'
+  | 'tipHash'
 export type Page = 'home' | 'receive' | 'give' | 'settings'
 /**
  * Constants
@@ -37,6 +39,11 @@ const walletBalance = ref<WalletBalance>({
   total: '0',
   spendable: '0',
 })
+/** Current chain state */
+const chainState = ref<ChainState>({
+  tipHeight: 0,
+  tipHash: '',
+})
 /** Current Lotus address for send/receive/RANK */
 const walletAddress = shallowRef('')
 /** Current Lotus scriptPayload for API calls */
@@ -47,16 +54,19 @@ const activePage = shallowRef<Page>('home')
 /**
  * Vew computed properties
  */
-/** This is true to indicate that the `WalletManager` has been initialized with a mnemonic phrase */
+/** This is true to indicate that all required runtime values have been initialized */
 const initialized = computed(() =>
   walletAddress.value &&
   walletBalance.value &&
-  walletScriptPayload.value
+  walletScriptPayload.value &&
+  chainState.value.tipHeight &&
+  chainState.value.tipHash
 )
 /**
  * Vue prop drilling
  */
 provide('wallet-script-payload', walletScriptPayload)
+provide('chain-state', chainState)
 /**
  * Vue lifecycle hooks
  */
@@ -81,15 +91,19 @@ onBeforeMount(() => {
     'balance',
     walletStore.balanceStorageItem.watch(newValue => (walletBalance.value = newValue as WalletBalance)),
   )
+  watchers.set(
+    'tipHeight',
+    walletStore.tipHeightStorageItem.watch(newValue => (chainState.value.tipHeight = newValue as number)),
+  )
+  watchers.set(
+    'tipHash',
+    walletStore.tipHashStorageItem.watch(newValue => (chainState.value.tipHash = newValue as string)),
+  )
 })
 /**  */
 onMounted(() => {
   walletSetup()
 })
-/* 
-onUpdated(() => {
-  console.log(`onUpdated()`)
-}) */
 
 /**
  * Functions
@@ -142,7 +156,11 @@ async function walletSetup(seedPhrase?: string) {
  * Applies the provided wallet state to the Vue refs for runtime operation
  * @param walletState The wallet state containing script, address and balance info
  */
-function initialize(walletState: UIWalletState) {
+async function initialize(walletState: UIWalletState) {
+  // load necessary storage values
+  const tipHeight = await walletStore.tipHeightStorageItem.getValue() as number
+  const tipHash = await walletStore.tipHashStorageItem.getValue() as string
+  chainState.value = { tipHeight, tipHash }
   // update reactive values with walletState
   walletAddress.value = walletState.address
   walletBalance.value = walletState.balance
@@ -157,7 +175,7 @@ function initialize(walletState: UIWalletState) {
   <header class="flex-shrink-0">
     <Header :total-balance="walletBalance.total" />
   </header>
-  <main class="flex-1 overflow-y-auto hidden-scrollbar">
+  <main class="grow overflow-y-auto hidden-scrollbar">
     <template v-if="initialized">
       <div class="container mt-12 mb-12">
         <HomePage v-if="activePage === 'home'" />

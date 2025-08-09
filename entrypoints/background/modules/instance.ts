@@ -1,9 +1,11 @@
 import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
+import type { ChainState } from '@/entrypoints/background/stores/wallet'
 import { AuthorizationData, Util } from '@/utils/rank-lib'
 
 /** blockhash or blockheight */
 const authenticateParam = /blockhash=([a-f0-9]{64})|blockheight=(\d{1,10})/g
 const authorizationHeaderDelimiter = ':::'
+const authorizationTTL = 420 // blocks
 // `WWW-Authenticate:` header types
 export type AuthenticateHeaderPrefix = 'WWW-Authenticate'
 export type AuthenticateScheme = 'BlockDataSig'
@@ -60,6 +62,20 @@ class InstanceTools {
       return null
     }
     return JSON.parse(authDataStr) as AuthorizationData
+  }
+  /**
+   * Check if the authorization TTL is exceeded
+   * @param blockDataSig - The `BlockDataSig` object
+   * @param chainState - The `ChainState` object
+   * @returns `true` if the authorization TTL is exceeded, `false` otherwise
+   */
+  static isAuthorizationExpired(
+    blockDataSig: BlockDataSig,
+    chainState: ChainState,
+  ): boolean {
+    const authorizationBlockHeight = Number(blockDataSig.blockheight)
+    const chainHeight = Number(chainState.tipHeight)
+    return chainHeight - authorizationBlockHeight > authorizationTTL
   }
   /**
    * Parse the authenticate header to extract block data

@@ -143,6 +143,14 @@ class WalletStore {
   get balanceStorageItem() {
     return this.wxtStorageItems.balance
   }
+  /** Popup UI tracks changes to tip height */
+  get tipHeightStorageItem() {
+    return this.wxtStorageItems.tipHeight
+  }
+  /** Popup UI tracks changes to tip hash */
+  get tipHashStorageItem() {
+    return this.wxtStorageItems.tipHash
+  }
   /**
    * Popup UI tracks changes to address, e.g. import new seed phrase
    *

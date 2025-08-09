@@ -3,16 +3,21 @@
 import { FwbHeading, FwbP, FwbTab, FwbTabs, FwbSpinner } from 'flowbite-vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
-import type { ShallowRef } from 'vue'
+import type { Ref, ShallowRef } from 'vue'
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
 import type { AuthorizationHeader, AuthorizationHeaderPrefix, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
+import type { ChainState } from '@/entrypoints/background/stores/wallet'
 /** Modules */
 import { InstanceTools } from '@/entrypoints/background/modules/instance'
 import { instanceStore } from '@/entrypoints/background/stores/instance'
 import { WalletTools } from '@/entrypoints/background/modules/wallet'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { authorizedFetch } from '@/utils/functions'
+/**
+ * Vue definitions
+ */
+const chainState = inject('chain-state') as Ref<ChainState>
 
 /**
  * Local types
@@ -163,7 +168,12 @@ async function createAuthorizationHeader(): Promise<
   | null
 > {
   if (authorizationHeader.value) {
-    return { Authorization: authorizationHeader.value }
+    // check if the authorization header is expired
+    const blockDataSig = await instanceStore.getBlockDataSig()
+    if (blockDataSig && !InstanceTools.isAuthorizationExpired(blockDataSig, chainState.value)) {
+      // if not expired, return the existing authorization header
+      return { Authorization: authorizationHeader.value }
+    }
   }
   // make sure we have an instance ID
   if (!instanceId.value) {
