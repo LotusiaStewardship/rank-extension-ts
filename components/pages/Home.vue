@@ -6,7 +6,8 @@ import HomeMyStats from './home/HomeMyStats.vue'
 import type { Ref, ShallowRef } from 'vue'
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
-import type { AuthorizationHeader, AuthorizationHeaderPrefix, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
+import type { AuthorizationHeader, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
+import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
 import type { ChainState } from '@/entrypoints/background/stores/wallet'
 /** Modules */
 import { InstanceTools } from '@/entrypoints/background/modules/instance'
@@ -17,7 +18,6 @@ import { authorizedFetch } from '@/utils/functions'
 /**
  * Vue definitions
  */
-const chainState = inject('chain-state') as Ref<ChainState>
 
 /**
  * Local types
@@ -124,16 +124,35 @@ async function hydrateHomePage() {
 }
 /**
  * Get my stats
+ * @param headers - Optional response headers from a "401 Unauthorized" API response
  * @returns {Promise<ScriptPayloadActivitySummary | null>}
  */
-async function getMyStats(): Promise<MyStats | null> {
-  const headers = await createAuthorizationHeader()
-  if (!headers) {
-    return null
-  }
+async function getMyStats(): Promise<MyStats> {
   loadingMessage.value = 'Fetching stats...'
-  const result = await authorizedFetch(API.myStatsSummary(), headers)
-  return result[0] as MyStats | null
+  // try to fetch data with the existing authorization header
+  // authorizedFetch will throw the response headers if the request is unauthorized
+  // if the request is unauthorized, create a new authorization header
+  // and try again
+  try {
+    const result = await authorizedFetch(API.myStatsSummary(), {
+      Authorization: authorizationHeader.value,
+    })
+    return result[0] as MyStats
+  } catch (headers) {
+    const result = await createAuthorizationHeader(headers as Headers)
+    if (result) {
+      const [blockData, newAuthorizationHeader] = result
+      // set the new authorization header in the Vue ref
+      // will be used in the next authorizedFetch call
+      authorizationHeader.value = newAuthorizationHeader
+      // store all of the new authorization data, including the generated header
+      await instanceStore.setBlockDataSig(blockData)
+      await instanceStore.setAuthorizationHeader(newAuthorizationHeader)
+      // try again with the new authorization header
+      return await getMyStats()
+    }
+    return {} as MyStats
+  }
 }
 /**
  * Get top profiles
@@ -161,36 +180,32 @@ async function getTopPosts(): Promise<TopPost[]> {
 }
 /**
  * Create a new authorization header
+ * @param headers - Optional response headers from a "401 Unauthorized" API response
  * @returns {Promise<AuthorizationHeader | null>}
  */
-async function createAuthorizationHeader(): Promise<
-  | Record<AuthorizationHeaderPrefix, AuthorizationHeader>
-  | null
-> {
-  if (authorizationHeader.value) {
-    // check if the authorization header is expired
-    const blockDataSig = await instanceStore.getBlockDataSig()
-    if (blockDataSig && !InstanceTools.isAuthorizationExpired(blockDataSig, chainState.value)) {
-      // if not expired, return the existing authorization header
-      return { Authorization: authorizationHeader.value }
-    }
-  }
+async function createAuthorizationHeader(headers: Headers): Promise<[BlockDataSig, AuthorizationHeader] | null> {
   // make sure we have an instance ID
   if (!instanceId.value) {
     loadingMessage.value = 'Awaiting instance ID...'
     return null
   }
-  // make sure we have a wallet script payload
-  // create new authorization header if not available
+  const {
+    parseAuthenticateHeader,
+    isValidBlockData,
+    toAuthorizationHeader,
+  } = InstanceTools
+  // create a new authorization header
   try {
     loadingMessage.value = 'Refreshing auth data...'
-    // fetch without authorization header to get authenticate header
-    const result = await fetch(API.myStatsSummary())
-    const authenticateHeader = result.headers.get(
-      'www-authenticate',
-    )! as AuthenticateHeader
-    const blockData = InstanceTools.parseAuthenticateHeader(authenticateHeader)
-    if (!blockData || !InstanceTools.isValidBlockData(blockData)) {
+    // get the WWW-Authenticate header from the provided response headers
+    const authenticateHeader = headers.get('www-authenticate')
+    if (!authenticateHeader) {
+      console.error('No WWW-Authenticate header found')
+      return null
+    }
+    // parse the WWW-Authenticate header
+    const blockData = parseAuthenticateHeader(authenticateHeader as AuthenticateHeader)
+    if (!blockData || !isValidBlockData(blockData)) {
       console.error(
         'Failed to parse authenticate header',
         authenticateHeader,
@@ -209,12 +224,10 @@ async function createAuthorizationHeader(): Promise<
       authDataStr,
       await walletMessaging.sendMessage('popup:loadSigningKey', undefined),
     )
-    // set the new authorization header in the Vue ref
-    authorizationHeader.value = InstanceTools.toAuthorizationPayload(authDataStr, signature)
-    // store all of the new authorization data, including the generated header
-    await instanceStore.setBlockDataSig(blockData)
-    await instanceStore.setAuthorizationHeader(authorizationHeader.value)
-    return { Authorization: authorizationHeader.value }
+    // create the authorization header
+    const authorizationHeader = toAuthorizationHeader(authDataStr, signature)
+    // return the block data and authorization header
+    return [blockData, authorizationHeader]
   } catch (e) {
     console.error('createAuthorizationHeader failed:', e)
     return null
@@ -223,7 +236,6 @@ async function createAuthorizationHeader(): Promise<
 /**
  * Vue lifecycle hooks
  */
-//onBeforeMount(async () => {})
 /**  */
 onMounted(async () => {
   // hydrate refs from storage

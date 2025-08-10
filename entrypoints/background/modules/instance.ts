@@ -23,10 +23,10 @@ class InstanceTools {
    * @param signature - The signature of the authorization data string
    * @returns The `Authorization:` header payload
    */
-  static toAuthorizationPayload(
+  static toAuthorizationHeader(
     authDataStr: string,
     signature: string,
-  ): string {
+  ): AuthorizationHeader {
     return Util.base64.encode(
       authDataStr + authorizationHeaderDelimiter + signature,
     )
