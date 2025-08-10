@@ -4,6 +4,7 @@ import type {
   ExtensionInstance,
   PostMetaCache,
 } from '@/entrypoints/background/stores'
+import { HTTP } from './constants'
 
 export const toXPI = (sats: string) =>
   (Number(sats) / 1_000_000).toLocaleString(undefined, {
@@ -87,7 +88,9 @@ export async function authorizedFetch(
 ) {
   const response = await fetch(url, { headers, method: 'GET' })
   // throw the response headers if the request is unauthorized
-  if (!response.ok) {
+  // response headers include the WWW-Authenticate header, which contains the BlockDataSig
+  // challenge data required to create a new authorization header
+  if (response.status === HTTP.UNAUTHORIZED) {
     throw response.headers
   }
   return response.json()

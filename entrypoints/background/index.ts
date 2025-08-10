@@ -67,12 +67,15 @@ export default defineBackground({
         // Save the new wallet into local storage
         await walletStore.saveWalletState(walletState)
         await walletManager.init()
-        // Genereate extension instanceId
+        // Generate extension instanceId
         const instanceId = await instanceStore.getInstanceId()
         if (!instanceId) {
           const instance = await newInstance(browser.runtime.id)
           await instanceStore.saveExtensionInstance(instance)
         }
+        // set/reset some store values
+        //await instanceStore.setRegisterStatus(false)
+        await instanceStore.setAuthorizationHeader('')
         // Return the new wallet details to the popup UI
         return walletManager.uiWalletState
       },

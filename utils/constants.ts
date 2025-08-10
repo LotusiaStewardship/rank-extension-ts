@@ -14,3 +14,7 @@ export const WALLET_MAX_TX_INPUTS = 600 // inputs
 export const RANK_OUTPUT_MIN_VALUE = 100_000_000
 // Explorer constants
 export const DEFAULT_EXPLORER_URL = 'https://explorer.lotusia.org'
+
+export enum HTTP {
+  UNAUTHORIZED = 401,
+}

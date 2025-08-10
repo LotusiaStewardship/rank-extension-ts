@@ -1,14 +1,13 @@
 <script lang="ts" setup>
 /** Vue components */
-import { FwbHeading, FwbP, FwbTab, FwbTabs, FwbSpinner } from 'flowbite-vue'
+import { FwbHeading, FwbP, FwbTab, FwbTabs } from 'flowbite-vue'
+import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
 import type { Ref, ShallowRef } from 'vue'
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
 import type { AuthorizationHeader, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
-import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
-import type { ChainState } from '@/entrypoints/background/stores/wallet'
 /** Modules */
 import { InstanceTools } from '@/entrypoints/background/modules/instance'
 import { instanceStore } from '@/entrypoints/background/stores/instance'
@@ -131,8 +130,6 @@ async function getMyStats(): Promise<MyStats> {
   loadingMessage.value = 'Fetching stats...'
   // try to fetch data with the existing authorization header
   // authorizedFetch will throw the response headers if the request is unauthorized
-  // if the request is unauthorized, create a new authorization header
-  // and try again
   try {
     const result = await authorizedFetch(API.myStatsSummary(), {
       Authorization: authorizationHeader.value,
@@ -141,13 +138,11 @@ async function getMyStats(): Promise<MyStats> {
   } catch (headers) {
     const result = await createAuthorizationHeader(headers as Headers)
     if (result) {
-      const [blockData, newAuthorizationHeader] = result
+      // store the new authorization header
+      await instanceStore.setAuthorizationHeader(result)
       // set the new authorization header in the Vue ref
       // will be used in the next authorizedFetch call
-      authorizationHeader.value = newAuthorizationHeader
-      // store all of the new authorization data, including the generated header
-      await instanceStore.setBlockDataSig(blockData)
-      await instanceStore.setAuthorizationHeader(newAuthorizationHeader)
+      authorizationHeader.value = result
       // try again with the new authorization header
       return await getMyStats()
     }
@@ -183,7 +178,7 @@ async function getTopPosts(): Promise<TopPost[]> {
  * @param headers - Optional response headers from a "401 Unauthorized" API response
  * @returns {Promise<AuthorizationHeader | null>}
  */
-async function createAuthorizationHeader(headers: Headers): Promise<[BlockDataSig, AuthorizationHeader] | null> {
+async function createAuthorizationHeader(headers: Headers): Promise<AuthorizationHeader | null> {
   // make sure we have an instance ID
   if (!instanceId.value) {
     loadingMessage.value = 'Awaiting instance ID...'
@@ -191,47 +186,35 @@ async function createAuthorizationHeader(headers: Headers): Promise<[BlockDataSi
   }
   const {
     parseAuthenticateHeader,
-    isValidBlockData,
     toAuthorizationHeader,
   } = InstanceTools
   // create a new authorization header
-  try {
-    loadingMessage.value = 'Refreshing auth data...'
-    // get the WWW-Authenticate header from the provided response headers
-    const authenticateHeader = headers.get('www-authenticate')
-    if (!authenticateHeader) {
-      console.error('No WWW-Authenticate header found')
-      return null
-    }
-    // parse the WWW-Authenticate header
-    const blockData = parseAuthenticateHeader(authenticateHeader as AuthenticateHeader)
-    if (!blockData || !isValidBlockData(blockData)) {
-      console.error(
-        'Failed to parse authenticate header',
-        authenticateHeader,
-        blockData,
-      )
-      return null
-    }
-    // create the authorization data string (payload)
-    const authDataStr = JSON.stringify({
-      instanceId: instanceId.value,
-      scriptPayload: walletScriptPayload.value,
-      ...blockData,
-    })
-    // sign the payload using the stored signing key for one-time use
-    const signature = WalletTools.signMessage(
-      authDataStr,
-      await walletMessaging.sendMessage('popup:loadSigningKey', undefined),
+  loadingMessage.value = 'Refreshing auth data...'
+  // get the WWW-Authenticate header from the provided response headers
+  // this header is guaranteed to be present since the request was unauthorized
+  const authenticateHeader = headers.get('www-authenticate')! as AuthenticateHeader
+  const blockData = parseAuthenticateHeader(authenticateHeader)
+  if (!blockData) {
+    console.error(
+      'Failed to parse authenticate header',
+      authenticateHeader,
+      blockData,
     )
-    // create the authorization header
-    const authorizationHeader = toAuthorizationHeader(authDataStr, signature)
-    // return the block data and authorization header
-    return [blockData, authorizationHeader]
-  } catch (e) {
-    console.error('createAuthorizationHeader failed:', e)
     return null
   }
+  // create the authorization data string (payload)
+  const authDataStr = JSON.stringify({
+    instanceId: instanceId.value,
+    scriptPayload: walletScriptPayload.value,
+    ...blockData,
+  })
+  // sign the payload using the stored signing key for one-time use
+  const signature = WalletTools.signMessage(
+    authDataStr,
+    await walletMessaging.sendMessage('popup:loadSigningKey', undefined),
+  )
+  // create and return the authorization header
+  return toAuthorizationHeader(authDataStr, signature)
 }
 /**
  * Vue lifecycle hooks
@@ -269,11 +252,8 @@ onBeforeUnmount(() => {
       8/3/25: Registration is enabled
     -->
     <FwbTab name="myStats" title="My Stats">
-      <div v-show="!myStats" class="flex justify-center items-center py-4">
-        <FwbSpinner size="8" />
-        <span class="font-medium text-xl text-gray-300 dark:text-gray-500 ml-2">{{ loadingMessage }}</span>
-      </div>
-      <HomeMyStats v-show="myStats" :data="myStats" />
+      <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
+      <HomeMyStats v-else :data="myStats" />
     </FwbTab>
     <FwbTab name="topProfiles" title="Trending Profiles">
       <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
