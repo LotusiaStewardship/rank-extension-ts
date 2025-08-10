@@ -6,7 +6,7 @@ import HomePage from '@/components/pages/Home.vue'
 import ReceiveLotusPage from '@/components/pages/ReceiveLotus.vue'
 import GiveLotusPage from '@/components/pages/GiveLotus.vue'
 import SettingsPage from '@/components/pages/Settings.vue'
-import { FwbSpinner } from 'flowbite-vue'
+import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 /** Types */
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
 import type { ChainState, UIWalletState } from '@/entrypoints/background/stores/wallet'
@@ -115,12 +115,14 @@ onMounted(() => {
 async function walletSetup(seedPhrase?: string) {
   // If we are already initialized, clear the values
   if (initialized.value) {
+    walletScriptPayload.value = ''
     walletAddress.value = ''
     walletBalance.value = {
       total: '0',
       spendable: '0',
     }
-    walletScriptPayload.value = ''
+    // set the active page to home
+    activePage.value = 'home'
   }
   // request the ui wallet state from the background
   let walletState: UIWalletState
@@ -184,12 +186,7 @@ async function initialize(walletState: UIWalletState) {
         <SettingsPage @restore-seed-phrase="walletSetup" v-else-if="activePage == 'settings'" />
       </div>
     </template>
-    <template v-else>
-      <div class="flex justify-center items-center py-4">
-        <FwbSpinner size="8" />
-        <span class="font-medium text-xl text-gray-300 dark:text-gray-500 ml-2">Initializing...</span>
-      </div>
-    </template>
+    <LoadingSpinnerMessage v-else message="Initializing..." />
   </main>
   <footer class="flex-shrink-0">
     <Footer @active-page="activePage = $event" />

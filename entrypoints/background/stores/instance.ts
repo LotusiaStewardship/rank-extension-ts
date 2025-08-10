@@ -39,7 +39,6 @@ export type ExtensionInstance = {
   startTime: string
   nonce: number
   registered: boolean
-  blockDataSig?: BlockDataSig
   authorizationHeader?: string
 }
 
@@ -81,12 +80,6 @@ class InstanceStore {
       }),
       registered: defineItem<WxtStorageValueBoolean>('local:instance:optin', {
         init: () => false,
-      }),
-      blockDataSig: defineItem<BlockDataSig>('local:instance:blockDataSig', {
-        init: () => ({
-          blockhash: '',
-          blockheight: '',
-        }),
       }),
       authorizationHeader: defineItem<WxtStorageValueString>(
         'local:instance:authorizationHeader',
@@ -240,28 +233,6 @@ class InstanceStore {
       )
     } catch (e) {
       console.error(`setRegisterStatus: ${answer}:`, e)
-    }
-  }
-  /**
-   *
-   * @returns
-   */
-  async getBlockDataSig() {
-    return await (
-      this.wxtStorageItems.blockDataSig as WxtStorageItemObject
-    ).getValue()
-  }
-  /**
-   *
-   * @param block
-   */
-  async setBlockDataSig(block: { blockhash: string; blockheight: string }) {
-    try {
-      await (
-        this.wxtStorageItems.blockDataSig as WxtStorageItemObject
-      ).setValue(block)
-    } catch (e) {
-      console.error(`setBlockDataSig: ${block}:`, e)
     }
   }
   /**
