@@ -85,6 +85,10 @@ export async function authorizedFetch(
   url: string,
   headers: Record<'Authorization', AuthorizationHeader>,
 ) {
-  const result = await fetch(url, { headers, method: 'GET' })
-  return result.json()
+  const response = await fetch(url, { headers, method: 'GET' })
+  // throw the response headers if the request is unauthorized
+  if (!response.ok) {
+    throw response.headers
+  }
+  return response.json()
 }
