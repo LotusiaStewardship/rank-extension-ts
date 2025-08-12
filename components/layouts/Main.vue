@@ -9,8 +9,8 @@ import SettingsPage from '@/components/pages/Settings.vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 /** Types */
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
-import type { ChainState, UIWalletState } from '@/entrypoints/background/stores/wallet'
-/** Modules and types */
+import type { UIWalletState } from '@/entrypoints/background/stores/wallet'
+/** Modules */
 import {
   walletMessaging,
 } from '@/entrypoints/background/messaging'
@@ -26,11 +26,9 @@ import {
  */
 export type StorageWatcher =
   | 'balance'
-  | 'tipHeight'
-  | 'tipHash'
 export type Page = 'home' | 'receive' | 'give' | 'settings'
 /**
- * Constants
+ * Vue refs
  */
 /** Map of storage watchers */
 const watchers: Map<StorageWatcher, UnwatchFunction> = new Map()
@@ -39,18 +37,12 @@ const walletBalance = ref<WalletBalance>({
   total: '0',
   spendable: '0',
 })
-/** Current chain state */
-const chainState = ref<ChainState>({
-  tipHeight: 0,
-  tipHash: '',
-})
 /** Current Lotus address for send/receive/RANK */
 const walletAddress = shallowRef('')
 /** Current Lotus scriptPayload for API calls */
 const walletScriptPayload = shallowRef('')
 /** Which page to display */
 const activePage = shallowRef<Page>('home')
-//const windowType = shallowRef('popup')
 /**
  * Vew computed properties
  */
@@ -58,15 +50,12 @@ const activePage = shallowRef<Page>('home')
 const initialized = computed(() =>
   walletAddress.value &&
   walletBalance.value &&
-  walletScriptPayload.value &&
-  chainState.value.tipHeight &&
-  chainState.value.tipHash
+  walletScriptPayload.value
 )
 /**
  * Vue prop drilling
  */
 provide('wallet-script-payload', walletScriptPayload)
-provide('chain-state', chainState)
 /**
  * Vue lifecycle hooks
  */
@@ -90,14 +79,6 @@ onBeforeMount(() => {
   watchers.set(
     'balance',
     walletStore.balanceStorageItem.watch(newValue => (walletBalance.value = newValue as WalletBalance)),
-  )
-  watchers.set(
-    'tipHeight',
-    walletStore.tipHeightStorageItem.watch(newValue => (chainState.value.tipHeight = newValue as number)),
-  )
-  watchers.set(
-    'tipHash',
-    walletStore.tipHashStorageItem.watch(newValue => (chainState.value.tipHash = newValue as string)),
   )
 })
 /**  */
@@ -159,10 +140,6 @@ async function walletSetup(seedPhrase?: string) {
  * @param walletState The wallet state containing script, address and balance info
  */
 async function initialize(walletState: UIWalletState) {
-  // load necessary storage values
-  const tipHeight = await walletStore.tipHeightStorageItem.getValue() as number
-  const tipHash = await walletStore.tipHashStorageItem.getValue() as string
-  chainState.value = { tipHeight, tipHash }
   // update reactive values with walletState
   walletAddress.value = walletState.address
   walletBalance.value = walletState.balance
@@ -178,7 +155,8 @@ async function initialize(walletState: UIWalletState) {
     <Header :total-balance="walletBalance.total" />
   </header>
   <main class="grow overflow-y-auto hidden-scrollbar">
-    <template v-if="initialized">
+    <LoadingSpinnerMessage v-if="!initialized" message="Initializing..." />
+    <template v-else>
       <div class="container mt-12 mb-12">
         <HomePage v-if="activePage === 'home'" />
         <ReceiveLotusPage :address="walletAddress" v-else-if="activePage == 'receive'" />
@@ -186,7 +164,6 @@ async function initialize(walletState: UIWalletState) {
         <SettingsPage @restore-seed-phrase="walletSetup" v-else-if="activePage == 'settings'" />
       </div>
     </template>
-    <LoadingSpinnerMessage v-else message="Initializing..." />
   </main>
   <footer class="flex-shrink-0">
     <Footer @active-page="activePage = $event" />

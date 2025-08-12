@@ -1,9 +1,28 @@
 // @ts-expect-error package has no types
 import Mnemonic from '@abcpros/bitcore-mnemonic'
+import assert from 'assert'
+/** Types */
 import type {
   ScriptChunkPlatformUTF8,
   ScriptChunkSentimentUTF8,
 } from 'rank-lib'
+import type {
+  BlockchainInfo,
+  OutPoint,
+  ScriptEndpoint,
+  SubscribeMsg,
+  WsEndpoint,
+  Utxo as ChronikUtxo,
+} from 'chronik-client'
+import type {
+  WalletState,
+  ChainState,
+  MutableWalletState,
+  UIWalletState,
+  WalletBalance,
+} from '@/entrypoints/background/stores'
+/** Modules */
+import { ChronikClient } from 'chronik-client'
 import {
   toPlatformBuf,
   toProfileIdBuf,
@@ -18,33 +37,10 @@ import {
   Address,
   Message,
 } from '@abcpros/bitcore-lib-xpi'
-import {
-  walletStore,
-  WalletState,
-  ChainState,
-  MutableWalletState,
-  UIWalletState,
-  WalletBalance,
-} from '@/entrypoints/background/stores'
-import {
-  ChronikClient,
-  OutPoint,
-  ScriptEndpoint,
-  SubscribeMsg,
-  WsEndpoint,
-  type Utxo as ChronikUtxo,
-} from 'chronik-client'
-import assert from 'assert'
-import { serialize, deserialize, toXPI } from '@/utils/functions'
-import {
-  RANK_OUTPUT_MIN_VALUE,
-  WALLET_CHRONIK_URL,
-  WALLET_BIP44_COINTYPE,
-  WALLET_BIP44_PURPOSE,
-  WALLET_MAX_TX_SIZE,
-  WALLET_MAX_TX_INPUTS,
-} from '@/utils/constants'
-
+import { walletStore } from '@/entrypoints/background/stores'
+/**
+ * Local types
+ */
 type SendTransactionParams = {
   outAddress: string
   outValue: number
@@ -70,7 +66,7 @@ type EventQueue = {
   pending: PendingEventProcessor[]
 }
 /** Object describing a UTXO in the wallet's UTXO cache */
-export type Utxo = {
+type Utxo = {
   /** Value of the UTXO in satoshis */
   value: string
   /** Height of the UTXO in the blockchain, -1 if in mempool */
@@ -78,8 +74,8 @@ export type Utxo = {
   /** Whether the UTXO is a coinbase, i.e. from a block reward */
   isCoinbase: boolean
 }
-// Map key is `${txid}_${outIdx}`, value is BigInt `value` as string
-export type UtxoCache = Map<string, Utxo>
+/** In-memory UTXO cache, where key is `${txid}_${outIdx}` and value is `Utxo` object */
+type UtxoCache = Map<string, Utxo>
 
 type Wallet = {
   seedPhrase: string
@@ -290,12 +286,26 @@ class WalletManager {
       )
       .map(({ outpoint }) => outpoint)
   }
+  /** True if the UTXO cache is too big for all Lotus to be sent in a single transaction */
+  get needsUtxoConsolidation(): boolean {
+    // craft a transaction with the full balance to see if it's too big
+    const [tx] = this.craftSendTx(
+      this.wallet.address,
+      Number(this.balance.total),
+    )
+    return tx._estimateSize() >= WALLET_MAX_TX_SIZE
+  }
   /** Blockchain state, updated by `handleWsBlockConnected` */
   get chainState(): ChainState {
     return {
       tipHeight: this.wallet.tipHeight,
       tipHash: this.wallet.tipHash,
     }
+  }
+  /** Set the blockchain state from the Chronik API */
+  set chainState({ tipHeight, tipHash }: BlockchainInfo) {
+    this.wallet.tipHeight = tipHeight
+    this.wallet.tipHash = tipHash
   }
   /** Wallet state that gets saved to localStorage when changed */
   get mutableWalletState(): MutableWalletState {
@@ -436,8 +446,7 @@ class WalletManager {
   /** Update the wallet's chain state from the Chronik API */
   private updateChainState = async () => {
     const blockchainInfo = await this.chronik.blockchainInfo()
-    this.wallet.tipHeight = blockchainInfo.tipHeight
-    this.wallet.tipHash = blockchainInfo.tipHash
+    this.chainState = blockchainInfo
     return await walletStore.saveChainState(this.chainState)
   }
   /**
@@ -652,8 +661,10 @@ class WalletManager {
     console.log(
       `BlockConnected: updating tip height to ${block.blockInfo.height} with tipHash ${blockHash}`,
     )
-    this.wallet.tipHeight = block.blockInfo.height
-    this.wallet.tipHash = blockHash
+    this.chainState = {
+      tipHeight: block.blockInfo.height,
+      tipHash: blockHash,
+    }
     // save blockchain state to localStorage and return
     return await walletStore.saveChainState(this.chainState)
   }
@@ -965,7 +976,7 @@ class WalletManager {
    * @returns {Transaction} The crafted send transaction
    */
   private craftSendTx = (
-    outAddress: string,
+    outAddress: string | Address,
     outValue: number,
   ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
