@@ -8,6 +8,7 @@ interface WalletMessaging {
   'popup:loadSeedPhrase': () => string
   'popup:seedPhrase': (seedPhrase: string) => Promise<UIWalletState>
   'popup:loadWalletState': () => UIWalletState
+  'popup:needsUtxoConsolidation': () => boolean
   'popup:sendLotus': ({
     outAddress,
     outValue,

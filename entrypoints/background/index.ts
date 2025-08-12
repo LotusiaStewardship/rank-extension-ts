@@ -89,6 +89,15 @@ export default defineBackground({
         console.error(e)
       }
     })
+    walletMessaging.onMessage('popup:needsUtxoConsolidation', ({ sender }) => {
+      try {
+        validateMessageSender(sender.id)
+        return walletManager.needsUtxoConsolidation
+      } catch (e) {
+        console.error('error during "popup:needsUtxoConsolidation"', e)
+        return false
+      }
+    })
     /**  */
     walletMessaging.onMessage('popup:sendLotus', async ({ sender, data }) => {
       try {

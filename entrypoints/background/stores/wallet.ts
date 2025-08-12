@@ -151,14 +151,6 @@ class WalletStore {
   get tipHashStorageItem() {
     return this.wxtStorageItems.tipHash
   }
-  /**
-   * Popup UI tracks changes to address, e.g. import new seed phrase
-   *
-   * This is useful for updating the `scriptPayload` value in the `instanceStore`
-   */
-  get addressStorageItem() {
-    return this.wxtStorageItems.address
-  }
   /** Returns `true` if a wallet has already been initialized, `false` otherwise */
   hasSeedPhrase = async () => {
     return Boolean(await this.wxtStorageItems.seedPhrase.getValue())
