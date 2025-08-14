@@ -2,8 +2,8 @@
 /** Vue components */
 import { FwbButton, FwbInput, FwbHeading } from 'flowbite-vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
-import GiveLotusConsolidateWalletForm from '@/components/forms/GiveLotusConsolidateWalletForm.vue'
 import GiveLotusResult from '@/components/pages/give/GiveLotusResult.vue'
+import GiveLotusEmptyWallet from '@/components/pages/give/GiveLotusEmptyWallet.vue'
 import AddressScanButton from '../buttons/AddressScanButton.vue'
 /** Modules and type imports */
 import { walletMessaging } from '@/entrypoints/background/messaging'
@@ -21,17 +21,12 @@ const { isValidAddress } = WalletTools
 const { sendMessage } = walletMessaging
 const outAddress = shallowRef('')
 const outValue = shallowRef('')
-const needsUtxoConsolidation = shallowRef<boolean | null>(null)
-const giveLotusTxid = shallowRef<string | null>(null)
-const giveLotusError = shallowRef<string | null>(null)
+const giveTxid = shallowRef<string | null>(null)
+const giveError = shallowRef<string | null>(null)
 const processing = shallowRef(false)
 /**
  * Vue computed properties
  */
-const initialized = computed(() =>
-  needsUtxoConsolidation.value !== null &&
-  Number(props.spendableBalance) > 0
-)
 const spendableBalanceXPI = computed(() => toLotusUnits(props.spendableBalance).toString().split('.')[0])
 const spendableBalanceDecimal = computed(() => toLotusUnits(props.spendableBalance).toString().split('.')[1])
 const isInputDataValid = computed(() => outValueValidationStatus.value === 'success' && outAddressValidationStatus.value === 'success')
@@ -75,8 +70,8 @@ const outValueValidationStatus = computed(() => {
  */
 /** Clear state for previous give operation */
 function resetGiveLotusResult() {
-  giveLotusTxid.value = null
-  giveLotusError.value = null
+  giveTxid.value = null
+  giveError.value = null
 }
 /** Reset entire form */
 function resetForm() {
@@ -97,11 +92,11 @@ async function giveLotus() {
   })
   // processing is done, but keep form data if there was an error
   if (!isSha256(txidOrError)) {
-    giveLotusError.value = txidOrError
+    giveError.value = txidOrError
     processing.value = false
     return
   }
-  giveLotusTxid.value = txidOrError
+  giveTxid.value = txidOrError
   resetForm()
 }
 /**
@@ -114,24 +109,15 @@ async function openScanner() {
   const videoTracks = device.getVideoTracks()
   videoTracks.map(track => console.log(track))
 }
-/**
- * Vue lifecycle hooks
- */
-onMounted(async () => {
-  // ask the wallet if UTXO consolidation is needed
-  needsUtxoConsolidation.value = await sendMessage(
-    'popup:needsUtxoConsolidation',
-    undefined,
-  )
-})
 </script>
 
 <template>
   <div class="py-2 px-6">
-    <FwbHeading color="dark:text-white" tag="h4"> Give Lotus </FwbHeading>
-    <LoadingSpinnerMessage v-if="!initialized" message="Loading wallet..." />
-    <GiveLotusConsolidateWalletForm v-else-if="needsUtxoConsolidation" />
+    <FwbHeading color="dark:text-white" tag="h4">Give Lotus</FwbHeading>
+    <GiveLotusEmptyWallet v-if="spendableBalance === '0'" />
+    <!-- <GiveLotusConsolidateWallet v-else-if="needsUtxoConsolidation" /> -->
     <template v-else>
+      <!-- Friend's Lotus address -->
       <div class="py-2 flex">
         <div class="flex-grow">
           <FwbInput v-model="outAddress" :disabled="processing" :validation-status="outAddressValidationStatus"
@@ -151,33 +137,37 @@ onMounted(async () => {
           </FwbInput>
         </div>
       </div>
-      <div class="py-2">
-        <FwbInput v-model="outValue" :disabled="processing" :validation-status="outValueValidationStatus"
-          label="Amount of Lotus to Give" type="number">
-          <template #suffix>
-            <FwbButton disabled color="pink" :outline="true" size="md"
-              class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400">
-              Give All
-            </FwbButton>
-          </template>
-        </FwbInput>
+      <!-- Amount of Lotus to Give -->
+      <div class="py-2 flex">
+        <div class="flex-grow">
+          <FwbInput v-model="outValue" :disabled="processing" :validation-status="outValueValidationStatus"
+            label="Amount of Lotus to Give" type="number">
+            <template #suffix>
+              <FwbButton disabled color="pink" :outline="true" size="md"
+                class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400">
+                Give All
+              </FwbButton>
+            </template>
+          </FwbInput>
+        </div>
       </div>
+      <!-- Give Now button and spendable balance -->
       <div class="py-2 flex justify-between items-center">
         <div>
           <FwbButton color="pink" size="sm" :disabled="!isInputDataValid || processing" :outline="true"
             @click="giveLotus">
             Give Now</FwbButton>
         </div>
-        <div>
-          <span class="text-sm text-pink-500 dark:text-pink-300">
-            {{ spendableBalanceXPI }}.<span class="text-xs text-pink-500 dark:text-pink-300">{{ spendableBalanceDecimal
-            }}</span>
+        <div class="text-pink-500 dark:text-pink-300">
+          <span class="text-sm">
+            {{ spendableBalanceXPI }}.<span class="text-xs">{{ spendableBalanceDecimal }}</span>
             XPI spendable
           </span>
         </div>
       </div>
+      <!-- Loading spinner and result -->
       <LoadingSpinnerMessage v-show="processing" message="Processing..." />
-      <GiveLotusResult :txid="giveLotusTxid" :error="giveLotusError" @reset="resetGiveLotusResult" />
+      <GiveLotusResult :txid="giveTxid" :error="giveError" @reset="resetGiveLotusResult" />
     </template>
   </div>
 </template>
