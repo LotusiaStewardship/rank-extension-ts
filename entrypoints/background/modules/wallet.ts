@@ -38,6 +38,7 @@ import {
   Message,
 } from '@abcpros/bitcore-lib-xpi'
 import { walletStore } from '@/entrypoints/background/stores'
+const { saveChainState, saveMutableWalletState, loadWalletState } = walletStore
 /**
  * Local types
  */
@@ -57,7 +58,9 @@ type EventData =
   | RankTransactionParams[]
   | undefined
 /** Messaging events between popup and background service worker */
-type EventProcessor = (data: EventData) => Promise<void | string | null>
+type EventProcessor = (
+  data: EventData,
+) => Promise<void | string | string[] | null>
 /** A queued `EventProcessor` that is scheduled to be resolved at next `processQueue` call */
 type PendingEventProcessor = [EventProcessor, EventData]
 /** Runtime queue to store `PendingEventProcessor` until they are called */
@@ -288,6 +291,9 @@ class WalletManager {
   }
   /** True if the UTXO cache is too big for all Lotus to be sent in a single transaction */
   get needsUtxoConsolidation(): boolean {
+    if (this.balance.total === '0') {
+      return false
+    }
     // craft a transaction with the full balance to see if it's too big
     const [tx] = this.craftSendTx(
       this.wallet.address,
@@ -353,7 +359,7 @@ class WalletManager {
    * @returns {Promise<void>} Promise that resolves when initialization is complete
    */
   async init(): Promise<void> {
-    const walletState = await walletStore.loadWalletState()
+    const walletState = await loadWalletState()
     if (!walletState) {
       throw new Error(
         'tried to initialize wallet, but no wallet state saved to localStorage',
@@ -383,7 +389,7 @@ class WalletManager {
     this.chronik = new ChronikClient(WALLET_CHRONIK_URL)
     this.scriptEndpoint = this.chronik.script('p2pkh', this.scriptPayload)
     this.ws = this.chronik.ws({
-      autoReconnect: false,
+      autoReconnect: true,
       onConnect: () =>
         console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.handleWsMessage,
@@ -407,7 +413,7 @@ class WalletManager {
     // reconcile wallet state by removing spent UTXOs and adding new UTXOs
     await this.resetUtxoCache()
     // Save mutable wallet state
-    await walletStore.saveMutableWalletState(this.mutableWalletState)
+    await saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
     await this.ws.waitForOpen()
     this.wsSubscribeP2PKH(this.scriptPayload)
@@ -447,7 +453,7 @@ class WalletManager {
   private updateChainState = async () => {
     const blockchainInfo = await this.chronik.blockchainInfo()
     this.chainState = blockchainInfo
-    return await walletStore.saveChainState(this.chainState)
+    return await saveChainState(this.chainState)
   }
   /**
    * Handle incoming websocket messages from Chronik
@@ -567,6 +573,18 @@ class WalletManager {
     return txid
   }
   /**
+   * Handles defragmenting the wallet's UTXO set (i.e. reducing the number of UTXOs)
+   * @returns {Promise<string[]>} The transaction IDs if successful, undefined otherwise
+   */
+  handlePopupDefragWallet: EventProcessor = async (): Promise<string[]> => {
+    // craft and send the consolidation tx
+    const { txids, spentInputs } = await this.consolidateUtxos()
+    // remove the spent inputs from the wallet's UTXO cache
+    this.reconcileSpentUtxos(spentInputs)
+    // return the txids
+    return txids
+  }
+  /**
    * Handles when a transaction is added to the mempool that pays to this wallet's address
    * @param data String containing the transaction ID (txid) of the mempool transaction
    * @returns void after updating the wallet's balance and UTXO cache if applicable
@@ -594,9 +612,7 @@ class WalletManager {
             isCoinbase: tx.isCoinbase,
           })
           // save mutable wallet state to localStorage and return
-          return await walletStore.saveMutableWalletState(
-            this.mutableWalletState,
-          )
+          return await saveMutableWalletState(this.mutableWalletState)
         }
       }
     }
@@ -618,7 +634,7 @@ class WalletManager {
         console.log(`RemovedFromMempool: removing utxo ${outpoint}`)
         this.wallet.utxos.delete(outpoint)
         // save mutable wallet state to localStorage and return
-        return await walletStore.saveMutableWalletState(this.mutableWalletState)
+        return await saveMutableWalletState(this.mutableWalletState)
       }
     }
   }
@@ -646,7 +662,7 @@ class WalletManager {
         })
         // save mutable wallet state to localStorage and return
         // we don't need to process any more outputs from the tx
-        return await walletStore.saveMutableWalletState(this.mutableWalletState)
+        return await saveMutableWalletState(this.mutableWalletState)
       }
     }
   }
@@ -666,7 +682,7 @@ class WalletManager {
       tipHash: blockHash,
     }
     // save blockchain state to localStorage and return
-    return await walletStore.saveChainState(this.chainState)
+    return await saveChainState(this.chainState)
   }
   /**
    * Reconciles the wallet's state by removing spent UTXOs and updating the balance
@@ -735,7 +751,7 @@ class WalletManager {
     this.balance.total = total.toString()
     this.balance.spendable = spendable.toString()
     // save mutable wallet state to localStorage
-    await walletStore.saveMutableWalletState(this.mutableWalletState)
+    await saveMutableWalletState(this.mutableWalletState)
   }
   /**
    * Resets the UTXO cache to the complete UTXO set from the Chronik API.

@@ -24,7 +24,9 @@ export default defineBackground({
      *  Register Event Handlers
      *
      */
-    /**  */
+    /**
+     * Register the extension instance with the Lotusia Stewardship
+     */
     instanceMessaging.onMessage(
       'popup:registerInstance',
       async ({ sender, data }) => {
@@ -48,14 +50,18 @@ export default defineBackground({
         }
       },
     )
-    /**  */
+    /**
+     * Load the signing key from the wallet manager
+     */
     walletMessaging.onMessage('popup:loadSigningKey', ({ sender }) => {
       validateMessageSender(sender.id)
       return walletManager.signingKey
     })
-    /**  */
+    /**
+     * Initialize the seed phrase for the wallet manager
+     */
     walletMessaging.onMessage(
-      'popup:seedPhrase',
+      'popup:initializeWallet',
       async ({ sender, data: seedPhrase }) => {
         validateMessageSender(sender.id)
         // if WalletManager is already initialized, deinitialize it
@@ -80,7 +86,9 @@ export default defineBackground({
         return walletManager.uiWalletState
       },
     )
-    /**  */
+    /**
+     * Load the wallet state from the wallet manager
+     */
     walletMessaging.onMessage('popup:loadWalletState', ({ sender }) => {
       try {
         validateMessageSender(sender.id)
@@ -89,6 +97,9 @@ export default defineBackground({
         console.error(e)
       }
     })
+    /**
+     * Check if the wallet needs to be consolidated
+     */
     walletMessaging.onMessage('popup:needsUtxoConsolidation', ({ sender }) => {
       try {
         validateMessageSender(sender.id)
@@ -98,7 +109,23 @@ export default defineBackground({
         return false
       }
     })
-    /**  */
+    /**
+     * Consolidate the wallet's UTXO set
+     */
+    walletMessaging.onMessage('popup:defragWallet', async ({ sender }) => {
+      try {
+        validateMessageSender(sender.id)
+        return (await walletManager.handlePopupDefragWallet(
+          undefined,
+        )) as string[]
+      } catch (e) {
+        console.error('error during "popup:consolidateWallet"', e)
+        return []
+      }
+    })
+    /**
+     * Send Lotus to an address
+     */
     walletMessaging.onMessage('popup:sendLotus', async ({ sender, data }) => {
       try {
         validateMessageSender(sender.id)
@@ -114,7 +141,9 @@ export default defineBackground({
         return e.message
       }
     })
-    /**  */
+    /**
+     * Submit a RANK vote
+     */
     walletMessaging.onMessage(
       'content-script:submitRankVote',
       async ({ sender, data }) => {
@@ -138,7 +167,9 @@ export default defineBackground({
         }
       },
     )
-    /**  */
+    /**
+     * Get the 20-byte P2PKH (scriptPayload) from the wallet manager
+     */
     walletMessaging.onMessage(
       'content-script:getScriptPayload',
       async ({ sender, data }) => {
@@ -153,7 +184,9 @@ export default defineBackground({
         }
       },
     )
-    /**  */
+    /**
+     * Load the seed phrase from the wallet manager
+     */
     walletMessaging.onMessage('popup:loadSeedPhrase', async ({ sender }) => {
       try {
         validateMessageSender(sender.id)
@@ -187,13 +220,12 @@ export default defineBackground({
      * @param senderId The ID of the message sender, usually extension ID
      * @returns {boolean} `true` if the message sender is valid, `false` otherwise
      */
-    function validateMessageSender(senderId?: string): boolean {
+    function validateMessageSender(senderId?: string): void {
       assert(senderId, 'there is no sender ID to validate, will not proceed')
       assert(
         senderId === browser.runtime.id,
         `sender ID "${senderId}" does not match our extension ID ${browser.runtime.id}`,
       )
-      return true
     }
 
     async function registerInstance(

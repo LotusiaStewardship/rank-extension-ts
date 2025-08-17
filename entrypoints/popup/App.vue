@@ -7,21 +7,17 @@ const windowWidth = shallowRef('')
 
 onMounted(() => {
   browser.extension
-    .getViews({
-      type: 'popup',
-    })
+    .getViews()
     .map(view => {
-      view.chrome.windows.getCurrent().then(window => {
-        console.log(window)
-        const isMobile = view.navigator.userAgent.match('Mobile')
-        if (isMobile) {
-          windowHeight.value = `${window.height!}px`
-          windowWidth.value = `${window.width!}px`
-        } else {
-          windowHeight.value = '600px'
-          windowWidth.value = '380px'
-        }
-      })
+      console.log(view)
+      const isMobile = view.navigator.userAgent.match('Mobile')
+      if (isMobile) {
+        windowHeight.value = `${view.innerHeight!}px`
+        windowWidth.value = `${view.innerWidth!}px`
+      } else {
+        windowHeight.value = '600px'
+        windowWidth.value = '380px'
+      }
     })
 })
 </script>

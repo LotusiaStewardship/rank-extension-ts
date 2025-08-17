@@ -24,12 +24,12 @@ import {
 /**
  * Local types
  */
-export type StorageWatcher =
-  | 'balance'
+export type StorageWatcher = 'balance'
 export type Page = 'home' | 'receive' | 'give' | 'settings'
 /**
- * Vue refs
+ * Constants
  */
+const { sendMessage } = walletMessaging
 /** Map of storage watchers */
 const watchers: Map<StorageWatcher, UnwatchFunction> = new Map()
 /** Current spendable Lotus balance */
@@ -41,6 +41,10 @@ const walletBalance = ref<WalletBalance>({
 const walletAddress = shallowRef('')
 /** Current Lotus scriptPayload for API calls */
 const walletScriptPayload = shallowRef('')
+/** Whether the wallet needs to be defragmented */
+const walletNeedsDefrag = shallowRef(true)
+/** Loading message */
+const loadingMessage = shallowRef('Initializing...')
 /** Which page to display */
 const activePage = shallowRef<Page>('home')
 /**
@@ -50,7 +54,8 @@ const activePage = shallowRef<Page>('home')
 const initialized = computed(() =>
   walletAddress.value &&
   walletBalance.value &&
-  walletScriptPayload.value
+  walletScriptPayload.value &&
+  !walletNeedsDefrag.value
 )
 /**
  * Vue prop drilling
@@ -82,9 +87,7 @@ onBeforeMount(() => {
   )
 })
 /**  */
-onMounted(() => {
-  walletSetup()
-})
+onMounted(initialize)
 
 /**
  * Functions
@@ -93,7 +96,34 @@ onMounted(() => {
  * Initializes the wallet by either using the provided seed phrase or generating a new one.
  * @param seedPhrase The optional seed phrase to use for wallet setup
  */
-async function walletSetup(seedPhrase?: string) {
+async function getWalletState(seedPhrase?: string): Promise<UIWalletState> {
+  // use the provided seed phrase to generate new walletState
+  if (seedPhrase) {
+    return await sendMessage(
+      'popup:initializeWallet',
+      seedPhrase,
+    )
+  }
+  // check for existing seed phrase
+  const hasSeedPhrase = await walletStore.hasSeedPhrase()
+  // if no seed phrase, generate new seed and build walletState
+  if (!hasSeedPhrase) {
+    return await sendMessage(
+      'popup:initializeWallet',
+      WalletBuilder.newMnemonic().toString() as string,
+    )
+  }
+  // load and return existing walletState
+  return await sendMessage(
+    'popup:loadWalletState',
+    undefined,
+  )
+}
+/**
+ * Applies the provided wallet state to the Vue refs for runtime operation
+ * @param walletState The wallet state containing script, address and balance info
+ */
+async function initialize(seedPhrase?: string): Promise<void> {
   // If we are already initialized, clear the values
   if (initialized.value) {
     walletScriptPayload.value = ''
@@ -105,42 +135,19 @@ async function walletSetup(seedPhrase?: string) {
     // set the active page to home
     activePage.value = 'home'
   }
-  // request the ui wallet state from the background
-  let walletState: UIWalletState
-  // use the provided seed phrase to generate new walletState
-  // apply this new walletState and return
-  if (seedPhrase) {
-    walletState = await walletMessaging.sendMessage(
-      'popup:seedPhrase',
-      seedPhrase,
-    )
-    return initialize(walletState)
-  }
-  // check for existing seed phrase
-  const hasSeedPhrase = await walletStore.hasSeedPhrase()
-  // if no seed phrase, generate new seed and build walletState
-  // apply this new walletState and return
-  if (!hasSeedPhrase) {
-    seedPhrase = WalletBuilder.newMnemonic().toString() as string
-    walletState = await walletMessaging.sendMessage(
-      'popup:seedPhrase',
-      seedPhrase,
-    )
-    return initialize(walletState)
-  }
-  // load and apply existing walletState and return
-  walletState = await walletMessaging.sendMessage(
-    'popup:loadWalletState',
+  const walletState = await getWalletState(seedPhrase)
+  // ask the wallet if UTXO consolidation is needed
+  // Repeat until the wallet is sufficiently defragmented
+  while (await sendMessage(
+    'popup:needsUtxoConsolidation',
     undefined,
-  )
-  return initialize(walletState)
-}
-/**
- * Applies the provided wallet state to the Vue refs for runtime operation
- * @param walletState The wallet state containing script, address and balance info
- */
-async function initialize(walletState: UIWalletState) {
-  // update reactive values with walletState
+  )) {
+    loadingMessage.value = 'Defragmenting wallet...'
+    const txids = await sendMessage('popup:defragWallet', undefined)
+    console.log('UTXO set has been consolidated in the following transactions:', txids)
+  }
+  // update reactive values to complete initialization
+  walletNeedsDefrag.value = false
   walletAddress.value = walletState.address
   walletBalance.value = walletState.balance
   walletScriptPayload.value = walletState.scriptPayload
@@ -151,22 +158,22 @@ async function initialize(walletState: UIWalletState) {
 -->
 <template>
 
-  <header class="flex-shrink-0">
+  <header class="shrink-0">
     <Header :total-balance="walletBalance.total" />
   </header>
   <main class="grow overflow-y-auto hidden-scrollbar">
-    <LoadingSpinnerMessage v-if="!initialized" message="Initializing..." />
+    <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
     <template v-else>
-      <div class="container mt-12 mb-12">
+      <div class="container">
         <HomePage v-if="activePage === 'home'" />
         <ReceiveLotusPage :address="walletAddress" v-else-if="activePage == 'receive'" />
         <GiveLotusPage :spendable-balance="walletBalance.spendable" v-else-if="activePage == 'give'" />
-        <SettingsPage @restore-seed-phrase="walletSetup" v-else-if="activePage == 'settings'" />
+        <SettingsPage @restore-seed-phrase="initialize" v-else-if="activePage == 'settings'" />
       </div>
     </template>
   </main>
-  <footer class="flex-shrink-0">
-    <Footer @active-page="activePage = $event" />
+  <footer class="shrink-0">
+    <Footer v-show="initialized" @active-page="activePage = $event" />
   </footer>
 </template>
 <!--

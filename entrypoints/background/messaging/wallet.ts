@@ -1,14 +1,15 @@
-import type { UIWalletState } from '@/entrypoints/background/stores'
 import { defineExtensionMessaging } from '@webext-core/messaging'
+import type { OutPoint } from 'chronik-client'
 import type { RankOutput } from 'rank-lib'
+import type { UIWalletState } from '@/entrypoints/background/stores'
 
 interface WalletMessaging {
-  'background:walletState': (walletState: UIWalletState) => void
   'popup:loadSigningKey': () => string
   'popup:loadSeedPhrase': () => string
-  'popup:seedPhrase': (seedPhrase: string) => Promise<UIWalletState>
   'popup:loadWalletState': () => UIWalletState
+  'popup:initializeWallet': (seedPhrase: string) => Promise<UIWalletState>
   'popup:needsUtxoConsolidation': () => boolean
+  'popup:defragWallet': () => Promise<string[]>
   'popup:sendLotus': ({
     outAddress,
     outValue,
