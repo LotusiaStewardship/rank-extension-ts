@@ -6,6 +6,28 @@ import type {
 } from '@/entrypoints/background/stores'
 import { HTTP } from './constants'
 
+/**
+ * Convert a positive and negative vote count to a minified percentage
+ * @param positive - The number of positive votes, in sats
+ * @param negative - The number of negative votes, in sats
+ * @returns The minified percentage
+ */
+export function toMinifiedPercent(positive: string, negative: string): number {
+  const positiveNum = BigInt(positive)
+  const negativeNum = BigInt(negative)
+  if (positiveNum === 0n && negativeNum === 0n) {
+    return 0
+  }
+  if (positiveNum === 0n && negativeNum > 0n) {
+    return 0
+  }
+  if (positiveNum > 0n && negativeNum === 0n) {
+    return 100
+  }
+  const total = positiveNum + negativeNum
+  const percent = (Number(positiveNum) / Number(total)) * 100
+  return percent
+}
 export const toXPI = (sats: string) =>
   (Number(sats) / 1_000_000).toLocaleString(undefined, {
     minimumFractionDigits: 2,

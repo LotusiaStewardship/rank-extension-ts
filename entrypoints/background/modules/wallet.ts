@@ -46,16 +46,20 @@ type SendTransactionParams = {
   outAddress: string
   outValue: number
 }
-type RankTransactionParams = {
+type RankOutput = {
   sentiment: ScriptChunkSentimentUTF8
   platform: ScriptChunkPlatformUTF8
   profileId: string
   postId?: string
 }
+type RankTransactionParams = {
+  ranks: RankOutput[]
+  voteAmountXPI: string
+}
 type EventData =
   | string
   | SendTransactionParams
-  | RankTransactionParams[]
+  | RankTransactionParams
   | undefined
 /** Messaging events between popup and background service worker */
 type EventProcessor = (
@@ -544,8 +548,9 @@ class WalletManager {
   handlePopupSubmitRankVote: EventProcessor = async (
     data: EventData,
   ): Promise<string> => {
+    const { ranks, voteAmountXPI } = data as RankTransactionParams
     // craft and send RANK tx
-    const [tx, spentInputs] = this.craftRankTx(data as RankTransactionParams[])
+    const [tx, spentInputs] = this.craftRankTx(ranks, voteAmountXPI)
     // send tx
     const txid = await this.broadcastTx(tx.toBuffer())
     // remove the spent inputs from the wallet's UTXO cache
@@ -917,7 +922,8 @@ class WalletManager {
    * @returns {Transaction} The crafted RANK transaction
    */
   private craftRankTx = (
-    ranks: RankTransactionParams[],
+    ranks: RankOutput[],
+    voteAmountXPI: string,
   ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
     // set some default tx params
@@ -927,7 +933,7 @@ class WalletManager {
     const paidRankOutput = ranks.shift()!
     tx.addOutput(
       this.craftRankOutput({
-        satoshis: RANK_OUTPUT_MIN_VALUE,
+        satoshis: toSatoshiUnits(voteAmountXPI),
         ...paidRankOutput,
       }),
     )
@@ -1161,4 +1167,4 @@ class WalletManager {
   }
 }
 
-export { WalletManager, WalletBuilder, WalletTools }
+export { WalletManager, WalletBuilder, WalletTools, UtxoCache }

@@ -1,12 +1,21 @@
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
-import { PostMeta, instanceStore } from '@/entrypoints/background/stores'
+import {
+  PostMeta,
+  ProfileMeta,
+  instanceStore,
+} from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
+import { settingsStore } from '@/entrypoints/background/stores/settings'
 import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
-import { toMinifiedNumber, isSha256 } from '@/utils/functions'
+import {
+  toMinifiedNumber,
+  isSha256,
+  toMinifiedPercent,
+} from '@/utils/functions'
 import {
   CACHE_POST_ENTRY_EXPIRE_TIME,
   ROOT_URL,
@@ -19,8 +28,6 @@ import './style.css'
  */
 /**  */
 type ProfileSentiment = ScriptChunkSentimentUTF8 | 'neutral'
-/** */
-type MutationType = 'added' | 'removed'
 /**  */
 type ParsedPostData = {
   profileId: string
@@ -32,17 +39,25 @@ type ParsedPostData = {
 type CachedPost = {
   profileId: string
   ranking: bigint
+  satsPositive: bigint
+  satsNegative: bigint
   votesPositive: number
   votesNegative: number
-  postMeta?: PostMeta
+  postMeta: PostMeta | null
+  profileMeta: ProfileMeta | null
   cachedAt: number // time inserted into cache
 }
 /** */
 type CachedProfile = {
   sentiment: ProfileSentiment
   ranking: bigint
+  /** Ratio of positive votes to negative votes */
+  voteRatio: string
+  satsPositive: bigint
+  satsNegative: bigint
   votesPositive: number
   votesNegative: number
+  cachedAt: number // time inserted into cache
 }
 /** */
 type CachedPostMap = Map<string, CachedPost> // string is postId
@@ -54,23 +69,26 @@ type RankAPIParams = {
   profileId: string
 }
 /** Profile ranking returned from RANK backend API */
-type IndexedRanking = RankAPIParams & {
+type IndexedProfileRanking = RankAPIParams & {
   ranking: string
+  satsPositive: string
+  satsNegative: string
   votesPositive: number
   votesNegative: number
+  profileMeta: ProfileMeta | null
 }
 /** Post ranking returned from RANK backend API */
-type IndexedPostRanking = IndexedRanking & {
-  profile: IndexedRanking
+type IndexedPostRanking = IndexedProfileRanking & {
+  profile: IndexedProfileRanking
   postId: string
-  postMeta?: PostMeta
+  postMeta: PostMeta | null
 }
 /** */
-type RankAPIResult = IndexedRanking | IndexedPostRanking
+type RankAPIResult = IndexedProfileRanking | IndexedPostRanking
 /** */
 type RankAPIErrorResult = {
   error: string
-  params: Partial<IndexedRanking>
+  params: Partial<IndexedProfileRanking>
 }
 type StateKey = 'postIdBusy' | 'postUpdateTimeout' | 'postUpdateInterval'
 type AvatarElementType = 'message' | 'other'
@@ -84,6 +102,14 @@ export default defineContentScript({
     /**
      *  Constants
      */
+    const SETTINGS = settingsStore.defaultExtensionSettings
+    SETTINGS.voteAmount = await settingsStore.voteAmountStorageItem.getValue()
+    SETTINGS.autoHideProfiles =
+      await settingsStore.autoHideProfilesStorageItem.getValue()
+    SETTINGS.autoHideThreshold.value =
+      await settingsStore.getAutoHideThresholdSatoshis()
+    SETTINGS.autoHideIfDownvoted =
+      await settingsStore.autoHideIfDownvotedStorageItem.getValue()
     const SELECTOR = Selector.Twitter
     const PARAMS = PLATFORMS['twitter']
     const SCRIPT_PAYLOAD = await walletMessaging.sendMessage(
@@ -91,15 +117,6 @@ export default defineContentScript({
       undefined,
     )
     console.log('our wallet ID for API requests:', SCRIPT_PAYLOAD)
-    const t0 = performance.now()
-    const POST_META_CACHE = await instanceStore.getPostMetaCache(
-      SCRIPT_PAYLOAD,
-      'twitter',
-    )
-    const t1 = (performance.now() - t0).toFixed(3)
-    console.log(
-      `loaded POST_META_CACHE with ${POST_META_CACHE.size} entries in ${t1}ms`,
-    )
     // TODO: try to remember why this was put here
     //const os = await instanceStore.getOs()
     /** */
@@ -148,6 +165,9 @@ export default defineContentScript({
               element.addClass('hidden')
               return
             }
+            // check if we should hide the post based on the profile's reputation
+            // This only works if the profile has been cached
+            processPostHideAction(element, profileId, postId)
           } catch (e) {
             // ignore processing errors for now; just continue to next element
             console.warn('failed to process post', e)
@@ -434,6 +454,27 @@ export default defineContentScript({
       setInterval(updateCachedPosts, CACHE_POST_ENTRY_EXPIRE_TIME),
     )
     /**
+     *  Storage watchers
+     */
+    settingsStore.voteAmountStorageItem.watch(async setting => {
+      console.log('voteAmount changed to', setting)
+      SETTINGS.voteAmount.value = setting.value
+    })
+    settingsStore.autoHideProfilesStorageItem.watch(async setting => {
+      console.log('autoHideProfiles changed to', setting)
+      SETTINGS.autoHideProfiles.value = setting.value
+    })
+    settingsStore.autoHideThresholdStorageItem.watch(async setting => {
+      console.log('autoHideThreshold changed to', setting)
+      SETTINGS.autoHideThreshold.value = toSatoshiUnits(
+        setting.value,
+      ).toString()
+    })
+    settingsStore.autoHideIfDownvotedStorageItem.watch(async setting => {
+      console.log('autoHideIfDownvoted changed to', setting)
+      SETTINGS.autoHideIfDownvoted.value = setting.value
+    })
+    /**
      *  Event Registrations
      */
     /*
@@ -548,31 +589,48 @@ export default defineContentScript({
       }
     }
     /**
-     *
-     * @param profileId
+     * Update the cached profile data for the given `profileId`
+     * @param profileId - The profile ID to update
+     * @param data - Optional profile rank data from a post update, otherwise fetch from API
+     * @returns The updated cached profile data
      */
     async function updateCachedProfile(
       profileId: string,
-      data?: RankAPIResult,
+      data?: IndexedProfileRanking,
+      saveProfileMeta?: boolean,
     ): Promise<CachedProfile> {
       // Use provied profile rank data from a post update, otherwise fetch from API
-      const result = data ?? (await fetchRankApiData(profileId))
-      const ranking = BigInt(result.ranking)
+      data ||= await fetchRankApiData(profileId)
       // set up profile cache data
-      const profileData = {} as CachedProfile
-      profileData.ranking = ranking
-      profileData.votesPositive = result.votesPositive
-      profileData.votesNegative = result.votesNegative
-      if (ranking > DEFAULT_RANK_THRESHOLD) {
-        profileData.sentiment = 'positive'
-      } else if (ranking < DEFAULT_RANK_THRESHOLD) {
-        profileData.sentiment = 'negative'
-      } else {
-        profileData.sentiment = 'neutral'
-      }
+      const profileData = {
+        ranking: BigInt(data.ranking),
+        satsPositive: BigInt(data.satsPositive),
+        satsNegative: BigInt(data.satsNegative),
+        votesPositive: data.votesPositive,
+        votesNegative: data.votesNegative,
+        cachedAt: Date.now(),
+      } as CachedProfile
+      // calculate the positive/negative vote ratio for the profile
+      profileData.voteRatio =
+        profileData.ranking === 0n
+          ? 'neutral'
+          : (
+              Math.floor(
+                toMinifiedPercent(data.satsPositive, data.satsNegative) / 10,
+              ) * 10
+            ).toString()
 
       PROFILE_CACHE.set(profileId, profileData)
-      return PROFILE_CACHE.get(profileId)!
+      // save updated metadata if avilable and specified to do so
+      if (data.profileMeta && saveProfileMeta) {
+        instanceStore.saveProfileMeta(
+          SCRIPT_PAYLOAD,
+          'twitter',
+          profileId,
+          data.profileMeta,
+        )
+      }
+      return profileData
     }
     /**
      * Check the timestamp of a cached post entry against current time. Returns `true`
@@ -580,13 +638,10 @@ export default defineContentScript({
      * @param timestamp
      * @returns
      */
-    function isPostExpired(cachedAt: number | undefined) {
+    function isCachedEntryExpired(cachedAt: number | undefined) {
       return cachedAt
         ? Date.now() - cachedAt > CACHE_POST_ENTRY_EXPIRE_TIME
         : true
-    }
-    function toPostMetaKey(profileId: string, postId: string) {
-      return `${profileId}:${postId}`
     }
     /**
      *
@@ -610,13 +665,22 @@ export default defineContentScript({
         POST_CACHE.set(postId, {
           profileId,
           ranking: BigInt(result.ranking),
+          satsPositive: BigInt(result.satsPositive),
+          satsNegative: BigInt(result.satsNegative),
           votesPositive: result.votesPositive,
           votesNegative: result.votesNegative,
           postMeta: result.postMeta,
+          profileMeta: result.profile.profileMeta,
           cachedAt: Date.now(),
         })
         // update cached profile with data received from API
-        await updateCachedProfile(profileId, result.profile)
+        await updateCachedProfile(
+          profileId,
+          result.profile,
+          // save updated profile metadata if available and specified to do so
+          result.profile.profileMeta !== null &&
+            isCachedEntryExpired(PROFILE_CACHE.get(profileId)?.cachedAt),
+        )
         // save updated metadata if avilable and specified to do so
         if (result.postMeta && setPostMeta) {
           instanceStore.setPostMeta(
@@ -646,7 +710,13 @@ export default defineContentScript({
         try {
           // update cached post with API data
           const cachedPost = await updateCachedPost(profileId, postId)
-          const { votesPositive, votesNegative, ranking, postMeta } = cachedPost
+          const {
+            votesPositive,
+            votesNegative,
+            ranking,
+            postMeta,
+            profileMeta,
+          } = cachedPost
           // set all available profile avatar badges accordingly
           processAvatarElements(
             DOCUMENT_ROOT.find(
@@ -686,12 +756,11 @@ export default defineContentScript({
           // check if post can be blurred, and then do so if necessary
           const article = voteButtons.closest('article')
           if (article.length) {
-            processPostBlurAction(
-              article.parent().parent(),
-              profileId,
-              postId,
-              ranking,
-            )
+            const div = article.parent().parent()
+            // if post is hidden, don't blur it
+            if (!processPostHideAction(div, profileId, postId, profileMeta)) {
+              processPostBlurAction(div, profileId, postId, ranking)
+            }
           }
           return [postId, cachedPost]
         } catch (e) {
@@ -725,7 +794,7 @@ export default defineContentScript({
       else if (elementWidth <= 32) {
         newClassName = `notification-avatar-reputation`
       }
-      // ~32px: e.g. profile avatars on timeline posts
+      // ~40px: e.g. profile avatars on timeline posts
       // ~64px: e.g. post avatar popover (i.e. mouseover avatar)
       else if (elementWidth <= 64) {
         newClassName = `avatar-reputation`
@@ -750,7 +819,7 @@ export default defineContentScript({
       type?: AvatarElementType,
     ) {
       // Parse elements for unique profileIds and collect associated avatar elements
-      const map: Map<string, JQuery<HTMLElement>[]> = new Map()
+      const avatars: Map<string, JQuery<HTMLElement>[]> = new Map()
       switch (type) {
         case 'message': {
           // we are only interested in a single avatar element and profileId
@@ -771,56 +840,56 @@ export default defineContentScript({
             .replace('https://twitter.com', '')
             .split('/')[1]
           // only proceed with setting badge if setting new reputation
+          const voteRatio = avatarDiv.attr('data-vote-ratio')
           if (
-            avatarDiv.attr('data-sentiment') &&
-            avatarDiv.attr('data-sentiment') ==
-              PROFILE_CACHE.get(profileId)?.sentiment
+            voteRatio !== undefined &&
+            voteRatio == PROFILE_CACHE.get(profileId)?.voteRatio
           ) {
             return
           }
-          map.set(profileId, [avatarDiv])
+          avatars.set(profileId, [avatarDiv])
           break
         }
         // most avatar elements don't need special handling to find profileId
         default: {
-          elements.each((index, avatar) => {
+          elements.each((_index, avatar) => {
             const avatarDiv = $(avatar)
             const profileId = avatarDiv.attr('data-testid')!.split('-').pop()!
             // only proceed with setting badge if setting new reputation
+            const voteRatio = avatarDiv.attr('data-vote-ratio')
             if (
-              avatarDiv.attr('data-sentiment') &&
-              avatarDiv.attr('data-sentiment') ==
-                PROFILE_CACHE.get(profileId)?.sentiment
+              voteRatio !== undefined &&
+              voteRatio == PROFILE_CACHE.get(profileId)?.voteRatio
             ) {
               return
             }
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            map.get(profileId)?.push(avatarDiv) ??
-              map.set(profileId, [avatarDiv])
+            avatars.get(profileId)?.push(avatarDiv) ??
+              avatars.set(profileId, [avatarDiv])
           })
           break
         }
       }
       // process all elements that were found
-      map.forEach(async (avatars, profileId) => {
-        try {
-          // set the badge on each avatar element that was found for this profile
-          avatars.forEach(async avatar => {
-            // get cached profile data or fetch from API, then get sentiment value
-            const sentiment = (
-              PROFILE_CACHE.get(profileId) ??
-              (await updateCachedProfile(profileId))
-            ).sentiment
+      avatars.forEach(async (avatars, profileId) => {
+        // set the badge on each avatar element that was found for this profile
+        avatars.forEach(async avatar => {
+          // get cached profile data or fetch from API, then get sentiment value
+          const voteRatio = (
+            PROFILE_CACHE.get(profileId) ??
+            (await updateCachedProfile(profileId))
+          ).voteRatio
+          try {
             // set data-sentiment attribute on the avatar div element for CSS class
-            avatar.attr('data-sentiment', sentiment)
+            //avatar.attr('data-sentiment', sentiment)
+            avatar.attr('data-vote-ratio', voteRatio)
             // set the appropriate CSS class for the element width
             setProfileAvatarBadge(avatar)
-          })
-        } catch (e) {
-          // warn and skip
-          console.warn('failed to set avatar badge', profileId, avatars, e)
-          return
-        }
+          } catch (e) {
+            // warn and skip
+            console.warn('failed to set avatar badge', profileId, avatar, e)
+          }
+        })
       })
     }
     /**
@@ -845,9 +914,12 @@ export default defineContentScript({
         // TODO: validate the data we parsed
 
         // load cached post metadata if we have it
-        const cachedPostMeta = POST_META_CACHE.get(
-          toPostMetaKey(profileId, postId),
-        )!
+        const cachedPostMeta = await instanceStore.getPostMeta(
+          SCRIPT_PAYLOAD,
+          'twitter',
+          profileId,
+          postId,
+        )
         // mutate button row to add vote buttons
         const [upvoteButton, downvoteButton] = mutateButtonRowElement(
           element,
@@ -856,8 +928,8 @@ export default defineContentScript({
           cachedPostMeta,
         )
         // use cached post data if it's available, otherwise fetch and cache post data
-        const { votesPositive, votesNegative, ranking, postMeta } =
-          !isPostExpired(POST_CACHE.get(postId)?.cachedAt)
+        const { votesPositive, votesNegative, ranking, postMeta, profileMeta } =
+          !isCachedEntryExpired(POST_CACHE.get(postId)?.cachedAt)
             ? POST_CACHE.get(postId)!
             : await updateCachedPost(profileId, postId, true)
         // update post vote buttons after fetching updated post data from API
@@ -888,12 +960,10 @@ export default defineContentScript({
         // some button rows are part of post elements (i.e. have parent article element)
         const article = element.closest('article')
         if (article.length) {
-          processPostBlurAction(
-            article.parent().parent(),
-            profileId,
-            postId,
-            ranking,
-          )
+          const div = article.parent().parent()
+          if (!processPostHideAction(div, profileId, postId, profileMeta)) {
+            processPostBlurAction(div, profileId, postId, ranking)
+          }
         }
         // some button rows (e.g. mediaViewer on mobile) have profile avatars
         //await processAvatarElements(element.find(SELECTOR.Article.div.profileAvatar))
@@ -1029,15 +1099,47 @@ export default defineContentScript({
      * @param postId
      * @param reason
      */
-    function handlePostHideAction(
+    function processPostHideAction(
+      element: JQuery<HTMLElement>,
       profileId: string,
       postId: string,
-      reason: string,
-    ) {
-      console.log(
-        `hiding post with ID ${postId} from profile ${profileId} (${reason})`,
-      )
-      // TODO: add jQuery for getting the div['cellInnerDiv'] element
+      profileMeta?: ProfileMeta | null,
+    ): boolean {
+      // post is aleady hidden, so don't do it again
+      if (element.hasClass('hidden')) {
+        return true
+      }
+      // if we are on the profile page, don't hide the post
+      if (window.location.pathname.includes(profileId)) {
+        return false
+      }
+      // proceed further if auto hide profiles is enabled
+      if (SETTINGS.autoHideProfiles.value === 'true') {
+        // get cached profile data
+        const profile = PROFILE_CACHE.get(profileId)
+        // if profile is cached and reputation is below threshold, proceed further
+        if (
+          profile &&
+          profile.ranking < BigInt(SETTINGS.autoHideThreshold.value)
+        ) {
+          // check saved profileMeta if auto hide if downvoted is enabled
+          // then check if we haven't downvoted this profile
+          if (SETTINGS.autoHideIfDownvoted.value === 'true') {
+            // if we haven't downvoted this profile, don't hide the post
+            if (profileMeta?.hasWalletDownvoted !== true) {
+              return false
+            }
+          }
+          console.log(
+            `auto-hiding post ${profileId}/${postId} (profile reputation below threshold)`,
+          )
+          element.addClass('hidden')
+          return true
+        }
+      }
+      // If we didn't hide the post, make sure it is shown and return false
+      element.removeClass('hidden')
+      return false
     }
     /**
      *
@@ -1145,7 +1247,7 @@ export default defineContentScript({
         console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
         const txidOrError = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
-          ranks,
+          { ranks, voteAmountXPI: SETTINGS.voteAmount.value },
         )
         if (!isSha256(txidOrError)) {
           throw new Error(txidOrError)
@@ -1196,12 +1298,11 @@ export default defineContentScript({
           // handle post blurring
           const article = button.closest('article')
           if (article.length) {
-            processPostBlurAction(
-              article.parent().parent(),
-              profileId,
-              postId,
-              ranking,
-            )
+            const div = article.parent().parent()
+            // if post is hidden, don't blur it
+            if (!processPostHideAction(div, profileId, postId)) {
+              processPostBlurAction(div, profileId, postId, ranking)
+            }
           }
           // update all available avatar elements for this profile with appropriate reputation badge
           processAvatarElements(
@@ -1232,7 +1333,7 @@ export default defineContentScript({
      */
     async function processMutatedElement(
       element: JQuery<HTMLElement>,
-      mutationType: MutationType,
+      mutationType: 'added' | 'removed',
     ) {
       // don't process column/timeline elements or entire sections
       // helps to prevent unnecessary double processing
@@ -1323,7 +1424,7 @@ export default defineContentScript({
      */
     async function handldMutatedNode(
       mutation: HTMLElement,
-      mutationType: MutationType,
+      mutationType: 'added' | 'removed',
     ) {
       const element = $(mutation)
       if (!element.prop('outerHTML')) {

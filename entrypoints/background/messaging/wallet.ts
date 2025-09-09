@@ -18,7 +18,13 @@ interface WalletMessaging {
     outValue: number
   }) => Promise<string>
   'content-script:getScriptPayload': () => Promise<string>
-  'content-script:submitRankVote': (outputs: RankOutput[]) => Promise<string>
+  'content-script:submitRankVote': ({
+    ranks,
+    voteAmountXPI,
+  }: {
+    ranks: RankOutput[]
+    voteAmountXPI: string
+  }) => Promise<string>
 }
 
 const walletMessaging = defineExtensionMessaging<WalletMessaging>()
