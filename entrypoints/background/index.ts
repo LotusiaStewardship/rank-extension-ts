@@ -149,7 +149,7 @@ export default defineBackground({
       async ({ sender, data }) => {
         // get the first RANK output to log the vote
         // first output is the paid RANK output
-        const { platform, profileId, sentiment, postId } = data[0]
+        const { platform, profileId, sentiment, postId } = data.ranks[0]
         try {
           validateMessageSender(sender.id)
           const txid = (await walletManager.handlePopupSubmitRankVote(

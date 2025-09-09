@@ -25,9 +25,15 @@ type WxtStorageItem =
 
 export type PostMetaCacheKey = `postMetaCache:${ScriptChunkPlatformUTF8}`
 export type PostMetaCache = Map<string, PostMeta>
+export type ProfileMeta = {
+  hasWalletUpvoted: boolean
+  hasWalletDownvoted: boolean
+}
 export type PostMeta = {
   hasWalletUpvoted: boolean
   hasWalletDownvoted: boolean
+  satsUpvoted: string
+  satsDownvoted: string
   txidsUpvoted: string[]
   txidsDownvoted: string[]
 }
@@ -42,23 +48,16 @@ export type ExtensionInstance = {
   authorizationHeader?: string
 }
 
-export const DefaultExtensionInstance: ExtensionInstance = {
-  instanceId: '',
-  createdAt: '',
-  runtimeId: '',
-  startTime: '',
-  nonce: 0,
-  registered: false,
-}
-
 class InstanceStore {
   private wxtStorageItems: Record<keyof ExtensionInstance, WxtStorageItem>
   /** Key is in format: <platform>:<profileId>:<postId> */
   private postMetaCache: Map<string, PostMeta>
-  /** 20-byte, hex-encoded PKH of the active wallet address */
+  /** Key is in format: <platform>:<profileId> */
+  private profileMetaCache: Map<string, ProfileMeta>
 
   constructor() {
     this.postMetaCache = new Map()
+    this.profileMetaCache = new Map()
     this.wxtStorageItems = {
       instanceId: defineItem<WxtStorageValueString>(
         'local:instance:instanceId',
@@ -163,14 +162,12 @@ class InstanceStore {
     try {
       const storageKey = `instance:${scriptPayload}:postMetaCache:${platform}`
       const itemKeys = (await browser.storage.local.getKeys())
-        .filter((key: string) => key.includes(storageKey))
+        .filter((key: string) => key.startsWith(storageKey))
         .map(key => `local:${key}`) as `local:${string}`[]
       const items = await getItems(itemKeys)
       items.forEach(item => {
-        this.postMetaCache.set(
-          item.key.replace(`local:${storageKey}:`, ''),
-          item.value,
-        )
+        const key = item.key.replace(`local:${storageKey}:`, `${platform}:`)
+        this.postMetaCache.set(key, item.value)
       })
     } catch (e) {
       console.error(`getPostMetaCache:`, e)
@@ -237,7 +234,7 @@ class InstanceStore {
   }
   /**
    * Set the `PostMeta` data for the post according to `platform`, `profileId`, and `postId`
-   * @param platform - string value of type `ScriptChunkPlatformUTF8`
+   * @param platform - string value of type `ScriptChunkPlatformUTF8` (e.g. 'twitter')
    * @param profileId
    * @param postId
    * @param data
@@ -262,28 +259,108 @@ class InstanceStore {
     }
   }
   /**
-   * Get the `PostMeta` data for the post according to `platform`, `profileId`, and `postId`
+   * Get the `PostMeta` object for this post from in-memory cache or localStorage if not already loaded
    * @param platform - string value of type `ScriptChunkPlatformUTF8`
    * @param profileId
    * @param postId
    * @returns {Promise<PostMeta>}
    */
   async getPostMeta(
+    scriptPayload: string,
     platform: ScriptChunkPlatformUTF8,
     profileId: string,
     postId: string,
   ): Promise<PostMeta> {
-    return await getItem(
-      `local:instance:vote:${platform}:${profileId}:${postId}`,
+    const key = `${platform}:${profileId}:${postId}` as const
+    if (!this.postMetaCache.has(key)) {
+      await this.loadPostMeta(scriptPayload, key)
+    }
+    return this.postMetaCache.get(key) as PostMeta
+  }
+  /**
+   * Load the `PostMeta` object for the post into the `postMetaCache`
+   * @param scriptPayload - string value of the script payload
+   * @param key - string value of the key (platform:profileId:postId)
+   * @returns {Promise<void>}
+   */
+  private async loadPostMeta(
+    scriptPayload: string,
+    key: `${ScriptChunkPlatformUTF8}:${string}:${string}`,
+  ): Promise<void> {
+    const postMeta = await getItem(
+      `local:instance:${scriptPayload}:postMetaCache:${key}`,
       {
         fallback: {
           hasWalletUpvoted: false,
           hasWalletDownvoted: false,
+          satsUpvoted: '0',
+          satsDownvoted: '0',
           txidsUpvoted: [],
           txidsDownvoted: [],
         } as PostMeta,
       },
     )
+    this.postMetaCache.set(key, postMeta)
+  }
+  /**
+   * Set the `ProfileMeta` data for the profile according to `platform`, `profileId`
+   * @param platform - string value of type `ScriptChunkPlatformUTF8`
+   * @param profileId
+   * @param data
+   * @returns {Promise<void>}
+   */
+  async saveProfileMeta(
+    scriptPayload: string,
+    platform: ScriptChunkPlatformUTF8,
+    profileId: string,
+    data: ProfileMeta,
+  ): Promise<void> {
+    const storageKey = `instance:${scriptPayload}:profileMetaCache:${platform}`
+    try {
+      await setItem(`local:${storageKey}:${profileId}`, data)
+      this.profileMetaCache.set(`${profileId}`, data)
+      console.log(`saved profile ${platform}/${profileId} to localStorage`)
+    } catch (e) {
+      console.error(`saveProfileMeta: ${platform}/${profileId}: ${e}`)
+    }
+  }
+  /**
+   * Get the `ProfileMeta` object for this profile from in-memory cache or localStorage if not already loaded
+   * @param platform - string value of type `ScriptChunkPlatformUTF8`
+   * @param profileId - string value of the profileId (e.g. 'elonmusk')
+   * @returns {Promise<ProfileMeta>}
+   */
+  async getProfileMeta(
+    scriptPayload: string,
+    platform: ScriptChunkPlatformUTF8,
+    profileId: string,
+  ): Promise<ProfileMeta> {
+    const key = `${platform}:${profileId}` as const
+    if (!this.profileMetaCache.has(key)) {
+      await this.loadProfileMeta(scriptPayload, key)
+    }
+    return this.profileMetaCache.get(key) as ProfileMeta
+  }
+  /**
+   * Load the `ProfileMeta` object for the profile into the `profileMetaCache`
+   * @param scriptPayload - string value of the script payload
+   * @param key - string value of the key (platform:profileId)
+   * @returns {Promise<void>}
+   */
+  private async loadProfileMeta(
+    scriptPayload: string,
+    key: `${ScriptChunkPlatformUTF8}:${string}`,
+  ): Promise<void> {
+    const profileMeta = await getItem(
+      `local:instance:${scriptPayload}:profileMetaCache:${key}`,
+      {
+        fallback: {
+          hasWalletUpvoted: false,
+          hasWalletDownvoted: false,
+        } as ProfileMeta,
+      },
+    )
+    this.profileMetaCache.set(key, profileMeta)
   }
 }
 
