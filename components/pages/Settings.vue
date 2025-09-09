@@ -239,7 +239,7 @@ onMounted(() => {
               class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
               Saved</span>
           </div>
-          <fwb-input id="vote-amount" v-model="(voteAmount as string)" type="number" size="sm" min="1" step="1"
+          <fwb-input id="vote-amount" v-model="voteAmount" type="number" size="sm" min="1" step="1"
             placeholder="Enter vote amount in XPI" @blur="saveVoteAmount">
             <template #helper>
               <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
@@ -268,7 +268,7 @@ onMounted(() => {
                 threshold
               </fwb-p>
             </div>
-            <fwb-toggle color="purple" v-model="(autoHideProfiles as boolean)" @change="saveAutoHideProfiles" />
+            <fwb-toggle color="purple" v-model="autoHideProfiles" @change="saveAutoHideProfiles" />
           </div>
         </div>
 
@@ -282,7 +282,7 @@ onMounted(() => {
                 class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
                 Saved</span>
             </div>
-            <fwb-input id="auto-hide-threshold" v-model="(autoHideThreshold as string)" type="number"
+            <fwb-input id="auto-hide-threshold" v-model="autoHideThreshold" type="number"
               placeholder="Enter threshold amount in XPI" size="sm" @blur="saveAutoHideThreshold">
               <template #helper>
                 <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
@@ -310,7 +310,7 @@ onMounted(() => {
                   Low-value content will only be hidden if we have downvoted the profile with this Lotus wallet
                 </fwb-p>
               </div>
-              <fwb-toggle color="purple" v-model="(autoHideIfDownvoted as boolean)" @change="saveAutoHideIfDownvoted" />
+              <fwb-toggle color="purple" v-model="autoHideIfDownvoted" @change="saveAutoHideIfDownvoted" />
             </div>
           </div>
         </div>
