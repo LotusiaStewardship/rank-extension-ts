@@ -933,7 +933,7 @@ class WalletManager {
     const paidRankOutput = ranks.shift()!
     tx.addOutput(
       this.craftRankOutput({
-        satoshis: toSatoshiUnits(voteAmountXPI),
+        satoshis: Number(voteAmountXPI),
         ...paidRankOutput,
       }),
     )

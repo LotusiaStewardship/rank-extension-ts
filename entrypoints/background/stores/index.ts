@@ -11,4 +11,9 @@ export { settingsStore } from './settings'
 export type { Setting, SettingName, SettingType } from './settings'
 
 export { instanceStore } from './instance'
-export type { ExtensionInstance, PostMeta, ProfileMeta } from './instance'
+export type {
+  ExtensionInstance,
+  PostMeta,
+  ProfileMeta,
+  PostMetaCache,
+} from './instance'

@@ -136,8 +136,13 @@ class WalletStore {
       .scriptPayload as WxtStorageItemString
     await scriptPayloadItem.setValue(scriptPayload)
   }
+  /** 20-byte P2PKH script payload */
   async getScriptPayload() {
     return await this.wxtStorageItems.scriptPayload.getValue()
+  }
+  /** Popup UI and content script tracks changes to script payload */
+  get scriptPayloadStorageItem() {
+    return this.wxtStorageItems.scriptPayload
   }
   /** Popup UI tracks changes to balance */
   get balanceStorageItem() {
