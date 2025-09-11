@@ -114,12 +114,36 @@ class SettingsStore {
     return this.wxtStorageItems.autoHideIfDownvoted as WxtStorageItemObject
   }
   /**
+   * Get the `voteAmount` value
+   * @returns {string}
+   */
+  async getVoteAmountSatoshis(): Promise<string> {
+    const setting = await this.voteAmountStorageItem.getValue()
+    return toSatoshiUnits(setting.value).toString()
+  }
+  /**
+   * Get the `autoHideProfiles` value
+   * @returns {boolean}
+   */
+  async getAutoHideProfiles(): Promise<boolean> {
+    const setting = await this.autoHideProfilesStorageItem.getValue()
+    return setting.value === 'true'
+  }
+  /**
    * Get the `autoHideThreshold` value converted to satoshis
    * @returns {number}
    */
   async getAutoHideThresholdSatoshis(): Promise<string> {
     const setting = await this.autoHideThresholdStorageItem.getValue()
     return toSatoshiUnits(setting.value).toString()
+  }
+  /**
+   * Get the `autoHideIfDownvoted` value
+   * @returns {boolean}
+   */
+  async getAutoHideIfDownvoted(): Promise<boolean> {
+    const setting = await this.autoHideIfDownvotedStorageItem.getValue()
+    return setting.value === 'true'
   }
 }
 

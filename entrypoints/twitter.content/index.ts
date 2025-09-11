@@ -6,6 +6,7 @@ import {
   instanceStore,
 } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
+import { walletStore } from '@/entrypoints/background/stores/wallet'
 import { settingsStore } from '@/entrypoints/background/stores/settings'
 import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
@@ -102,20 +103,15 @@ export default defineContentScript({
     /**
      *  Constants
      */
-    const SETTINGS = settingsStore.defaultExtensionSettings
-    SETTINGS.voteAmount = await settingsStore.voteAmountStorageItem.getValue()
-    SETTINGS.autoHideProfiles =
-      await settingsStore.autoHideProfilesStorageItem.getValue()
-    SETTINGS.autoHideThreshold.value =
-      await settingsStore.getAutoHideThresholdSatoshis()
-    SETTINGS.autoHideIfDownvoted =
-      await settingsStore.autoHideIfDownvotedStorageItem.getValue()
     const SELECTOR = Selector.Twitter
     const PARAMS = PLATFORMS['twitter']
-    const SCRIPT_PAYLOAD = await walletMessaging.sendMessage(
-      'content-script:getScriptPayload',
-      undefined,
-    )
+    const SETTINGS = {
+      voteAmount: await settingsStore.getVoteAmountSatoshis(),
+      autoHideProfiles: await settingsStore.getAutoHideProfiles(),
+      autoHideThreshold: await settingsStore.getAutoHideThresholdSatoshis(),
+      autoHideIfDownvoted: await settingsStore.getAutoHideIfDownvoted(),
+    }
+    let SCRIPT_PAYLOAD = (await walletStore.getScriptPayload()) as string
     console.log('our wallet ID for API requests:', SCRIPT_PAYLOAD)
     // TODO: try to remember why this was put here
     //const os = await instanceStore.getOs()
@@ -456,23 +452,20 @@ export default defineContentScript({
     /**
      *  Storage watchers
      */
+    walletStore.scriptPayloadStorageItem.watch(async scriptPayload => {
+      SCRIPT_PAYLOAD = scriptPayload as string
+    })
     settingsStore.voteAmountStorageItem.watch(async setting => {
-      console.log('voteAmount changed to', setting)
-      SETTINGS.voteAmount.value = setting.value
+      SETTINGS.voteAmount = toSatoshiUnits(setting.value).toString()
     })
     settingsStore.autoHideProfilesStorageItem.watch(async setting => {
-      console.log('autoHideProfiles changed to', setting)
-      SETTINGS.autoHideProfiles.value = setting.value
+      SETTINGS.autoHideProfiles = setting.value === 'true'
     })
     settingsStore.autoHideThresholdStorageItem.watch(async setting => {
-      console.log('autoHideThreshold changed to', setting)
-      SETTINGS.autoHideThreshold.value = toSatoshiUnits(
-        setting.value,
-      ).toString()
+      SETTINGS.autoHideThreshold = toSatoshiUnits(setting.value).toString()
     })
     settingsStore.autoHideIfDownvotedStorageItem.watch(async setting => {
-      console.log('autoHideIfDownvoted changed to', setting)
-      SETTINGS.autoHideIfDownvoted.value = setting.value
+      SETTINGS.autoHideIfDownvoted = setting.value === 'true'
     })
     /**
      *  Event Registrations
@@ -572,10 +565,10 @@ export default defineContentScript({
     async function fetchRankApiData(
       profileId: string,
       postId?: string,
-      SCRIPT_PAYLOAD?: string,
+      scriptPayload?: string,
     ): Promise<RankAPIResult> {
       const apiPath = postId
-        ? `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}/${postId}/${SCRIPT_PAYLOAD}`
+        ? `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}/${postId}/${scriptPayload}`
         : `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}`
       try {
         const result = await fetch(apiPath)
@@ -631,6 +624,32 @@ export default defineContentScript({
         )
       }
       return profileData
+    }
+    /**
+     * Check if the profile can be hidden based on conditional factors
+     * @param profileId - The profile ID to check
+     * @param postId - The post ID to check
+     * @returns
+     */
+    function canPostBeHidden(profileId: string, postId: string) {
+      // check if we are viewing a post/thread
+      if (window.location.pathname.includes('/status/')) {
+        // if we are on the root post page, post can't be hidden
+        if (window.location.pathname.includes(postId)) {
+          return false
+        }
+        // get the root post of the thread
+        const rootPost = DOCUMENT_ROOT.find(SELECTOR.Article.div.tweet).first()
+        // if the OP of the thread is the profile we are checking, post can't be hidden
+        if (
+          rootPost.find(`div[data-testid="UserAvatar-Container-${profileId}"]`)
+            .length === 1
+        ) {
+          return false
+        }
+      }
+      // if we make it here, post can be hidden
+      return true
     }
     /**
      * Check the timestamp of a cached post entry against current time. Returns `true`
@@ -1114,21 +1133,23 @@ export default defineContentScript({
         return false
       }
       // proceed further if auto hide profiles is enabled
-      if (SETTINGS.autoHideProfiles.value === 'true') {
+      if (SETTINGS.autoHideProfiles) {
         // get cached profile data
         const profile = PROFILE_CACHE.get(profileId)
         // if profile is cached and reputation is below threshold, proceed further
-        if (
-          profile &&
-          profile.ranking < BigInt(SETTINGS.autoHideThreshold.value)
-        ) {
+        if (profile && profile.ranking < BigInt(SETTINGS.autoHideThreshold)) {
           // check saved profileMeta if auto hide if downvoted is enabled
           // then check if we haven't downvoted this profile
-          if (SETTINGS.autoHideIfDownvoted.value === 'true') {
+          if (SETTINGS.autoHideIfDownvoted) {
             // if we haven't downvoted this profile, don't hide the post
             if (profileMeta?.hasWalletDownvoted !== true) {
               return false
             }
+          }
+          // check if the post can be hidden
+          if (!canPostBeHidden(profileId, postId)) {
+            console.log(`post ${profileId}/${postId} cannot be hidden`)
+            return false
           }
           console.log(
             `auto-hiding post ${profileId}/${postId} (profile reputation below threshold)`,
@@ -1247,7 +1268,7 @@ export default defineContentScript({
         console.log(`casting ${sentiment} vote for ${profileId}/${postId}`)
         const txidOrError = await walletMessaging.sendMessage(
           'content-script:submitRankVote',
-          { ranks, voteAmountXPI: SETTINGS.voteAmount.value },
+          { ranks, voteAmountXPI: SETTINGS.voteAmount },
         )
         if (!isSha256(txidOrError)) {
           throw new Error(txidOrError)

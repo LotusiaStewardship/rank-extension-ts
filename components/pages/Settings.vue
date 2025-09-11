@@ -27,10 +27,10 @@ const existingSeedPhrase = shallowRef('')
 const restoreSeedPhrase = shallowRef('')
 const overwriteSeedPhrase = shallowRef(false)
 // Settings reactive properties
-const voteAmount = shallowRef<string | null>(null)
-const autoHideProfiles = shallowRef<boolean | null>(null)
-const autoHideThreshold = shallowRef<string | null>(null)
-const autoHideIfDownvoted = shallowRef<boolean | null>(null)
+const voteAmount = shallowRef<string>(DefaultExtensionSettings.voteAmount.value)
+const autoHideProfiles = shallowRef<boolean>(Boolean(DefaultExtensionSettings.autoHideProfiles.value))
+const autoHideThreshold = shallowRef<string>(DefaultExtensionSettings.autoHideThreshold.value)
+const autoHideIfDownvoted = shallowRef<boolean>(Boolean(DefaultExtensionSettings.autoHideIfDownvoted.value))
 const voteAmountError = shallowRef('')
 // Visual feedback indicators for saved settings
 const showVoteAmountSaved = shallowRef(false)
@@ -44,12 +44,11 @@ const isRestoreFormDataValid = computed(() => {
   return isRestoreSeedPhraseValid.value && overwriteSeedPhrase.value
 })
 const isRestoreSeedPhraseValid = computed(() => validateSeedPhrase(restoreSeedPhrase.value))
-const initialized = computed(() => (
+const initialized = computed(() =>
   voteAmount.value !== null &&
   autoHideProfiles.value !== null &&
   autoHideThreshold.value !== null &&
   autoHideIfDownvoted.value !== null
-)
 )
 /**
  * Functions
@@ -152,7 +151,7 @@ async function saveVoteAmount() {
     await settingsStore.voteAmountStorageItem.setValue({
       name: 'voteAmount',
       type: 'input',
-      value: voteAmount.value ?? DefaultExtensionSettings.voteAmount.value,
+      value: voteAmount.value,
     })
     showSavedIndicator(showVoteAmountSaved)
   } catch (error) {
@@ -168,7 +167,7 @@ async function saveAutoHideProfiles() {
     await settingsStore.autoHideProfilesStorageItem.setValue({
       name: 'autoHideProfiles',
       type: 'toggle',
-      value: autoHideProfiles.value?.toString() ?? DefaultExtensionSettings.autoHideProfiles.value,
+      value: autoHideProfiles.value?.toString(),
       subSettings: ['autoHideThreshold', 'autoHideIfDownvoted'],
     })
     showSavedIndicator(showAutoHideProfilesSaved)
@@ -184,7 +183,7 @@ async function saveAutoHideThreshold() {
     await settingsStore.autoHideThresholdStorageItem.setValue({
       name: 'autoHideThreshold',
       type: 'input',
-      value: autoHideThreshold.value ?? DefaultExtensionSettings.autoHideThreshold.value,
+      value: autoHideThreshold.value,
     })
     showSavedIndicator(showAutoHideThresholdSaved)
   } catch (error) {
@@ -199,7 +198,7 @@ async function saveAutoHideIfDownvoted() {
     await settingsStore.autoHideIfDownvotedStorageItem.setValue({
       name: 'autoHideIfDownvoted',
       type: 'toggle',
-      value: autoHideIfDownvoted.value?.toString() ?? DefaultExtensionSettings.autoHideIfDownvoted.value,
+      value: autoHideIfDownvoted.value?.toString(),
     })
     showSavedIndicator(showAutoHideIfDownvotedSaved)
   } catch (error) {

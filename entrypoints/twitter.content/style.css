@@ -117,8 +117,8 @@
   &::after {
     left: 0%;
     top: 0%;
-    height: 22%;
-    width: 22%;
+    height: 24%;
+    width: 24%;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.09rem solid black;
@@ -273,10 +273,10 @@
 .profile-avatar-reputation {
   position: relative;
   &::after {
-    left: 5%;
-    top: 5%;
-    height: 16%;
-    width: 16%;
+    left: 3.75%;
+    top: 3.75%;
+    height: 17%;
+    width: 17%;
     /* background-size: 0.4rem 0.4rem; */
     border-radius: 50%;
     border: 0.15em solid black;
