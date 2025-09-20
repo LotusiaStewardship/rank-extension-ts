@@ -116,13 +116,13 @@
   .avatar-reputation {
     position: relative;
     &::after {
-      left: -1.5%;
-      top: -1.5%;
+      left: 1%;
+      top: 1%;
       height: 20%;
       width: 20%;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
-      border: 0.09rem solid black;
+      border: 0.1em solid black ;
       content: '';
       position: absolute;
     }
@@ -195,13 +195,13 @@
   .notification-avatar-reputation {
     position: relative;
     &::after {
-      left: 0%;
-      top: 0%;
-      height: 8px;
-      width: 8px;
+      left: -0.05rem;
+      top: -0.05rem;
+      height: 0.5em;
+      width: 0.5em;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
-      border: 0.08rem solid black;
+      border: 0.1rem solid black;
       content: '';
       position: absolute;
     }
@@ -274,10 +274,10 @@
   .profile-avatar-reputation {
     position: relative;
     &::after {
-      left: 3.75%;
-      top: 3.75%;
-      height: 16%;
-      width: 16%;
+      left: 0.5em;
+      top: 0.5em;
+      height: 1.1em;
+      width: 1.1em;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
       border: 0.15em solid black;
@@ -465,13 +465,13 @@
   .avatar-reputation {
     position: relative;
     &::after {
-      left: -1.5%;
-      top: -1.5%;
+      left: 1%;
+      top: 1%;
       height: 20%;
       width: 20%;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
-      border: 0.09rem solid white;
+      border: 0.1em solid white;
       content: '';
       position: absolute;
     }
@@ -544,13 +544,13 @@
   .notification-avatar-reputation {
     position: relative;
     &::after {
-      left: 0%;
-      top: 0%;
-      height: 8px;
-      width: 8px;
+      left: -0.05rem;
+      top: -0.05rem;
+      height: 0.5em;
+      width: 0.5em;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
-      border: 0.08rem solid white;
+      border: 0.1rem solid white;
       content: '';
       position: absolute;
     }
@@ -623,10 +623,10 @@
   .profile-avatar-reputation {
     position: relative;
     &::after {
-      left: 3.75%;
-      top: 3.75%;
-      height: 16%;
-      width: 16%;
+      left: 0.5em;
+      top: 0.5em;
+      height: 1.1em;
+      width: 1.1em;
       /* background-size: 0.4rem 0.4rem; */
       border-radius: 50%;
       border: 0.15em solid white;
