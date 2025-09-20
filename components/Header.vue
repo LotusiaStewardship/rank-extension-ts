@@ -16,7 +16,7 @@ const props = defineProps<{
     </div>
     <div class="flex-grow absolute right-0 balance">
       <span
-        class="bg-gray-100 text-pink-500 text-md font-medium me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300">{{
+        class="bg-gray-100 text-pink-600 text-md font-bold me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300">{{
           toMinifiedNumber(props.totalBalance, 1_000_000) }}&nbsp;XPI</span>
     </div>
   </div>

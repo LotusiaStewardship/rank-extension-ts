@@ -42,7 +42,7 @@ async function copyAddressToClipboard() {
 </script>
 <template>
   <div class="py-2 px-6">
-    <FwbHeading class="pb-2" color="dark:text-white" tag="h4">
+    <FwbHeading class="pb-2" tag="h4">
       Receive Lotus
     </FwbHeading>
     <FwbP>
@@ -65,7 +65,7 @@ async function copyAddressToClipboard() {
           :background-options="options.backgroundOptions" />
         <!-- Copy success indicator -->
         <div v-if="showCopiedIndicator" class="copy-indicator absolute inset-0 flex items-center justify-center">
-          <span class="text-sm text-green-200 dark:text-green-200 font-medium">✓
+          <span class="text-sm text-green-300 dark:text-green-300 font-medium">✓
             Address copied!</span>
         </div>
       </div>

@@ -1,8 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{
-  stroke?: 'pink'
-}>()
-const stroke = props.stroke ?? 'pink'
+const strokeColor = inject('strokeColor') as ComputedRef<string>
 </script>
 <template>
   <svg
@@ -15,7 +12,7 @@ const stroke = props.stroke ?? 'pink'
     viewBox="0 0 24 24"
   >
     <path
-      :stroke="stroke"
+      :stroke="strokeColor"
       stroke-linecap="round"
       stroke-linejoin="round"
       stroke-width="2"
