@@ -4,7 +4,27 @@ import MainLayout from '@/components/layouts/Main.vue'
 const windowHeight = shallowRef('')
 /** Width of the popup window, in pixels */
 const windowWidth = shallowRef('')
-
+/**
+ * Vue computed properties
+ */
+/** True if the system is in dark mode, false otherwise */
+const isDarkMode = computed({
+  get: () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  set: (colorScheme) => {
+    isDarkMode.value = colorScheme
+  }
+})
+/** The color of the stroke for the icons */
+const strokeColor = computed(() => {
+  return isDarkMode.value ? '#ff88b0' : '#c6005c'
+})
+/** Vue injectables */
+provide('isDarkMode', isDarkMode)
+provide('strokeColor', strokeColor)
+/**
+ * Vue lifecycle hooks
+ */
+/**  */
 onMounted(() => {
   browser.extension
     .getViews()
@@ -23,7 +43,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="popup-container w-full h-full bg-gray-200 dark:bg-gray-800 flex flex-col">
+  <div class="popup-container w-full h-full bg-white dark:bg-gray-800 flex flex-col text-gray-800 dark:text-white">
     <MainLayout />
   </div>
 </template>

@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
             <FwbHeading tag="h6" title="total">+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
               }}&nbsp;XPI</FwbHeading>
-            <fwb-p style="color: pink">{{
+            <fwb-p class="text-pink-600 dark:text-pink-300">{{
               toMinifiedNumber(total.ranking, 1_000_000)
               }}&nbsp;XPI</fwb-p>
           </div>
@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
             <FwbHeading tag="h6" title="total">+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
               }}&nbsp;XPI</FwbHeading>
-            <fwb-p style="color: pink">{{
+            <fwb-p class="text-pink-600 dark:text-pink-300">{{
               toMinifiedNumber(total.ranking, 1_000_000)
               }}&nbsp;XPI</fwb-p>
           </div>
