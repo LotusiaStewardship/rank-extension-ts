@@ -8,6 +8,6 @@ const props = defineProps<{
 <template>
   <div class="flex justify-center items-center py-4">
     <FwbSpinner color="pink" size="6" />
-    <span class="font-medium text-xl text-gray-800 dark:text-gray-200 ml-2">{{ props.message }}</span>
+    <span class="font-medium text-xl text-gray-800 dark:text-gray-300 ml-2">{{ props.message }}</span>
   </div>
 </template>
