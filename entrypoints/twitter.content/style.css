@@ -157,10 +157,10 @@
 /** Post avatars */
 .avatar-reputation {
   &::after {
-    left: 0%;
-    top: 0%;
-    height: 22%;
-    width: 22%;
+    left: 1.5%;
+    top: 1.5%;
+    height: 24%;
+    width: 24%;
     outline: 0.1rem solid;
   }
 }
@@ -205,6 +205,18 @@
   }
 }
 
+@media (prefers-color-scheme: dark) {
+  div[class*='avatar-reputation']::after {
+    outline-color: black;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  div[class*='avatar-reputation']::after {
+    outline-color: white;
+  }
+}
+
 /** Avatar reputation badge colors */
 div[class*='avatar-reputation'] {
   position: relative;
@@ -212,13 +224,6 @@ div[class*='avatar-reputation'] {
     border-radius: 50%;
     content: '';
     position: absolute;
-
-    @media (prefers-color-scheme: dark) {
-      outline-color: black;
-    }
-    @media (prefers-color-scheme: light) {
-      outline-color: white;
-    }
   }
 
   &[data-vote-ratio='100'] {
