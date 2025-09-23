@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025 The Lotusia Stewardship
+ * Github: https://github.com/LotusiaStewardship
+ * License: MIT
+ */
 @media (prefers-color-scheme: dark) {
   :root {
     /** Colors taken from: https://tailwindcss.com/docs/colors */
@@ -17,336 +22,7 @@
     /** Neutral sentiment values */
     --sentiment-neutral: rgb(184, 193, 219);
   }
-  
-  .hidden {
-    display: none !important;
-    opacity: 0;
-  }
-  
-  .upvote-button[aria-label*='Upvoted'] {
-    & > div {
-      color: var(--sentiment-100) !important;
-    }
-  }
-  
-  .upvote-button:hover {
-    & > div {
-  
-      color: var(--sentiment-100) !important;
-    }
-    & div:has(+ svg) {
-      background-color: rgba(0, 186, 124, 0.1) !important;
-      color: var(--sentiment-100) !important;
-    }
-  }
-  
-  .downvote-button[aria-label*='Downvoted'] {
-    & > div {
-      color: var(--sentiment-0) !important;
-    }
-  }
-  
-  .downvote-button:hover {
-    & > div {
-      color: var(--sentiment-0) !important;
-    }
-    & div:has(+ svg) {
-      background-color: rgba(186, 37, 0, 0.1) !important;
-      color: var(--sentiment-0) !important;
-    }
-  }
-  
-  .blurred {
-    & > div {
-      overflow: hidden !important;
-      pointer-events: none !important;
-      background-color: black !important;
-      border: 1px inherit solid;
-      opacity: 75%;
-      filter: blur(0.35rem);
-      & div:has(> img),
-      div[data-testid='videoPlayer'] {
-        filter: blur(1.15rem) grayscale(100%) !important;
-      }
-      /*
-      & div[aria-labelledby]:has(div[data-testid='videoPlayer']),
-      div[aria-labelledby]:has(div[data-testid='tweetPhoto']),
-      div[data-testid='birdwatch-pivot'],
-      div[data-testid='tweetText'] {
-        display: none !important;
-        opacity: 0;
-      }
-      */
-    }
-    & > button {
-      width: 90%;
-      height: auto;
-      position: absolute;
-      opacity: 100% !important;
-      left: 5%;
-      top: 30%;
-      margin-left: 0% !important;
-      margin-top: 0% !important;
-      padding: 2%;
-      /*background-color: #6b0080;*/
-      background-color: black !important;
-      border-radius: 24px;
-      box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20 !important;
-      border: 1px solid #9aa5c7;
-      text-align: center;
-      vertical-align: middle;
-      &:hover {
-        cursor: pointer;
-      }
-      & > span {
-        font-weight: 400;
-        font-size: 15px;
-        color: #9aa5c7;
-        font-family:
-          TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-          'Open Sans', 'Helvetica Neue', sans-serif !important;
-      }
-    }
-  }
-  /**
-   *
-   * Post avatars
-   *
-   */
-  .avatar-reputation {
-    position: relative;
-    &::after {
-      left: -1%;
-      top: -1%;
-      height: 20%;
-      width: 20%;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.1em solid black ;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
-    }
-  }
-  /**
-   *
-   * Notification avatars
-   *
-   */
-  .notification-avatar-reputation {
-    position: relative;
-    &::after {
-      left: -0.05rem;
-      top: -0.05rem;
-      height: 0.5em;
-      width: 0.5em;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.1rem solid black;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
-    }
-  }
-  /**
-   *
-   * Profile avatars
-   *
-   */
-  .profile-avatar-reputation {
-    position: relative;
-    &::after {
-      left: 6%;
-      top: 6%;
-      height: 13.69%;
-      width: 13.69%;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.15em solid black;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
-    }
-  }
 }
-
 @media (prefers-color-scheme: light) {
   :root {
     /** Colors taken from: https://tailwindcss.com/docs/colors */
@@ -364,335 +40,256 @@
     --sentiment-10: rgb(251 44 54);
     --sentiment-0: rgb(251 44 54);
     /** Neutral sentiment values */
-    --sentiment-neutral: rgb(184, 193, 219);
+    --sentiment-neutral: rgb(119, 125, 142);
   }
-  
-  .hidden {
-    display: none !important;
-    opacity: 0;
+}
+/** Hide posts */
+.hidden {
+  display: none !important;
+  opacity: 0;
+}
+/** Upvote button */
+.upvote-button[aria-label*='Upvoted'] {
+  & > div {
+    color: var(--sentiment-100) !important;
   }
-  
-  .upvote-button[aria-label*='Upvoted'] {
+}
+/** Upvote button hover */
+.upvote-button:hover {
+  & > div {
+    color: var(--sentiment-100) !important;
+  }
+  & div:has(+ svg) {
+    background-color: rgba(0, 186, 124, 0.1);
+    color: var(--sentiment-100);
+  }
+}
+/** Downvote button */
+.downvote-button[aria-label*='Downvoted'] {
+  & > div {
+    color: var(--sentiment-0) !important;
+  }
+}
+/** Downvote button hover */
+.downvote-button:hover {
+  & > div {
+    color: var(--sentiment-0) !important;
+  }
+  & div:has(+ svg) {
+    background-color: rgba(186, 37, 0, 0.1);
+    color: var(--sentiment-0);
+  }
+}
+/** Blurred post */
+.blurred {
+  /** child div of .blurred */
+  & > div {
+    overflow: hidden;
+    pointer-events: none;
+    border: 1px inherit solid;
+    opacity: 75%;
+    filter: blur(0.35rem);
+    & div:has(> img),
+    div[data-testid='videoPlayer'] {
+      filter: blur(1.15rem) grayscale(100%);
+    }
+  }
+  /** child button of .blurred */
+  & > button {
+    width: 90%;
+    height: auto;
+    position: absolute;
+    opacity: 100%;
+    left: 5%;
+    top: 30%;
+    margin-left: 0%;
+    margin-top: 0%;
+    padding: 2%;
+    /*background-color: #6b0080;*/
+    border-radius: 24px;
+    text-align: center;
+    vertical-align: middle;
+    &:hover {
+      cursor: pointer;
+    }
+    & > span {
+      font-weight: 400;
+      font-size: 15px;
+      font-family:
+        TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+        'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+  }
+}
+/** Light mode blurred post */
+.blurred-color {
+  @media (prefers-color-scheme: light) {
     & > div {
-      color: var(--sentiment-100) !important;
-    }
-  }
-  
-  .upvote-button:hover {
-    & > div {
-  
-      color: var(--sentiment-100) !important;
-    }
-    & div:has(+ svg) {
-      background-color: rgba(0, 186, 124, 0.1) !important;
-      color: var(--sentiment-100) !important;
-    }
-  }
-  
-  .downvote-button[aria-label*='Downvoted'] {
-    & > div {
-      color: var(--sentiment-0) !important;
-    }
-  }
-  
-  .downvote-button:hover {
-    & > div {
-      color: var(--sentiment-0) !important;
-    }
-    & div:has(+ svg) {
-      background-color: rgba(186, 37, 0, 0.1) !important;
-      color: var(--sentiment-0) !important;
-    }
-  }
-  
-  .blurred {
-    & > div {
-      overflow: hidden !important;
-      pointer-events: none !important;
-      background-color: white !important;
-      border: 1px inherit solid;
-      opacity: 75%;
-      filter: blur(0.35rem);
-      & div:has(> img),
-      div[data-testid='videoPlayer'] {
-        filter: blur(1.15rem) grayscale(100%) !important;
-      }
-      /*
-      & div[aria-labelledby]:has(div[data-testid='videoPlayer']),
-      div[aria-labelledby]:has(div[data-testid='tweetPhoto']),
-      div[data-testid='birdwatch-pivot'],
-      div[data-testid='tweetText'] {
-        display: none !important;
-        opacity: 0;
-      }
-      */
+      background-color: white;
     }
     & > button {
-      width: 90%;
-      height: auto;
-      position: absolute;
-      opacity: 100% !important;
-      left: 5%;
-      top: 30%;
-      margin-left: 0% !important;
-      margin-top: 0% !important;
-      padding: 2%;
-      /*background-color: #6b0080;*/
-      background-color: white !important;
-      border-radius: 24px;
-      box-shadow: 0rem 0rem 0.5rem 0.125rem #c8cacf !important;
-      border: 1px solid #484d5e;
-      text-align: center;
-      vertical-align: middle;
-      &:hover {
-        cursor: pointer;
-      }
+      box-shadow: 0rem 0rem 0.5rem 0.125rem #919cb9;
+      background-color: white;
+      border: 1px solid #2d313c;
       & > span {
-        font-weight: 400;
-        font-size: 15px;
-        color: #484d5e;
-        font-family:
-          TwitterChirp, system-ui, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-          'Open Sans', 'Helvetica Neue', sans-serif !important;
+        color: #2d313c;
       }
     }
   }
-  /**
-   *
-   * Post avatars
-   *
-   */
-  .avatar-reputation {
-    position: relative;
+}
+/** Dark mode blurred post */
+.dark\:blurred-color {
+  @media (prefers-color-scheme: dark) {
+    & > div {
+      background-color: black;
+    }
+    & > button {
+      box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20;
+      background-color: black;
+      border: 1px solid #9aa5c7;
+      & > span {
+        color: #9aa5c7;
+      }
+    }
+  }
+}
+
+/** Post avatars */
+.avatar-reputation {
+  &::after {
+    left: 0%;
+    top: 0%;
+    height: 22%;
+    width: 22%;
+    outline: 0.1rem solid;
+  }
+}
+/** Popup avatars */
+.popup-avatar-reputation {
+  &::after {
+    left: 1%;
+    top: 1%;
+    height: 20%;
+    width: 20%;
+    outline: 0.1rem solid;
+  }
+}
+/** Quote tweet avatars */
+.quote-tweet-avatar-reputation {
+  &::after {
+    left: 0%;
+    top: 0%;
+    height: 30%;
+    width: 30%;
+    outline: 0.15rem solid;
+  }
+}
+/** Notification avatars */
+.notification-avatar-reputation {
+  &::after {
+    left: 0%;
+    top: 0%;
+    height: 28%;
+    width: 28%;
+    outline: 0.1rem solid;
+  }
+}
+/** Profile avatars */
+.profile-avatar-reputation {
+  &::after {
+    left: 6%;
+    top: 6%;
+    height: 15%;
+    width: 15%;
+    outline: 0.15rem solid;
+  }
+}
+
+/** Avatar reputation badge colors */
+div[class*='avatar-reputation'] {
+  position: relative;
+  &::after {
+    border-radius: 50%;
+    content: '';
+    position: absolute;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: black;
+    }
+    @media (prefers-color-scheme: light) {
+      outline-color: white;
+    }
+  }
+
+  &[data-vote-ratio='100'] {
     &::after {
-      left: -1%;
-      top: -1%;
-      height: 18%;
-      width: 18%;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.1em solid white;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
+      background: var(--sentiment-100);
     }
   }
-  /**
-   *
-   * Notification avatars
-   *
-   */
-  .notification-avatar-reputation {
-    position: relative;
+
+  &[data-vote-ratio='90'] {
     &::after {
-      left: -0.05rem;
-      top: -0.05rem;
-      height: 0.5em;
-      width: 0.5em;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.1rem solid white;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
+      background: var(--sentiment-90);
     }
   }
-  /**
-   *
-   * Profile avatars
-   *
-   */
-  .profile-avatar-reputation {
-    position: relative;
+
+  &[data-vote-ratio='80'] {
     &::after {
-      left: 5%;
-      top: 5%;
-      height: 13.69%;
-      width: 13.69%;
-      /* background-size: 0.4rem 0.4rem; */
-      border-radius: 50%;
-      border: 0.15em solid white;
-      content: '';
-      position: absolute;
-    }
-    &[data-vote-ratio='100'] {
-      &::after {
-        background: var(--sentiment-100);
-      }
-    }
-    &[data-vote-ratio='90'] {
-      &::after {
-        background: var(--sentiment-90);
-      }
-    }
-    &[data-vote-ratio='80'] {
-      &::after {
-        background: var(--sentiment-80);
-      }
-    }
-    &[data-vote-ratio='70'] {
-      &::after {
-        background: var(--sentiment-70);
-      }
-    }
-    &[data-vote-ratio='60'] {
-      &::after {
-        background: var(--sentiment-60);
-      }
-    }
-    &[data-vote-ratio='50'] {
-      &::after {
-        background: var(--sentiment-50);
-      }
-    }
-    &[data-vote-ratio='40'] {
-      &::after {
-        background: var(--sentiment-40);
-      }
-    }
-    &[data-vote-ratio='30'] {
-      &::after {
-        background: var(--sentiment-30);
-      }
-    }
-    &[data-vote-ratio='20'] {
-      &::after {
-        background: var(--sentiment-20);
-      }
-    }
-    &[data-vote-ratio='10'] {
-      &::after {
-        background: var(--sentiment-10);
-      }
-    }
-    &[data-vote-ratio='0'] {
-      &::after {
-        background: var(--sentiment-0);
-      }
-    }
-    &[data-vote-ratio='neutral'] {
-      &::after {
-        background: var(--sentiment-neutral);
-      }
+      background: var(--sentiment-80);
     }
   }
-  
+
+  &[data-vote-ratio='70'] {
+    &::after {
+      background: var(--sentiment-70);
+    }
+  }
+
+  &[data-vote-ratio='60'] {
+    &::after {
+      background: var(--sentiment-60);
+    }
+  }
+
+  &[data-vote-ratio='50'] {
+    &::after {
+      background: var(--sentiment-50);
+    }
+  }
+
+  &[data-vote-ratio='40'] {
+    &::after {
+      background: var(--sentiment-40);
+    }
+  }
+
+  &[data-vote-ratio='30'] {
+    &::after {
+      background: var(--sentiment-30);
+    }
+  }
+
+  &[data-vote-ratio='20'] {
+    &::after {
+      background: var(--sentiment-20);
+    }
+  }
+
+  &[data-vote-ratio='10'] {
+    &::after {
+      background: var(--sentiment-10);
+    }
+  }
+
+  &[data-vote-ratio='0'] {
+    &::after {
+      background: var(--sentiment-0);
+    }
+  }
+
+  &[data-vote-ratio='neutral'] {
+    &::after {
+      background: var(--sentiment-neutral);
+    }
+  }
 }
