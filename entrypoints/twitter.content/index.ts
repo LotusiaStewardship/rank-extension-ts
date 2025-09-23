@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025 The Lotusia Stewardship
+ * Github: https://github.com/LotusiaStewardship
+ * License: MIT
+ */
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
 import {
@@ -53,7 +58,7 @@ type CachedProfile = {
   sentiment: ProfileSentiment
   ranking: bigint
   /** Ratio of positive votes to negative votes */
-  voteRatio: string
+  voteRatio: number | 'neutral'
   satsPositive: bigint
   satsNegative: bigint
   votesPositive: number
@@ -107,8 +112,13 @@ export default defineContentScript({
     const PARAMS = PLATFORMS['twitter']
     const SETTINGS = {
       voteAmount: await settingsStore.getVoteAmountSatoshis(),
+      autoBlurPosts: await settingsStore.getAutoBlurPosts(),
       autoHideProfiles: await settingsStore.getAutoHideProfiles(),
       autoHideThreshold: await settingsStore.getAutoHideThresholdSatoshis(),
+      autoHidePositiveVoteToggle:
+        await settingsStore.getAutoHidePositiveVoteToggle(),
+      autoHidePositiveVoteThreshold:
+        await settingsStore.getAutoHideUpvoteThresholdPercentage(),
       autoHideIfDownvoted: await settingsStore.getAutoHideIfDownvoted(),
     }
     let SCRIPT_PAYLOAD = (await walletStore.getScriptPayload()) as string
@@ -458,12 +468,24 @@ export default defineContentScript({
     settingsStore.voteAmountStorageItem.watch(async setting => {
       SETTINGS.voteAmount = toSatoshiUnits(setting.value).toString()
     })
+    settingsStore.autoBlurPostsStorageItem.watch(async setting => {
+      SETTINGS.autoBlurPosts = setting.value === 'true'
+    })
     settingsStore.autoHideProfilesStorageItem.watch(async setting => {
       SETTINGS.autoHideProfiles = setting.value === 'true'
     })
     settingsStore.autoHideThresholdStorageItem.watch(async setting => {
       SETTINGS.autoHideThreshold = toSatoshiUnits(setting.value).toString()
     })
+    settingsStore.autoHidePositiveVoteToggleStorageItem.watch(async setting => {
+      console.log('autoHidePositiveVoteToggle changed to', setting.value)
+      SETTINGS.autoHidePositiveVoteToggle = setting.value === 'true'
+    })
+    settingsStore.autoHidePositiveVoteThresholdStorageItem.watch(
+      async setting => {
+        SETTINGS.autoHidePositiveVoteThreshold = parseInt(setting.value)
+      },
+    )
     settingsStore.autoHideIfDownvotedStorageItem.watch(async setting => {
       SETTINGS.autoHideIfDownvoted = setting.value === 'true'
     })
@@ -607,11 +629,7 @@ export default defineContentScript({
       profileData.voteRatio =
         profileData.ranking === 0n
           ? 'neutral'
-          : (
-              Math.floor(
-                toMinifiedPercent(data.satsPositive, data.satsNegative) / 10,
-              ) * 10
-            ).toString()
+          : toMinifiedPercent(data.satsPositive, data.satsNegative)
 
       PROFILE_CACHE.set(profileId, profileData)
       // save updated metadata if avilable and specified to do so
@@ -629,9 +647,9 @@ export default defineContentScript({
      * Check if the profile can be hidden based on conditional factors
      * @param profileId - The profile ID to check
      * @param postId - The post ID to check
-     * @returns
+     * @returns `true` if the post can be hidden, `false` otherwise
      */
-    function canPostBeHidden(profileId: string, postId: string) {
+    function isAutoHideAllowed(profileId: string, postId: string): boolean {
       // check if we are viewing a post/thread
       if (window.location.pathname.includes('/status/')) {
         // if we are on the root post page, post can't be hidden
@@ -647,6 +665,31 @@ export default defineContentScript({
         ) {
           return false
         }
+      }
+      // get cached profile data
+      const profile = PROFILE_CACHE.get(profileId)
+      if (!profile) {
+        return false
+      }
+      // check if profile ranking is above threshold
+      const profileRankingAboveThreshold =
+        profile.ranking >= BigInt(SETTINGS.autoHideThreshold)
+      // check if profile vote ratio is above threshold
+      const profileVoteRatioAboveThreshold =
+        profile.voteRatio === 'neutral' ||
+        profile.voteRatio >= SETTINGS.autoHidePositiveVoteThreshold
+      // refuse to hide post depending on auto-hide config
+      if (
+        // if ranking is above threshold and auto hide positive vote toggle is disabled
+        (profileRankingAboveThreshold &&
+          !SETTINGS.autoHidePositiveVoteToggle) ||
+        // if vote ratio is above threshold and auto hide positive vote toggle is enabled
+        // also check if vote ratio is above threshold
+        (profileVoteRatioAboveThreshold &&
+          SETTINGS.autoHidePositiveVoteToggle &&
+          profileVoteRatioAboveThreshold)
+      ) {
+        return false
       }
       // if we make it here, post can be hidden
       return true
@@ -899,9 +942,13 @@ export default defineContentScript({
             (await updateCachedProfile(profileId))
           ).voteRatio
           try {
-            // set data-sentiment attribute on the avatar div element for CSS class
-            //avatar.attr('data-sentiment', sentiment)
-            avatar.attr('data-vote-ratio', voteRatio)
+            // set data-vote-ratio attribute on the avatar div element for CSS class
+            // calculate the vote ratio to the nearest 10% to set the appropriate CSS background color
+            const attr =
+              voteRatio === 'neutral'
+                ? 'neutral'
+                : Math.floor((voteRatio as number) / 10) * 10
+            avatar.attr('data-vote-ratio', attr)
             // set the appropriate CSS class for the element width
             setProfileAvatarBadge(avatar)
           } catch (e) {
@@ -1124,43 +1171,31 @@ export default defineContentScript({
       postId: string,
       profileMeta?: ProfileMeta | null,
     ): boolean {
-      // post is aleady hidden, so don't do it again
+      // if any of the conditions are met, unhide the post
+      if (
+        // we are on the profile page or a post thread
+        window.location.pathname.startsWith(`/${profileId}`) ||
+        // auto hide profiles is disabled
+        !SETTINGS.autoHideProfiles ||
+        // post can't be hidden, given the current context
+        !isAutoHideAllowed(profileId, postId) ||
+        // don't auto hide if downvoted is enabled and we haven't downvoted this profile
+        (SETTINGS.autoHideIfDownvoted &&
+          profileMeta?.hasWalletDownvoted !== true)
+      ) {
+        element.removeClass('hidden')
+        return false
+      }
+      // if post is already hidden, don't hide it again
       if (element.hasClass('hidden')) {
         return true
       }
-      // if we are on the profile page, don't hide the post
-      if (window.location.pathname.includes(profileId)) {
-        return false
-      }
-      // proceed further if auto hide profiles is enabled
-      if (SETTINGS.autoHideProfiles) {
-        // get cached profile data
-        const profile = PROFILE_CACHE.get(profileId)
-        // if profile is cached and reputation is below threshold, proceed further
-        if (profile && profile.ranking < BigInt(SETTINGS.autoHideThreshold)) {
-          // check saved profileMeta if auto hide if downvoted is enabled
-          // then check if we haven't downvoted this profile
-          if (SETTINGS.autoHideIfDownvoted) {
-            // if we haven't downvoted this profile, don't hide the post
-            if (profileMeta?.hasWalletDownvoted !== true) {
-              return false
-            }
-          }
-          // check if the post can be hidden
-          if (!canPostBeHidden(profileId, postId)) {
-            console.log(`post ${profileId}/${postId} cannot be hidden`)
-            return false
-          }
-          console.log(
-            `auto-hiding post ${profileId}/${postId} (profile reputation below threshold)`,
-          )
-          element.addClass('hidden')
-          return true
-        }
-      }
-      // If we didn't hide the post, make sure it is shown and return false
-      element.removeClass('hidden')
-      return false
+      // if we make it here, post can be hidden
+      console.log(
+        `auto-hiding post ${profileId}/${postId} (profile reputation below threshold)`,
+      )
+      element.addClass('hidden')
+      return true
     }
     /**
      *
@@ -1184,7 +1219,14 @@ export default defineContentScript({
       ) {
         return
       }
-      // if post ranking is above default threshold, don't blur
+      // abort/unblur if auto blur posts is disabled
+      if (!SETTINGS.autoBlurPosts) {
+        if (element.hasClass('blurred')) {
+          unblurPost(element)
+        }
+        return
+      }
+      // if post ranking is below default threshold, blur it
       if (ranking < DEFAULT_RANK_THRESHOLD) {
         // post is aleady blurred, so don't do it again
         if (element.hasClass('blurred')) {
@@ -1196,8 +1238,7 @@ export default defineContentScript({
         )
         // article element resets CSS classes on hover, thanks to Twitter javascript
         // so we blur the parent element instead, which achieves the same effect
-        const overlay = createOverlay(postId)
-        element.addClass('blurred').append(overlay)
+        blurPost(element, postId)
         //postParentElement.parent()!.style.overflow = 'hidden !important'
       }
       // otherwise unblur the post
@@ -1209,9 +1250,28 @@ export default defineContentScript({
         console.log(
           `unblurring post ${profileId}/${postId} (post reputation at or above treshold)`,
         )
-        element.removeClass('blurred').find('> button').remove()
+        unblurPost(element)
         //postParentElement.parent()!.style.overflow = 'hidden !important'
       }
+    }
+    /**
+     *
+     * @param element
+     */
+    function blurPost(element: JQuery<HTMLElement>, postId: string) {
+      element
+        .addClass('blurred blurred-color dark:blurred-color')
+        .append(createOverlay(postId))
+    }
+    /**
+     *
+     * @param element
+     */
+    function unblurPost(element: JQuery<HTMLElement>) {
+      element
+        .removeClass('blurred blurred-color dark:blurred-color')
+        .find('> button')
+        .remove()
     }
     /**
      *
