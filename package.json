@@ -2,7 +2,7 @@
   "name": "rank-extension-ts",
   "description": "manifest.json description",
   "private": true,
-  "version": "1.2.6-beta",
+  "version": "1.2.7-beta",
   "type": "module",
   "scripts": {
     "dev": "wxt",
