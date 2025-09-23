@@ -845,23 +845,31 @@ export default defineContentScript({
       const className = avatar
         .prop('class')
         .split(/\s/)
-        .filter((c: string) => c.includes('reputation'))
+        .filter((c: string) => c.match(/avatar-reputation/g) !== null)
       // New badge class that will be applied to the avatar element
       let newClassName = ''
       if (elementWidth == 0) {
         return
       }
       // ~24px: e.g. embedded post avatars (i.e. quote tweets)
+      else if (elementWidth <= 24) {
+        newClassName = `quote-tweet-avatar-reputation`
+      }
       // ~32px: e.g. profile avatars on notifications such as likes
       else if (elementWidth <= 32) {
         newClassName = `notification-avatar-reputation`
       }
       // ~40px: e.g. profile avatars on timeline posts
-      // ~64px: e.g. post avatar popover (i.e. mouseover avatar)
-      else if (elementWidth <= 64) {
+      else if (elementWidth <= 40) {
         newClassName = `avatar-reputation`
-      } else {
-        console.log('default avatar width', avatar[0].offsetWidth)
+      }
+      // ~64px: e.g. profile avatars on popup elements such as hovercards
+      else if (elementWidth <= 64) {
+        newClassName = `popup-avatar-reputation`
+      }
+      // default; assume profile avatar
+      else {
+        console.log('default avatar width', elementWidth)
         newClassName = `profile-avatar-reputation`
       }
       // set or replace the badge class on the avatar element
