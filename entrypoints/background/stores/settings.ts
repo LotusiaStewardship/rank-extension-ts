@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025 The Lotusia Stewardship
+ * Github: https://github.com/LotusiaStewardship
+ * License: MIT
+ */
 import assert from 'assert'
 import { toSatoshiUnits } from '@/utils/functions'
 const { defineItem, setItem, setItems, getItem, getItems } = storage
@@ -9,12 +14,21 @@ type WxtStorageItemString = ReturnType<typeof defineItem<WxtStorageValueString>>
 type WxtStorageItemObject = ReturnType<typeof defineItem<WxtStorageValueObject>>
 type WxtStorageItem = WxtStorageItemString | WxtStorageItemObject
 // Local types
+export type SettingLocale = {
+  name: SettingName
+  label: string
+  placeholder?: string
+  helper: string
+}
 export type SettingName =
   | 'voteAmount'
+  | 'autoBlurPosts'
   | 'autoHideProfiles'
   | 'autoHideThreshold'
+  | 'autoHidePositiveVoteToggle'
+  | 'autoHidePositiveVoteThreshold'
   | 'autoHideIfDownvoted'
-export type SettingType = 'input' | 'select' | 'checkbox' | 'toggle'
+export type SettingType = 'input' | 'select' | 'checkbox' | 'toggle' | 'slider'
 export type Setting = {
   name: SettingName
   type: SettingType
@@ -29,16 +43,36 @@ export const DefaultExtensionSettings: Record<SettingName, Setting> = {
     type: 'input',
     value: '100', // 100 XPI
   },
+  autoBlurPosts: {
+    name: 'autoBlurPosts',
+    type: 'toggle',
+    value: 'true',
+  },
   autoHideProfiles: {
     name: 'autoHideProfiles',
     type: 'toggle',
     value: 'true',
-    subSettings: ['autoHideThreshold', 'autoHideIfDownvoted'],
+    subSettings: [
+      'autoHideThreshold',
+      'autoHidePositiveVoteThreshold',
+      'autoHideIfDownvoted',
+    ],
   },
   autoHideThreshold: {
     name: 'autoHideThreshold',
     type: 'input',
     value: '-5000', // -5,000 XPI
+  },
+  autoHidePositiveVoteToggle: {
+    name: 'autoHidePositiveVoteToggle',
+    type: 'toggle',
+    value: 'true',
+    subSettings: ['autoHidePositiveVoteThreshold'],
+  },
+  autoHidePositiveVoteThreshold: {
+    name: 'autoHidePositiveVoteThreshold',
+    type: 'slider',
+    value: '50', // in percentage points
   },
   autoHideIfDownvoted: {
     name: 'autoHideIfDownvoted',
@@ -62,6 +96,12 @@ class SettingsStore {
           init: () => DefaultExtensionSettings.voteAmount,
         },
       ),
+      autoBlurPosts: defineItem<WxtStorageValueObject>(
+        'local:settings:autoBlurPosts',
+        {
+          init: () => DefaultExtensionSettings.autoBlurPosts,
+        },
+      ),
       autoHideProfiles: defineItem<WxtStorageValueObject>(
         'local:settings:autoHideProfiles',
         {
@@ -74,6 +114,18 @@ class SettingsStore {
           init: () => DefaultExtensionSettings.autoHideThreshold,
         },
       ),
+      autoHidePositiveVoteToggle: defineItem<WxtStorageValueObject>(
+        'local:settings:autoHidePositiveVoteToggle',
+        {
+          init: () => DefaultExtensionSettings.autoHidePositiveVoteToggle,
+        },
+      ),
+      autoHidePositiveVoteThreshold: defineItem<WxtStorageValueObject>(
+        'local:settings:autoHidePositiveVoteThreshold',
+        {
+          init: () => DefaultExtensionSettings.autoHidePositiveVoteThreshold,
+        },
+      ),
       autoHideIfDownvoted: defineItem<WxtStorageValueObject>(
         'local:settings:autoHideIfDownvoted',
         {
@@ -82,6 +134,10 @@ class SettingsStore {
       ),
     }
   }
+  /**
+   * Get the default extension settings
+   * @returns {Record<SettingName, Setting>}
+   */
   get defaultExtensionSettings(): Record<SettingName, Setting> {
     return DefaultExtensionSettings
   }
@@ -91,6 +147,13 @@ class SettingsStore {
    */
   get voteAmountStorageItem(): WxtStorageItemObject {
     return this.wxtStorageItems.voteAmount as WxtStorageItemObject
+  }
+  /**
+   * Get the `autoBlurPosts` storage item
+   * @returns {WxtStorageItemObject}
+   */
+  get autoBlurPostsStorageItem(): WxtStorageItemObject {
+    return this.wxtStorageItems.autoBlurPosts as WxtStorageItemObject
   }
   /**
    * Get the `autoHideProfiles` storage item
@@ -105,6 +168,22 @@ class SettingsStore {
    */
   get autoHideThresholdStorageItem(): WxtStorageItemObject {
     return this.wxtStorageItems.autoHideThreshold as WxtStorageItemObject
+  }
+  /**
+   * Get the `autoHidePositiveVoteToggle` storage item
+   * @returns {WxtStorageItemObject}
+   */
+  get autoHidePositiveVoteToggleStorageItem(): WxtStorageItemObject {
+    return this.wxtStorageItems
+      .autoHidePositiveVoteToggle as WxtStorageItemObject
+  }
+  /**
+   * Get the `autoHidePositiveVoteThreshold` storage item
+   * @returns {WxtStorageItemObject}
+   */
+  get autoHidePositiveVoteThresholdStorageItem(): WxtStorageItemObject {
+    return this.wxtStorageItems
+      .autoHidePositiveVoteThreshold as WxtStorageItemObject
   }
   /**
    * Get the `autoHideIfDownvoted` storage item
@@ -122,6 +201,14 @@ class SettingsStore {
     return toSatoshiUnits(setting.value).toString()
   }
   /**
+   * Get the `autoBlurPosts` value
+   * @returns {boolean}
+   */
+  async getAutoBlurPosts(): Promise<boolean> {
+    const setting = await this.autoBlurPostsStorageItem.getValue()
+    return setting.value === 'true'
+  }
+  /**
    * Get the `autoHideProfiles` value
    * @returns {boolean}
    */
@@ -136,6 +223,23 @@ class SettingsStore {
   async getAutoHideThresholdSatoshis(): Promise<string> {
     const setting = await this.autoHideThresholdStorageItem.getValue()
     return toSatoshiUnits(setting.value).toString()
+  }
+  /**
+   * Get the `autoHidePositiveVoteToggle` value
+   * @returns {boolean}
+   */
+  async getAutoHidePositiveVoteToggle(): Promise<boolean> {
+    const setting = await this.autoHidePositiveVoteToggleStorageItem.getValue()
+    return setting.value === 'true'
+  }
+  /**
+   * Get the `autoHidePositiveVoteThreshold` value
+   * @returns {string}
+   */
+  async getAutoHideUpvoteThresholdPercentage(): Promise<number> {
+    const setting =
+      await this.autoHidePositiveVoteThresholdStorageItem.getValue()
+    return parseInt(setting.value)
   }
   /**
    * Get the `autoHideIfDownvoted` value
