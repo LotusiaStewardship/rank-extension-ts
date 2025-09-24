@@ -405,7 +405,7 @@ onMounted(() => {
                   Saved</span>
               </div>
               <fwb-p class="text-gray-500 dark:text-gray-400">
-                If enabled, low-value content from any creator will be blurred (Default: On)
+                If enabled, will blur content that is ranked below 0 XPI (Default: On)
               </fwb-p>
             </div>
             <fwb-toggle color="purple" v-model="autoBlurPosts" @change="saveAutoBlurPosts" />
@@ -436,7 +436,7 @@ onMounted(() => {
         <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
           <div class="pl-3">
             <div class="flex items-center gap-2 mb-1">
-              <label class="text-sm font-medium text-gray-900 dark:text-white">Reputation Threshold (XPI)</label>
+              <label class="text-sm font-medium text-gray-900 dark:text-white">Rank Threshold (XPI)</label>
               <!-- Saved indicator -->
               <span v-if="showAutoHideThresholdSaved"
                 class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
@@ -446,7 +446,8 @@ onMounted(() => {
               placeholder="Enter threshold amount in XPI" size="sm" @blur="saveAutoHideThreshold">
               <template #helper>
                 <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
-                  (Default: -5,000 XPI)
+                  Creators will be considered low-value if their XPI ranking is below this threshold (Default:
+                  -5,000 XPI)
                 </fwb-p>
               </template>
             </fwb-input>
@@ -460,16 +461,15 @@ onMounted(() => {
 
               <div class="pr-4 pb-2">
                 <div class="flex items-center gap-2 mb-1">
-                  <label class="text-sm font-medium text-gray-900 dark:text-white">Reputation Threshold
-                    (%)</label>
+                  <label class="text-sm font-medium text-gray-900 dark:text-white">Reputation Threshold</label>
                   <!-- Saved indicator -->
                   <span v-if="showAutoHidePositiveVoteThresholdSaved"
                     class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
                     Saved</span>
                 </div>
                 <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
-                  If enabled, creators with a positive reputation below the selected threshold will be considered
-                  low-value
+                  If enabled, creators will be considered low-value if their reputation is below the selected
+                  threshold
                   (Default: On)
                 </fwb-p>
               </div>
@@ -572,8 +572,7 @@ onMounted(() => {
 .greyed-out {
   opacity: 0.5;
   pointer-events: none;
-  filter: grayscale(100%) blur(0.02rem);
-  /* Optionally, add a not-allowed cursor for extra clarity */
+  filter: grayscale(100%);
   cursor: not-allowed;
 }
 
