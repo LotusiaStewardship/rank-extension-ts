@@ -3,6 +3,13 @@
  * Github: https://github.com/LotusiaStewardship
  * License: MIT
  */
+:root {
+  /** Neutral sentiment values */
+  --sentiment-neutral: rgb(184, 193, 219);
+
+  /** Dynamic sentiment color mapping */
+  --sentiment-color: var(--sentiment-neutral);
+}
 @media (prefers-color-scheme: dark) {
   :root {
     /** Colors taken from: https://tailwindcss.com/docs/colors */
@@ -19,8 +26,11 @@
     --sentiment-20: rgb(255 100 103);
     --sentiment-10: rgb(255 100 103);
     --sentiment-0: rgb(255 100 103);
-    /** Neutral sentiment values */
-    --sentiment-neutral: rgb(184, 193, 219);
+    /** blurred class colors */
+    --blurred-background-color: black;
+    --blurred-button-border: 1px solid #9aa5c7;
+    --blurred-button-box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20;
+    --blurred-button-text-color: #9aa5c7;
   }
 }
 @media (prefers-color-scheme: light) {
@@ -39,8 +49,11 @@
     --sentiment-20: rgb(251 44 54);
     --sentiment-10: rgb(251 44 54);
     --sentiment-0: rgb(251 44 54);
-    /** Neutral sentiment values */
-    --sentiment-neutral: rgb(119, 125, 142);
+    /** blurred class colors */
+    --blurred-background-color: white;
+    --blurred-button-border: 1px solid #2d313c;
+    --blurred-button-box-shadow: 0rem 0rem 0.5rem 0.125rem #919cb9;
+    --blurred-button-text-color: #2d313c;
   }
 }
 /** Hide posts */
@@ -84,6 +97,7 @@
 .blurred {
   /** child div of .blurred */
   & > div {
+    background-color: var(--blurred-background-color);
     overflow: hidden;
     pointer-events: none;
     border: 1px inherit solid;
@@ -96,6 +110,9 @@
   }
   /** child button of .blurred */
   & > button {
+    box-shadow: var(--blurred-button-box-shadow);
+    border: var(--blurred-button-border);
+    background-color: var(--blurred-background-color);
     width: 90%;
     height: auto;
     position: absolute;
@@ -113,6 +130,7 @@
       cursor: pointer;
     }
     & > span {
+      color: var(--blurred-button-text-color);
       font-weight: 400;
       font-size: 15px;
       font-family:
@@ -121,180 +139,116 @@
     }
   }
 }
-/** Light mode blurred post */
-.blurred-color {
-  @media (prefers-color-scheme: light) {
-    & > div {
-      background-color: white;
-    }
-    & > button {
-      box-shadow: 0rem 0rem 0.5rem 0.125rem #919cb9;
-      background-color: white;
-      border: 1px solid #2d313c;
-      & > span {
-        color: #2d313c;
-      }
-    }
-  }
-}
-/** Dark mode blurred post */
-.dark\:blurred-color {
-  @media (prefers-color-scheme: dark) {
-    & > div {
-      background-color: black;
-    }
-    & > button {
-      box-shadow: 0rem 0rem 0.5rem 0.125rem #191b20;
-      background-color: black;
-      border: 1px solid #9aa5c7;
-      & > span {
-        color: #9aa5c7;
-      }
-    }
-  }
-}
 
 /** Post avatars */
-.avatar-reputation {
-  &::after {
-    left: 1.5%;
-    top: 1.5%;
-    height: 24%;
-    width: 24%;
-    outline: 0.1rem solid;
-  }
+.avatar-reputation::after {
+  left: 1.5%;
+  top: 1.5%;
+  height: 24%;
+  width: 24%;
+  outline: 0.1rem solid;
 }
 /** Popup avatars */
-.popup-avatar-reputation {
-  &::after {
-    left: 1%;
-    top: 1%;
-    height: 20%;
-    width: 20%;
-    outline: 0.1rem solid;
-  }
+.popup-avatar-reputation::after {
+  left: 1%;
+  top: 1%;
+  height: 22%;
+  width: 22%;
+  outline: 0.15rem solid;
 }
 /** Quote tweet avatars */
-.quote-tweet-avatar-reputation {
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 30%;
-    width: 30%;
-    outline: 0.15rem solid;
-  }
+.quote-tweet-avatar-reputation::after {
+  left: 0%;
+  top: 0%;
+  height: 33%;
+  width: 33%;
+  outline: 0.15rem solid;
 }
 /** Notification avatars */
-.notification-avatar-reputation {
-  &::after {
-    left: 0%;
-    top: 0%;
-    height: 28%;
-    width: 28%;
-    outline: 0.1rem solid;
-  }
+.notification-avatar-reputation::after {
+  left: 0%;
+  top: 0%;
+  height: 28%;
+  width: 28%;
+  outline: 0.15rem solid;
 }
 /** Profile avatars */
-.profile-avatar-reputation {
-  &::after {
-    left: 6%;
-    top: 6%;
-    height: 15%;
-    width: 15%;
-    outline: 0.15rem solid;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  div[class*='avatar-reputation']::after {
-    outline-color: black;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  div[class*='avatar-reputation']::after {
-    outline-color: white;
-  }
+.profile-avatar-reputation::after {
+  left: 6.5%;
+  top: 6.5%;
+  height: 15%;
+  width: 15%;
+  outline: 0.15rem solid;
 }
 
 /** Avatar reputation badge colors */
-div[class*='avatar-reputation'] {
-  position: relative;
-  &::after {
-    border-radius: 50%;
-    content: '';
-    position: absolute;
-  }
-
+.avatar-reputation,
+.popup-avatar-reputation,
+.quote-tweet-avatar-reputation,
+.notification-avatar-reputation,
+.profile-avatar-reputation {
   &[data-vote-ratio='100'] {
-    &::after {
-      background: var(--sentiment-100);
-    }
+    --sentiment-color: var(--sentiment-100);
   }
-
   &[data-vote-ratio='90'] {
-    &::after {
-      background: var(--sentiment-90);
-    }
+    --sentiment-color: var(--sentiment-90);
   }
-
   &[data-vote-ratio='80'] {
-    &::after {
-      background: var(--sentiment-80);
-    }
+    --sentiment-color: var(--sentiment-80);
   }
-
   &[data-vote-ratio='70'] {
-    &::after {
-      background: var(--sentiment-70);
-    }
+    --sentiment-color: var(--sentiment-70);
   }
-
   &[data-vote-ratio='60'] {
-    &::after {
-      background: var(--sentiment-60);
-    }
+    --sentiment-color: var(--sentiment-60);
   }
-
   &[data-vote-ratio='50'] {
-    &::after {
-      background: var(--sentiment-50);
-    }
+    --sentiment-color: var(--sentiment-50);
   }
-
   &[data-vote-ratio='40'] {
-    &::after {
-      background: var(--sentiment-40);
-    }
+    --sentiment-color: var(--sentiment-40);
   }
-
   &[data-vote-ratio='30'] {
-    &::after {
-      background: var(--sentiment-30);
-    }
+    --sentiment-color: var(--sentiment-30);
   }
-
   &[data-vote-ratio='20'] {
-    &::after {
-      background: var(--sentiment-20);
-    }
+    --sentiment-color: var(--sentiment-20);
   }
-
   &[data-vote-ratio='10'] {
-    &::after {
-      background: var(--sentiment-10);
-    }
+    --sentiment-color: var(--sentiment-10);
   }
-
   &[data-vote-ratio='0'] {
-    &::after {
-      background: var(--sentiment-0);
-    }
+    --sentiment-color: var(--sentiment-0);
   }
-
-  &[data-vote-ratio='neutral'] {
-    &::after {
-      background: var(--sentiment-neutral);
-    }
+}
+/** Avatar reputation badge */
+.avatar-reputation::after,
+.popup-avatar-reputation::after,
+.quote-tweet-avatar-reputation::after,
+.notification-avatar-reputation::after,
+.profile-avatar-reputation::after {
+  border-radius: 50%;
+  content: '';
+  position: absolute;
+  background: var(--sentiment-color);
+}
+/** Dark mode avatar reputation badge */
+@media (prefers-color-scheme: dark) {
+  .avatar-reputation::after,
+  .popup-avatar-reputation::after,
+  .quote-tweet-avatar-reputation::after,
+  .notification-avatar-reputation::after,
+  .profile-avatar-reputation::after {
+    outline-color: black;
+  }
+}
+/** Light mode avatar reputation badge */
+@media (prefers-color-scheme: light) {
+  .avatar-reputation::after,
+  .popup-avatar-reputation::after,
+  .quote-tweet-avatar-reputation::after,
+  .notification-avatar-reputation::after,
+  .profile-avatar-reputation::after {
+    outline-color: white;
   }
 }

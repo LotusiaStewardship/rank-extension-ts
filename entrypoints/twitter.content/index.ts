@@ -17,6 +17,7 @@ import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
 import { PLATFORMS } from 'rank-lib'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
+import type { Mutator } from '@/utils/types'
 import {
   toMinifiedNumber,
   isSha256,
@@ -147,7 +148,7 @@ export default defineContentScript({
     /**
      *  Mutator classes
      */
-    class AddedMutator {
+    class AddedMutator implements Mutator {
       /**
        *
        * @param element
@@ -418,7 +419,7 @@ export default defineContentScript({
     /**
      *
      */
-    class RemovedMutator {
+    class RemovedMutator implements Mutator {
       /**
        *
        * @param element
@@ -478,7 +479,6 @@ export default defineContentScript({
       SETTINGS.autoHideThreshold = toSatoshiUnits(setting.value).toString()
     })
     settingsStore.autoHidePositiveVoteToggleStorageItem.watch(async setting => {
-      console.log('autoHidePositiveVoteToggle changed to', setting.value)
       SETTINGS.autoHidePositiveVoteToggle = setting.value === 'true'
     })
     settingsStore.autoHidePositiveVoteThresholdStorageItem.watch(
@@ -672,22 +672,22 @@ export default defineContentScript({
         return false
       }
       // check if profile ranking is above threshold
-      const profileRankingAboveThreshold =
+      const isProfileRankingAboveThreshold =
         profile.ranking >= BigInt(SETTINGS.autoHideThreshold)
       // check if profile vote ratio is above threshold
-      const profileVoteRatioAboveThreshold =
+      const isProfileVoteRatioAboveThreshold =
         profile.voteRatio === 'neutral' ||
         profile.voteRatio >= SETTINGS.autoHidePositiveVoteThreshold
       // refuse to hide post depending on auto-hide config
       if (
         // if ranking is above threshold and auto hide positive vote toggle is disabled
-        (profileRankingAboveThreshold &&
+        (isProfileRankingAboveThreshold &&
           !SETTINGS.autoHidePositiveVoteToggle) ||
-        // if vote ratio is above threshold and auto hide positive vote toggle is enabled
+        // if ranking is above threshold and auto hide positive vote toggle is enabled
         // also check if vote ratio is above threshold
-        (profileVoteRatioAboveThreshold &&
+        (isProfileRankingAboveThreshold &&
           SETTINGS.autoHidePositiveVoteToggle &&
-          profileVoteRatioAboveThreshold)
+          isProfileVoteRatioAboveThreshold)
       ) {
         return false
       }
@@ -1267,19 +1267,14 @@ export default defineContentScript({
      * @param element
      */
     function blurPost(element: JQuery<HTMLElement>, postId: string) {
-      element
-        .addClass('blurred blurred-color dark:blurred-color')
-        .append(createOverlay(postId))
+      element.addClass('blurred').append(createOverlay(postId))
     }
     /**
      *
      * @param element
      */
     function unblurPost(element: JQuery<HTMLElement>) {
-      element
-        .removeClass('blurred blurred-color dark:blurred-color')
-        .find('> button')
-        .remove()
+      element.removeClass('blurred').find('> button').remove()
     }
     /**
      *
