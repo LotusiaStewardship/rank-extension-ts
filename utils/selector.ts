@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025 The Lotusia Stewardship
+ * Github: https://github.com/LotusiaStewardship
+ * License: MIT
+ */
 /** jQuery selector definitions */
 export namespace Selector {
   /** All selectors for the Twitter platform */

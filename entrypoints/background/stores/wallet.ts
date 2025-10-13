@@ -128,21 +128,24 @@ class WalletStore {
     }
   }
   async setScripthex(scriptHex: string) {
-    const scriptHexItem = this.wxtStorageItems.scriptHex as WxtStorageItemString
-    await scriptHexItem.setValue(scriptHex)
+    await (this.wxtStorageItems.scriptHex as WxtStorageItemString).setValue(
+      scriptHex,
+    )
   }
   async setScriptPayload(scriptPayload: string) {
-    const scriptPayloadItem = this.wxtStorageItems
-      .scriptPayload as WxtStorageItemString
-    await scriptPayloadItem.setValue(scriptPayload)
+    await (this.wxtStorageItems.scriptPayload as WxtStorageItemString).setValue(
+      scriptPayload,
+    )
   }
   /** 20-byte P2PKH script payload */
   async getScriptPayload() {
-    return await this.wxtStorageItems.scriptPayload.getValue()
+    return await (
+      this.wxtStorageItems.scriptPayload as WxtStorageItemString
+    ).getValue()
   }
   /** Popup UI and content script tracks changes to script payload */
   get scriptPayloadStorageItem() {
-    return this.wxtStorageItems.scriptPayload
+    return this.wxtStorageItems.scriptPayload as WxtStorageItemString
   }
   /** Popup UI tracks changes to balance */
   get balanceStorageItem() {
