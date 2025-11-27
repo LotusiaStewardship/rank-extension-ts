@@ -66,7 +66,7 @@ const API = {
   url: 'https://rank.lotusia.org/api/v1',
   //url: 'http://172.16.2.20:10655/api/v1',
   myStatsSummary() {
-    return `${this.url}/wallet/summary/${walletScriptPayload.value}`
+    return `${this.url}/wallet/summary/${instanceId.value}/${walletScriptPayload.value}`
   },
   topProfiles() {
     return `${this.url}/stats/profiles/top-ranked/today`
