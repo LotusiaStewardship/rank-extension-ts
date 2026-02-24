@@ -587,11 +587,17 @@ export default defineContentScript({
     async function fetchRankApiData(
       profileId: string,
       postId?: string,
-      scriptPayload?: string,
     ): Promise<RankAPIResult> {
-      const apiPath = postId
-        ? `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}/${postId}/${scriptPayload}`
+      let apiPath = postId
+        ? `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}/${postId}`
         : `${DEFAULT_RANK_API}/twitter/${profileId.toLowerCase()}`
+
+      // set the root-level scriptPayload as a query param if available
+      // this is done to coincide with changes recently made to the backend API
+      if (SCRIPT_PAYLOAD) {
+        apiPath += `?scriptPayload=${SCRIPT_PAYLOAD}`
+      }
+
       try {
         const result = await fetch(apiPath)
         const json = await result.json()
@@ -721,7 +727,6 @@ export default defineContentScript({
         const result = (await fetchRankApiData(
           profileId,
           postId,
-          SCRIPT_PAYLOAD,
         )) as IndexedPostRanking
         // check if cached data differs from API data, then update
         POST_CACHE.set(postId, {
