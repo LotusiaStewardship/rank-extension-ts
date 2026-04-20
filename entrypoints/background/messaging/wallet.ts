@@ -1,6 +1,6 @@
 import { defineExtensionMessaging } from '@webext-core/messaging'
 import type { OutPoint } from 'chronik-client'
-import type { RankOutput } from 'rank-lib'
+import type { TransactionOutputRANK } from 'xpi-ts/lib/lokad'
 import type { UIWalletState } from '@/entrypoints/background/stores'
 
 interface WalletMessaging {
@@ -22,7 +22,7 @@ interface WalletMessaging {
     ranks,
     voteAmountXPI,
   }: {
-    ranks: RankOutput[]
+    ranks: TransactionOutputRANK[]
     voteAmountXPI: string
   }) => Promise<string>
 }
