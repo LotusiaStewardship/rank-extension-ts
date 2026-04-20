@@ -1,7 +1,6 @@
 import { MINER_CONSTANTS } from '@/entrypoints/background/miner/constants'
 import {
   createBlock,
-  sha256,
   prevHash,
   bytesToHex,
   reverseBytes,
@@ -16,7 +15,7 @@ import type { LotusMiningSettings, MiningStats, MiningWork } from './types'
  * Mirrors lotus-gpu-miner flow:
  * - poll getrawunsolvedblock
  * - run OpenCL-equivalent kernel search
- * - validate candidate via lotus_hash + target compare
+ * - kernel validates candidate against target and returns nonce
  * - submitblock on success
  */
 export class LotusMiningService {
@@ -36,7 +35,6 @@ export class LotusMiningService {
   private partialHeaderWords = new Uint32Array(
     MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH,
   )
-  private readonly targetWordsLe = new Uint32Array(8)
 
   constructor(private readonly settings: LotusMiningSettings) {
     this.rpc = new LotusRpcClient(settings.rpc)
@@ -133,7 +131,7 @@ export class LotusMiningService {
         target: this.nextBlock.target,
         nonceIdx: 0,
       }
-      this.fillTargetWordsLe(this.currentWork.target)
+      this.miner.setTarget(this.currentWork.target)
       this.nextBlock = null
     }
 
@@ -173,14 +171,12 @@ export class LotusMiningService {
       return
     }
 
-    const foundNonce = await this.validateCandidateSlots(
-      this.currentWork.header,
-      result.nonceSlots,
-      bigNonce,
-    )
-    if (foundNonce === null) {
+    const nonceLow = this.swapU32(result.nonceLow)
+    if (nonceLow === 0) {
       return
     }
+    const foundNonce =
+      ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
 
     this.setBigNonce(this.currentWork.header, foundNonce)
     console.info('Block hash below target with nonce:', foundNonce.toString())
@@ -204,8 +200,11 @@ export class LotusMiningService {
     partialHeader.set(header160.subarray(0, 52), 0)
 
     const txLayerView = header160.subarray(52)
-    const txLayerHash = await sha256(txLayerView)
-    partialHeader.set(txLayerHash, 52)
+    const txLayerHash = await crypto.subtle.digest(
+      'SHA-256',
+      txLayerView as BufferSource,
+    )
+    partialHeader.set(new Uint8Array(txLayerHash), 52)
 
     const out = this.partialHeaderWords
     const dv = new DataView(partialHeader.buffer, partialHeader.byteOffset, 84)
@@ -213,85 +212,6 @@ export class LotusMiningService {
       out[i] = dv.getUint32(i * 4, false)
     }
     return out
-  }
-
-  private async validateCandidateSlots(
-    header160: Uint8Array,
-    slots: Uint32Array,
-    bigNonce: bigint,
-  ): Promise<bigint | null> {
-    const header = header160.slice()
-    const headerView = new DataView(
-      header.buffer,
-      header.byteOffset,
-      header.byteLength,
-    )
-    const highNonce = Number((bigNonce >> 32n) & 0xffffffffn) >>> 0
-
-    for (let i = 0; i < 0x7f; i++) {
-      const raw = slots[i]!
-      if (raw === 0) {
-        continue
-      }
-      const nonceLow = this.swapU32(raw)
-      headerView.setUint32(44, nonceLow, true)
-
-      const hash = await this.lotusHashLocal(header)
-      if (hash[31] !== 0) {
-        continue
-      }
-
-      if (this.hashBelowTarget(hash)) {
-        return (BigInt(highNonce) << 32n) | BigInt(nonceLow)
-      }
-    }
-    return null
-  }
-
-  private hashBelowTarget(hashLe: Uint8Array): boolean {
-    for (let i = 7; i >= 0; i--) {
-      const o = i * 4
-      const h =
-        (hashLe[o] ?? 0) |
-        ((hashLe[o + 1] ?? 0) << 8) |
-        ((hashLe[o + 2] ?? 0) << 16) |
-        ((hashLe[o + 3] ?? 0) << 24)
-      const t = this.targetWordsLe[i]!
-      const hu = h >>> 0
-      if (hu > t) return false
-      if (hu < t) return true
-    }
-    return false
-  }
-
-  private fillTargetWordsLe(targetLe: Uint8Array): void {
-    if (targetLe.length !== 32) {
-      throw new Error(`Expected 32-byte target, got ${targetLe.length}`)
-    }
-    for (let i = 0; i < 8; i++) {
-      const o = i * 4
-      this.targetWordsLe[i] =
-        ((targetLe[o] ?? 0) |
-          ((targetLe[o + 1] ?? 0) << 8) |
-          ((targetLe[o + 2] ?? 0) << 16) |
-          ((targetLe[o + 3] ?? 0) << 24)) >>>
-        0
-    }
-  }
-
-  private async lotusHashLocal(header160: Uint8Array): Promise<Uint8Array> {
-    const txLayerHash = await sha256(header160.subarray(52))
-
-    const powLayer = new Uint8Array(52)
-    powLayer.set(header160.subarray(32, 52), 0)
-    powLayer.set(txLayerHash, 20)
-    const powLayerHash = await sha256(powLayer)
-
-    const chainLayer = new Uint8Array(64)
-    chainLayer.set(header160.subarray(0, 32), 0)
-    chainLayer.set(powLayerHash, 32)
-
-    return sha256(chainLayer)
   }
 
   private equal32(a: Uint8Array, b: Uint8Array): boolean {

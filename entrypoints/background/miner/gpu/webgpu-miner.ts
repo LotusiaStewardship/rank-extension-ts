@@ -21,12 +21,14 @@ type WebGpuMinerRuntime = {
   iterations: number
   zeroOutput: Uint32Array
   paramsScratch: Uint32Array
+  targetScratch: Uint32Array
   rawScratch: Uint32Array
 }
 
 export class WebGpuMiner {
   private runtime: WebGpuMinerRuntime | null = null
   private partialHeaderReady = false
+  private targetReady = false
 
   public get isReady(): boolean {
     return this.runtime !== null
@@ -43,7 +45,7 @@ export class WebGpuMiner {
       params.workgroupSize ?? MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE
     const outputU32Length = Math.max(
       params.outputU32Length ?? MINER_CONSTANTS.DEFAULT_OUTPUT_U32_LENGTH,
-      129,
+      2,
     )
 
     const adapter = await navigator.gpu.requestAdapter({
@@ -121,6 +123,7 @@ export class WebGpuMiner {
       iterations,
       zeroOutput: new Uint32Array(outputU32Length),
       paramsScratch: new Uint32Array(MINER_CONSTANTS.PARAMS_U32_LENGTH),
+      targetScratch: new Uint32Array(MINER_CONSTANTS.TARGET_U32_LENGTH),
       rawScratch: new Uint32Array(outputU32Length),
     }
   }
@@ -142,17 +145,37 @@ export class WebGpuMiner {
     this.partialHeaderReady = true
   }
 
+  setTarget(targetLe: Uint8Array): void {
+    const runtime = this.assertRuntime()
+    if (targetLe.length !== 32) {
+      throw new Error(`target must be 32 bytes, got ${targetLe.length}`)
+    }
+    for (let i = 0; i < MINER_CONSTANTS.TARGET_U32_LENGTH; i++) {
+      const o = i * 4
+      runtime.targetScratch[i] =
+        ((targetLe[o] ?? 0) |
+          ((targetLe[o + 1] ?? 0) << 8) |
+          ((targetLe[o + 2] ?? 0) << 16) |
+          ((targetLe[o + 3] ?? 0) << 24)) >>>
+        0
+    }
+    this.targetReady = true
+  }
+
   async run(job: MinerJob): Promise<MinerBatchResult> {
     const runtime = this.assertRuntime()
 
     if (!this.partialHeaderReady) {
       throw new Error('No partialHeader has been uploaded yet')
     }
+    if (!this.targetReady) {
+      throw new Error('No target has been uploaded yet')
+    }
 
     runtime.paramsScratch[0] = job.offset >>> 0
-    runtime.paramsScratch[1] = 0
-    runtime.paramsScratch[2] = 0
-    runtime.paramsScratch[3] = 0
+    runtime.paramsScratch[1] = runtime.targetScratch[5] ?? 0
+    runtime.paramsScratch[2] = runtime.targetScratch[6] ?? 0
+    runtime.paramsScratch[3] = runtime.targetScratch[7] ?? 0
     runtime.queue.writeBuffer(
       runtime.paramsBuffer,
       0,
@@ -202,7 +225,7 @@ export class WebGpuMiner {
 
     return {
       found: raw[MINER_CONSTANTS.FOUND_INDEX] === 1,
-      nonceSlots: raw.subarray(0, MINER_CONSTANTS.SLOT_COUNT),
+      nonceLow: raw[MINER_CONSTANTS.NONCE_INDEX] ?? 0,
       raw,
     }
   }
@@ -216,6 +239,7 @@ export class WebGpuMiner {
     this.runtime.readbackBuffers[1].destroy()
     this.runtime = null
     this.partialHeaderReady = false
+    this.targetReady = false
   }
 
   private assertRuntime(): WebGpuMinerRuntime {

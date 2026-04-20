@@ -6,8 +6,8 @@ alias num_t = u32;
 
 override ITERATIONS: u32 = 1u;
 
-const FOUND: u32 = 0x80u;
-const NFLAG: u32 = 0x7Fu;
+const FOUND: u32 = 0u;
+const NONCE_OUT: u32 = 1u;
 
 const H: array<u32, 8> = array<u32, 8>(
     0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
@@ -42,6 +42,9 @@ const CHAIN_LAYER_SCHEDULE_ARRAY: array<u32, 64> = array<u32, 64>(
 
 struct Params {
     offset: u32,
+    target0: u32,
+    target1: u32,
+    target2: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -179,6 +182,39 @@ fn sha256_chain_layer(schedule_array: ptr<function, array<u32, 64>>, hash: ptr<f
     sha256_compress_chain_const(hash);
 }
 
+fn hash_below_target(hash: ptr<function, array<u32, 8>>) -> bool {
+    // Quick reject: top bytes must still satisfy target's top bytes.
+    if (((*hash)[7] >> 24u) != 0u) {
+        return false;
+    }
+
+    // Compare little-endian hash words against little-endian target words.
+    // First 5 words are always 0 for Lotus target shape, so only compare 7..5 and 4..0.
+    let t7 = params.target2;
+    let t6 = params.target1;
+    let t5 = params.target0;
+
+    if ((*hash)[7] > t7) { return false; }
+    if ((*hash)[7] < t7) { return true; }
+
+    if ((*hash)[6] > t6) { return false; }
+    if ((*hash)[6] < t6) { return true; }
+
+    if ((*hash)[5] > t5) { return false; }
+    if ((*hash)[5] < t5) { return true; }
+
+    var i: i32 = 4;
+    loop {
+        if (i < 0) { break; }
+        if ((*hash)[u32(i)] > 0u) {
+            return false;
+        }
+        i = i - 1;
+    }
+
+    return false;
+}
+
 @compute @workgroup_size(256)
 fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
     var pow_layer: array<u32, 64>;
@@ -225,9 +261,9 @@ fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
 
         sha256_chain_layer(&chain_layer, &hash);
 
-        if (hash[7] == 0u) {
+        if (hash_below_target(&hash)) {
             output[FOUND] = 1u;
-            output[NFLAG & nonce] = nonce;
+            output[NONCE_OUT] = nonce;
         }
 
         iteration = iteration + 1u;

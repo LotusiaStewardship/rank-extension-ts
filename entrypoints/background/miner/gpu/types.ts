@@ -17,10 +17,10 @@ export type MinerJob = {
 }
 
 export type MinerBatchResult = {
-  /** output[0x80] == 1 */
+  /** output[0] == 1 */
   found: boolean
-  /** Direct mirror of output[0..127] from kernel */
-  nonceSlots: Uint32Array
+  /** Candidate low 32-bit nonce word (kernel-endian) */
+  nonceLow: number
   /** Full output buffer */
   raw: Uint32Array
 }
