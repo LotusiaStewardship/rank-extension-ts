@@ -17,3 +17,6 @@ export type {
   ProfileMeta,
   PostMetaCache,
 } from './instance'
+
+export { minerStore } from './miner'
+export type { MinerConfig, MinerStatus } from './miner'

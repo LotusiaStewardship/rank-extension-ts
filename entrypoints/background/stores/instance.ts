@@ -1,4 +1,4 @@
-import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import type { ScriptChunkPlatformUTF8 } from 'xpi-ts/lib/lokad'
 import assert from 'assert'
 import { AuthorizationHeader } from '../modules/instance'
 const { defineItem, setItem, setItems, getItem, getItems } = storage

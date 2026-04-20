@@ -9,7 +9,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   runner: {
     binaries: {
-      chrome: '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      chrome: '/Applications/Helium.app/Contents/MacOS/Helium',
       safari: '/Applications/Safari.app/Contents/MacOS/Safari',
     },
   },
@@ -23,6 +23,10 @@ export default defineConfig({
     host_permissions: [
       '*://rank.lotusia.org/api/v1/*',
       '*://chronik.lotusia.org/*',
+      'http://127.0.0.1:10604/*',
+      'http://127.0.0.1:10605/*',
+      'http://localhost:10604/*',
+      'http://localhost:10605/*',
     ],
     permissions: ['storage', 'notifications'],
   },

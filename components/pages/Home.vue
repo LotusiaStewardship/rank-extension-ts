@@ -3,11 +3,15 @@
 import { FwbHeading, FwbP, FwbTab, FwbTabs } from 'flowbite-vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
+import HomeMinerPanel from './home/HomeMinerPanel.vue'
 /** Types */
 import type { Ref, ShallowRef } from 'vue'
 import type { Unwatch as UnwatchFunction } from 'wxt/storage'
-import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
-import type { AuthorizationHeader, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
+import type { ScriptChunkPlatformUTF8 } from 'xpi-ts/lib/lokad'
+import type {
+  AuthorizationHeader,
+  AuthenticateHeader,
+} from '@/entrypoints/background/modules/instance'
 /** Modules */
 import { InstanceTools } from '@/entrypoints/background/modules/instance'
 import { instanceStore } from '@/entrypoints/background/stores/instance'
@@ -50,7 +54,7 @@ type TopPost = TopProfile & {
   postId: string
 }
 /**  */
-type Tab = 'myStats' | 'topProfiles' | 'topPosts'
+type Tab = 'myStats' | 'topProfiles' | 'topPosts' | 'miner'
 /** Twitter URL generator */
 const Twitter = {
   url: 'https://x.com',
@@ -98,7 +102,9 @@ const registerStatus: ShallowRef<boolean> = shallowRef(false)
 /** Current authorization header */
 const authorizationHeader = ref('')
 /** Current wallet script payload */
-const walletScriptPayload = inject('wallet-script-payload') as ShallowRef<string>
+const walletScriptPayload = inject(
+  'wallet-script-payload',
+) as ShallowRef<string>
 
 /**
  * Functions
@@ -111,7 +117,7 @@ const { setInterval, clearInterval } = window
 async function hydrateHomePage() {
   console.log('hydrating home page')
   // 5/20/25: disabled until backend registration is enabled
-  // 8/6/25: enabled again 
+  // 8/6/25: enabled again
   if (instanceId.value && walletScriptPayload.value) {
     myStats.value = (await getMyStats()) || ({} as MyStats)
   }
@@ -178,21 +184,22 @@ async function getTopPosts(): Promise<TopPost[]> {
  * @param headers - Optional response headers from a "401 Unauthorized" API response
  * @returns {Promise<AuthorizationHeader | null>}
  */
-async function createAuthorizationHeader(headers: Headers): Promise<AuthorizationHeader | null> {
+async function createAuthorizationHeader(
+  headers: Headers,
+): Promise<AuthorizationHeader | null> {
   // make sure we have an instance ID
   if (!instanceId.value) {
     loadingMessage.value = 'Awaiting instance ID...'
     return null
   }
-  const {
-    parseAuthenticateHeader,
-    toAuthorizationHeader,
-  } = InstanceTools
+  const { parseAuthenticateHeader, toAuthorizationHeader } = InstanceTools
   // create a new authorization header
   loadingMessage.value = 'Refreshing auth data...'
   // get the WWW-Authenticate header from the provided response headers
   // this header is guaranteed to be present since the request was unauthorized
-  const authenticateHeader = headers.get('www-authenticate')! as AuthenticateHeader
+  const authenticateHeader = headers.get(
+    'www-authenticate',
+  )! as AuthenticateHeader
   const blockData = parseAuthenticateHeader(authenticateHeader)
   if (!blockData) {
     console.error(
@@ -225,11 +232,12 @@ onMounted(async () => {
   instanceId.value = await instanceStore.getInstanceId()
   authorizationHeader.value = await instanceStore.getAuthorizationHeader()
   registerStatus.value = await instanceStore.getRegisterStatus()
-  watchers.set('instanceId', instanceStore.instanceIdStorageItem.watch(
-    (newInstanceId) => {
+  watchers.set(
+    'instanceId',
+    instanceStore.instanceIdStorageItem.watch(newInstanceId => {
       instanceId.value = newInstanceId
-    },
-  ))
+    }),
+  )
   // hydrate refs from RANK API
   await hydrateHomePage()
   // set up auto-update interval if not already set
@@ -240,7 +248,7 @@ onMounted(async () => {
 /**  */
 onBeforeUnmount(() => {
   clearInterval(interval.value)
-  watchers.forEach((unwatch) => unwatch())
+  watchers.forEach(unwatch => unwatch())
 })
 </script>
 
@@ -256,7 +264,10 @@ onBeforeUnmount(() => {
       <HomeMyStats v-else :data="myStats" />
     </FwbTab>
     <FwbTab name="topProfiles" title="Trending Profiles">
-      <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
+      <template
+        v-for="({ profileId, changed, total, platform }, index) in topProfiles"
+        :key="index"
+      >
         <div class="flex py-2 px-6">
           <div class="flex-grow items-start text-left">
             <a :href="Twitter.profileUrl(profileId)" target="_blank">
@@ -267,38 +278,49 @@ onBeforeUnmount(() => {
             <fwb-p>{{ platform }}</fwb-p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
-              toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
-              toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+            <FwbHeading tag="h6" title="total"
+              >+{{
+                toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</FwbHeading
+            >
+            <fwb-p class="text-pink-600 dark:text-pink-300"
+              >{{ toMinifiedNumber(total.ranking, 1_000_000) }}&nbsp;XPI</fwb-p
+            >
           </div>
         </div>
       </template>
     </FwbTab>
     <FwbTab name="topPosts" title="Trending Posts">
-      <template v-for="(
-{ profileId, postId, changed, total, platform }, index
-        ) in topPosts" :key="index">
+      <template
+        v-for="(
+          { profileId, postId, changed, total, platform }, index
+        ) in topPosts"
+        :key="index"
+      >
         <div class="flex py-2 px-6">
           <div class="flex-grow justify-start">
             <a :href="Twitter.postUrl(profileId, postId)" target="_blank">
-              <FwbHeading tag="h6" :title="profileId">
-                {{ profileId }}</FwbHeading>
+              <FwbHeading tag="h6" :title="profileId">{{
+                profileId
+              }}</FwbHeading>
             </a>
             <fwb-p>{{ platform }}&nbsp;<span class="text-xs">post</span></fwb-p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
-              toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
-              toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+            <FwbHeading tag="h6" title="total"
+              >+{{
+                toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</FwbHeading
+            >
+            <fwb-p class="text-pink-600 dark:text-pink-300"
+              >{{ toMinifiedNumber(total.ranking, 1_000_000) }}&nbsp;XPI</fwb-p
+            >
           </div>
         </div>
       </template>
+    </FwbTab>
+    <FwbTab name="miner" title="Miner">
+      <HomeMinerPanel />
     </FwbTab>
   </FwbTabs>
 </template>

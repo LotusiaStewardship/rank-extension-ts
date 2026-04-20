@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/chrome": "0.0.321",
+    "@webgpu/types": "0.1.64",
     "@types/jquery": "3.5.32",
     "@webext-core/messaging": "2.2.0",
     "@wxt-dev/module-vue": "1.0.2",

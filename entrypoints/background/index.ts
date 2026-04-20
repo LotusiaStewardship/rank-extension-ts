@@ -5,12 +5,16 @@ import {
 import {
   walletStore,
   instanceStore,
+  minerStore,
   type ExtensionInstance,
+  type MinerStatus,
 } from '@/entrypoints/background/stores'
 import {
   instanceMessaging,
   walletMessaging,
+  minerMessaging,
 } from '@/entrypoints/background/messaging'
+import { LotusMiningService } from '@/entrypoints/background/miner'
 import assert from 'assert'
 
 export default defineBackground({
@@ -19,6 +23,8 @@ export default defineBackground({
   main: () => {
     /** Instantiated `WalletManager` used during background service-worker runtime */
     const walletManager = new WalletManager()
+    /** Instantiated mining runtime; recreated on config changes */
+    let miningService: LotusMiningService | null = null
     /**
      *
      *  Register Event Handlers
@@ -50,6 +56,73 @@ export default defineBackground({
         }
       },
     )
+    minerMessaging.onMessage('popup:minerLoadConfig', async ({ sender }) => {
+      validateMessageSender(sender.id)
+      return await minerStore.getConfig()
+    })
+
+    minerMessaging.onMessage('popup:minerSaveConfig', async ({ sender, data }) => {
+      validateMessageSender(sender.id)
+      await minerStore.setConfig(data)
+      await stopMinerRuntime()
+      return await minerStore.getConfig()
+    })
+
+    minerMessaging.onMessage('popup:minerLoadStatus', async ({ sender }) => {
+      validateMessageSender(sender.id)
+      const status = await buildMinerStatus()
+      await minerStore.setStatus(status)
+      return status
+    })
+
+    minerMessaging.onMessage('popup:minerStart', async ({ sender }) => {
+      validateMessageSender(sender.id)
+      const config = await minerStore.getConfig()
+      if (!config.mineToAddress) {
+        const next = await minerStore.patchStatus({
+          running: false,
+          lastError: 'mineToAddress is required',
+          webgpuSupported: 'gpu' in navigator,
+        })
+        return next
+      }
+      await stopMinerRuntime()
+      miningService = new LotusMiningService({
+        mineToAddress: config.mineToAddress,
+        rpc: {
+          rpcUrl: config.rpcUrl,
+          rpcUser: config.rpcUser,
+          rpcPassword: config.rpcPassword,
+        },
+        rpcPollIntervalMs: config.rpcPollIntervalMs,
+        iterations: config.iterations,
+        kernelSize: config.kernelSize,
+        hashrateWindowMs: config.hashrateWindowMs,
+      })
+      try {
+        await miningService.start()
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        await minerStore.patchStatus({
+          running: false,
+          lastError: message,
+          webgpuSupported: 'gpu' in navigator,
+        })
+      }
+      return await buildMinerStatus()
+    })
+
+    minerMessaging.onMessage('popup:minerStop', async ({ sender }) => {
+      validateMessageSender(sender.id)
+      await stopMinerRuntime()
+      return await buildMinerStatus()
+    })
+
+    setInterval(async () => {
+      const status = await buildMinerStatus()
+      await minerStore.setStatus(status)
+    }, 1000)
+
     /**
      * Load the signing key from the wallet manager
      */
@@ -226,6 +299,33 @@ export default defineBackground({
         senderId === browser.runtime.id,
         `sender ID "${senderId}" does not match our extension ID ${browser.runtime.id}`,
       )
+    }
+
+    async function stopMinerRuntime(): Promise<void> {
+      if (!miningService) {
+        return
+      }
+      miningService.stop()
+      miningService = null
+      await minerStore.patchStatus({
+        running: false,
+        hashrate: 0,
+        testedNonces: '0',
+      })
+    }
+
+    async function buildMinerStatus(): Promise<MinerStatus> {
+      const stats = miningService?.getStats()
+      const running = Boolean(miningService?.isRunning)
+      const lastError = miningService?.lastError ?? ''
+      return {
+        running,
+        hashrate: stats?.hashrate ?? 0,
+        testedNonces: (stats?.testedNonces ?? 0n).toString(),
+        webgpuSupported: 'gpu' in navigator,
+        lastError,
+        updatedAt: Date.now(),
+      }
     }
 
     async function registerInstance(

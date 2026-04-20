@@ -61,6 +61,7 @@ const initialized = computed(() =>
  * Vue prop drilling
  */
 provide('wallet-script-payload', walletScriptPayload)
+provide('wallet-address', walletAddress)
 /**
  * Vue lifecycle hooks
  */
