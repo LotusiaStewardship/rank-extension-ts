@@ -13,8 +13,11 @@ import {
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { walletStore } from '@/entrypoints/background/stores/wallet'
 import { settingsStore } from '@/entrypoints/background/stores/settings'
-import type { RankOutput, ScriptChunkSentimentUTF8 } from 'rank-lib'
-import { PLATFORMS } from 'rank-lib'
+import type {
+  TransactionOutputRANK,
+  ScriptChunkSentimentUTF8,
+} from 'xpi-ts/lib/lokad'
+import { PlatformConfiguration } from 'xpi-ts/lib/lokad'
 import $ from 'jquery'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
 import type { Mutator } from '@/utils/types'
@@ -110,7 +113,7 @@ export default defineContentScript({
      *  Constants
      */
     const SELECTOR = Selector.Twitter
-    const PARAMS = PLATFORMS['twitter']
+    const PARAMS = PlatformConfiguration.get('twitter')
     const SETTINGS = {
       voteAmount: await settingsStore.getVoteAmountSatoshis(),
       autoBlurPosts: await settingsStore.getAutoBlurPosts(),
@@ -1296,7 +1299,7 @@ export default defineContentScript({
     async function handlePostVoteButtonClick(this: HTMLButtonElement) {
       // disable the button first
       this.disabled = true
-      const ranks: RankOutput[] = []
+      const ranks: TransactionOutputRANK[] = []
       // gather required data for submitting vote to Lotus network
       const profileId = this.getAttribute('data-profileid')!
       const postId = this.getAttribute('data-postid')!

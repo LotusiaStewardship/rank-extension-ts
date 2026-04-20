@@ -1,11 +1,10 @@
-// @ts-expect-error package has no types
-import Mnemonic from '@abcpros/bitcore-mnemonic'
 import assert from 'assert'
 /** Types */
 import type {
   ScriptChunkPlatformUTF8,
   ScriptChunkSentimentUTF8,
-} from 'rank-lib'
+} from 'xpi-ts/lib/lokad'
+import type { Buffer } from 'buffer/'
 import type {
   BlockchainInfo,
   OutPoint,
@@ -28,15 +27,20 @@ import {
   toProfileIdBuf,
   toPostIdBuf,
   toSentimentOpCode,
-} from 'rank-lib'
+} from 'xpi-ts/lib/lokad'
 import {
   HDPrivateKey,
+  Mnemonic,
   Script,
   PrivateKey,
   Transaction,
   Address,
   Message,
-} from '@abcpros/bitcore-lib-xpi'
+  Output,
+  BufferUtil,
+  Input,
+  PublicKeyHashInput,
+} from 'xpi-ts/lib/bitcore'
 import { walletStore } from '@/entrypoints/background/stores'
 const { saveChainState, saveMutableWalletState, loadWalletState } = walletStore
 /**
@@ -191,9 +195,6 @@ class WalletBuilder {
   /** Creates a `Mnemonic` object from a seed phrase string */
   static mnemonicFromSeedPhrase = (seedPhrase: string) =>
     new Mnemonic(seedPhrase) as Mnemonic
-  /** Creates a `Mnemonic` object from a seed buffer */
-  static mnemonicFromSeed = (seed: Buffer) =>
-    Mnemonic.fromSeed(seed) as Mnemonic
   /** Derives an `HDPrivateKey` from a mnemonic object */
   static hdPrivkeyFromMnemonic = (mnemonic: Mnemonic) =>
     HDPrivateKey.fromSeed(mnemonic.toSeed())
@@ -303,7 +304,7 @@ class WalletManager {
       this.wallet.address,
       Number(this.balance.total),
     )
-    return tx._estimateSize() >= WALLET_MAX_TX_SIZE
+    return tx.estimatedSize >= WALLET_MAX_TX_SIZE
   }
   /** Blockchain state, updated by `handleWsBlockConnected` */
   get chainState(): ChainState {
@@ -898,23 +899,32 @@ class WalletManager {
     profileId: string
     postId?: string
     comment?: string
-  }): Transaction.Output => {
+  }): Output => {
+    const sentimentBuf = toSentimentOpCode(sentiment)
+    const platformBuf = toPlatformBuf(platform)
+    const profileIdBuf = toProfileIdBuf(platform, profileId.toLowerCase())
+    if (!sentimentBuf || !platformBuf || !profileIdBuf) {
+      throw new Error('Invalid RANK output parameters')
+    }
     const script = new Script('')
     script.add('OP_RETURN')
-    script.add(Buffer.from('RANK'))
+    script.add(BufferUtil.from('RANK'))
     // Add sentiment opcode
-    script.add(toSentimentOpCode(sentiment))
+    script.add(sentimentBuf)
     // Add platform byte
-    script.add(toPlatformBuf(platform))
+    script.add(platformBuf)
     // Add LOWERCASE profileId bytes
-    script.add(toProfileIdBuf(platform, profileId.toLowerCase()))
+    script.add(profileIdBuf)
     // Add postId bytes if applicable
     if (postId) {
-      script.add(toPostIdBuf(platform, postId))
+      const postIdBuf = toPostIdBuf(platform, postId)
+      if (postIdBuf) {
+        script.add(postIdBuf)
+      }
     }
     // TODO: some additional script stuff here
 
-    return new Transaction.Output({ satoshis, script })
+    return new Output({ satoshis, script })
   }
   /**
    * Crafts a RANK transaction with the given parameters
@@ -951,7 +961,7 @@ class WalletManager {
       // TODO: add comment bytes to 2nd OP_RETURN output
     }
     */
-    const txFee = tx._estimateSize() * 2
+    const txFee = tx.estimatedSize * 2
     // track the inputs used in the tx
     const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
@@ -962,10 +972,10 @@ class WalletManager {
       }
       const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
-        new Transaction.Input.PublicKeyHash({
+        new PublicKeyHashInput({
           prevTxId: txid,
           outputIndex: outIdx,
-          output: new Transaction.Output({
+          output: new Output({
             satoshis: utxo.value,
             script: this.scriptHex,
           }),
@@ -1015,10 +1025,10 @@ class WalletManager {
       }
       const utxo = this.wallet.utxos.get(`${txid}_${outIdx}`)!
       tx.addInput(
-        new Transaction.Input.PublicKeyHash({
+        new PublicKeyHashInput({
           prevTxId: txid,
           outputIndex: outIdx,
-          output: new Transaction.Output({
+          output: new Output({
             satoshis: utxo.value,
             script: this.scriptHex,
           }),
@@ -1032,9 +1042,9 @@ class WalletManager {
       }
     }
     // remove inputs if the tx size is too large
-    while (tx._estimateSize() > WALLET_MAX_TX_SIZE) {
+    while (tx.estimatedSize > WALLET_MAX_TX_SIZE) {
       console.log(
-        `tx size ${tx._estimateSize()} bytes is too large, removing last input`,
+        `tx size ${tx.estimatedSize} bytes is too large, removing last input`,
       )
       const lastInput = tx.inputs.pop()
       if (lastInput) {
@@ -1042,9 +1052,9 @@ class WalletManager {
       }
     }
     // tx fee 2sat/byte default
-    const txFee = tx._estimateSize() * 2
+    const txFee = tx.estimatedSize * 2
     tx.addOutput(
-      new Transaction.Output({
+      new Output({
         satoshis: txFee > tx.inputAmount ? outValue - txFee : outValue,
         script: WalletBuilder.scriptFromAddress(outAddress),
       }),
@@ -1124,10 +1134,10 @@ class WalletManager {
         utxo,
       } of chunk) {
         tx.addInput(
-          new Transaction.Input.PublicKeyHash({
+          new PublicKeyHashInput({
             prevTxId: txid,
             outputIndex: outIdx,
-            output: new Transaction.Output({
+            output: new Output({
               satoshis: utxo.value,
               script: this.scriptHex,
             }),
@@ -1138,7 +1148,7 @@ class WalletManager {
       }
       // Add a dummy output to estimate size
       tx.to(outAddress, Number(totalValue))
-      const estimatedSize = tx._estimateSize()
+      const estimatedSize = tx.estimatedSize
       const fee = BigInt(estimatedSize * 2)
       // Remove dummy output and add real output with fee subtracted
       tx.outputs = []
