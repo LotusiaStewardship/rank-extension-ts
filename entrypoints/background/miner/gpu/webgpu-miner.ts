@@ -48,11 +48,11 @@ export class WebGpuMiner {
       2,
     )
 
-    const adapter = await navigator.gpu.requestAdapter({
-      powerPreference: 'high-performance',
-    })
+    const adapter = await this.requestAdapter()
     if (!adapter) {
-      throw new Error('No WebGPU adapter found')
+      throw new Error(
+        'No available adapters. WebGPU may be disabled in this Chromium runtime, or the browser may not expose a usable GPU adapter to extension service workers.',
+      )
     }
 
     const device = await adapter.requestDevice()
@@ -247,5 +247,25 @@ export class WebGpuMiner {
       throw new Error('WebGpuMiner is not initialized')
     }
     return this.runtime
+  }
+
+  private async requestAdapter(): Promise<GPUAdapter | null> {
+    const attempts: Array<GPURequestAdapterOptions | undefined> = [undefined]
+
+    // Prefer a high-performance adapter when it is available, but fall back to
+    // any adapter Chromium can expose in this runtime. Some Linux extension
+    // service workers only surface a usable adapter without a power hint.
+    attempts.push(undefined) // no preference
+    attempts.push({ powerPreference: 'high-performance' }) // beast mode
+    attempts.push({ powerPreference: 'low-power' }) // weak mode
+
+    for (const options of attempts) {
+      const adapter = await navigator.gpu.requestAdapter(options)
+      if (adapter) {
+        return adapter
+      }
+    }
+
+    return null
   }
 }

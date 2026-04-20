@@ -48,34 +48,42 @@ export class LotusMiningService {
     this.testedNonces = 0n
     this.metricsStart = Date.now()
 
-    await this.miner.init({
-      iterations:
-        this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
-      workgroupSize: MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE,
-    })
+    try {
+      await this.miner.init({
+        iterations:
+          this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
+        workgroupSize: MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE,
+      })
 
-    await this.updateNextBlock()
+      await this.updateNextBlock()
 
-    const pollMs =
-      this.settings.rpcPollIntervalMs ?? MINER_CONSTANTS.DEFAULT_RPC_POLL_MS
-    this.blockPollTimer = globalThis.setInterval(() => {
-      void this.updateNextBlock().catch(err =>
-        console.error('updateNextBlock error', err),
-      )
-    }, pollMs)
+      const pollMs =
+        this.settings.rpcPollIntervalMs ?? MINER_CONSTANTS.DEFAULT_RPC_POLL_MS
+      this.blockPollTimer = globalThis.setInterval(() => {
+        void this.updateNextBlock().catch(err =>
+          console.error('updateNextBlock error', err),
+        )
+      }, pollMs)
 
-    const loop = async () => {
-      while (this.running) {
-        try {
-          await this.mineSomeNonces()
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          this.latestError = msg
-          console.error('mineSomeNonces error', err)
+      const loop = async () => {
+        while (this.running) {
+          try {
+            await this.mineSomeNonces()
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            this.latestError = msg
+            console.error('mineSomeNonces error', err)
+          }
         }
       }
+      void loop()
+    } catch (err) {
+      this.running = false
+      this.miner.destroy()
+      const msg = err instanceof Error ? err.message : String(err)
+      this.latestError = msg
+      throw err
     }
-    void loop()
   }
 
   stop(): void {
