@@ -1,10 +1,20 @@
 type WxtStorageItemObject<T> = ReturnType<typeof storage.defineItem<T>>
 
+export type MinerPowerProfile =
+  | 'low-power'
+  | 'balanced'
+  | 'high-power'
+  | 'custom'
+
+export type MinerGpuPreference = 'high-performance' | 'low-power'
+
 export type MinerConfig = {
   rpcUrl: string
   rpcUser: string
   rpcPassword: string
   mineToAddress: string
+  powerProfile: MinerPowerProfile
+  gpuPreferences: MinerGpuPreference[]
   rpcPollIntervalMs: number
   iterations: number
   kernelSize: number
@@ -25,6 +35,8 @@ export const DefaultMinerConfig: MinerConfig = {
   rpcUser: 'lotus',
   rpcPassword: 'lotus',
   mineToAddress: '',
+  powerProfile: 'balanced',
+  gpuPreferences: ['high-performance'],
   rpcPollIntervalMs: 3000,
   iterations: 16,
   kernelSize: 1 << 23,

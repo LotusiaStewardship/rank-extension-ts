@@ -58,7 +58,22 @@ export default defineBackground({
     )
     minerMessaging.onMessage('popup:minerLoadConfig', async ({ sender }) => {
       validateMessageSender(sender.id)
-      return await minerStore.getConfig()
+      const config = await minerStore.getConfig()
+      if (!config.mineToAddress) {
+        const walletState = walletManager.uiWalletState
+        if (walletState?.address) {
+          return await minerStore.patchConfig({
+            mineToAddress: walletState.address,
+          })
+        }
+        const persistedWallet = await walletStore.loadWalletState()
+        if (persistedWallet?.address) {
+          return await minerStore.patchConfig({
+            mineToAddress: persistedWallet.address,
+          })
+        }
+      }
+      return config
     })
 
     minerMessaging.onMessage('popup:minerSaveConfig', async ({ sender, data }) => {
@@ -94,6 +109,7 @@ export default defineBackground({
           rpcUser: config.rpcUser,
           rpcPassword: config.rpcPassword,
         },
+        gpuPreferences: config.gpuPreferences,
         rpcPollIntervalMs: config.rpcPollIntervalMs,
         iterations: config.iterations,
         kernelSize: config.kernelSize,

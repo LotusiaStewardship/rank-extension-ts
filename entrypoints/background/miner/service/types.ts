@@ -1,8 +1,10 @@
 import type { LotusRpcSettings } from '@/entrypoints/background/miner/network'
+import type { MinerGpuPreference } from '@/entrypoints/background/stores/miner'
 
 export type LotusMiningSettings = {
   mineToAddress: string
   rpc: LotusRpcSettings
+  gpuPreferences?: MinerGpuPreference[]
   rpcPollIntervalMs?: number
   iterations?: number
   kernelSize?: number

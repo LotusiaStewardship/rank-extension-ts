@@ -19,4 +19,9 @@ export type {
 } from './instance'
 
 export { minerStore } from './miner'
-export type { MinerConfig, MinerStatus } from './miner'
+export type {
+  MinerConfig,
+  MinerStatus,
+  MinerGpuPreference,
+  MinerPowerProfile,
+} from './miner'

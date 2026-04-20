@@ -17,6 +17,7 @@ type WebGpuMinerRuntime = {
   readbackBuffers: [GPUBuffer, GPUBuffer]
   readbackCursor: 0 | 1
   outputU32Length: number
+  maxDispatchX: number
   workgroupSize: number
   iterations: number
   zeroOutput: Uint32Array
@@ -29,6 +30,11 @@ export class WebGpuMiner {
   private runtime: WebGpuMinerRuntime | null = null
   private partialHeaderReady = false
   private targetReady = false
+
+  public get maxNonceCountPerDispatch(): number {
+    const runtime = this.assertRuntime()
+    return runtime.maxDispatchX * runtime.workgroupSize * runtime.iterations
+  }
 
   public get isReady(): boolean {
     return this.runtime !== null
@@ -48,7 +54,7 @@ export class WebGpuMiner {
       2,
     )
 
-    const adapter = await this.requestAdapter()
+    const adapter = await this.requestAdapter(params.gpuPreferences)
     if (!adapter) {
       throw new Error(
         'No available adapters. WebGPU may be disabled in this Chromium runtime, or the browser may not expose a usable GPU adapter to extension service workers.',
@@ -119,6 +125,7 @@ export class WebGpuMiner {
       readbackBuffers: [readbackBufferA, readbackBufferB],
       readbackCursor: 0,
       outputU32Length,
+      maxDispatchX: device.limits.maxComputeWorkgroupsPerDimension,
       workgroupSize,
       iterations,
       zeroOutput: new Uint32Array(outputU32Length),
@@ -191,10 +198,11 @@ export class WebGpuMiner {
     const noncesPerWorkgroup = runtime.workgroupSize * runtime.iterations
     // Match OpenCL global_work_size behavior: exact kernel_size lanes per dispatch.
     // Any remainder is intentionally ignored, like the Rust/OpenCL reference miner.
-    const dispatchX = Math.max(
+    const dispatchXRequested = Math.max(
       1,
       Math.floor(job.nonceCount / noncesPerWorkgroup),
     )
+    const dispatchX = Math.min(dispatchXRequested, runtime.maxDispatchX)
 
     const readback = runtime.readbackBuffers[runtime.readbackCursor]
     runtime.readbackCursor = runtime.readbackCursor === 0 ? 1 : 0
@@ -249,15 +257,18 @@ export class WebGpuMiner {
     return this.runtime
   }
 
-  private async requestAdapter(): Promise<GPUAdapter | null> {
+  private async requestAdapter(
+    gpuPreferences: Array<'high-performance' | 'low-power'> = [
+      'high-performance',
+      'low-power',
+    ],
+  ): Promise<GPUAdapter | null> {
     const attempts: Array<GPURequestAdapterOptions | undefined> = [undefined]
 
-    // Prefer a high-performance adapter when it is available, but fall back to
-    // any adapter Chromium can expose in this runtime. Some Linux extension
-    // service workers only surface a usable adapter without a power hint.
-    attempts.push(undefined) // no preference
-    attempts.push({ powerPreference: 'high-performance' }) // beast mode
-    attempts.push({ powerPreference: 'low-power' }) // weak mode
+    // Prefer user-selected order, but still include plain request fallback.
+    for (const powerPreference of gpuPreferences) {
+      attempts.push({ powerPreference })
+    }
 
     for (const options of attempts) {
       const adapter = await navigator.gpu.requestAdapter(options)

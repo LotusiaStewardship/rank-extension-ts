@@ -1,6 +1,8 @@
 export type MinerInitParams = {
   /** WGSL source code for the compute kernel */
   shaderCode?: string
+  /** Ordered adapter preference list */
+  gpuPreferences?: Array<'high-performance' | 'low-power'>
   /** OpenCL-style ITERATIONS override constant */
   iterations?: number
   /** Must match @workgroup_size in shader */

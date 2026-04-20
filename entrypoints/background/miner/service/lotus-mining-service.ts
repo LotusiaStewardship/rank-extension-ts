@@ -35,6 +35,7 @@ export class LotusMiningService {
   private partialHeaderWords = new Uint32Array(
     MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH,
   )
+  private maxNonceCountPerSearch = 0
 
   constructor(private readonly settings: LotusMiningSettings) {
     this.rpc = new LotusRpcClient(settings.rpc)
@@ -50,10 +51,13 @@ export class LotusMiningService {
 
     try {
       await this.miner.init({
+        gpuPreferences: this.settings.gpuPreferences,
         iterations:
           this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
         workgroupSize: MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE,
       })
+
+      this.maxNonceCountPerSearch = this.miner.maxNonceCountPerDispatch
 
       await this.updateNextBlock()
 
@@ -151,11 +155,18 @@ export class LotusMiningService {
       this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS
     const kernelSize =
       this.settings.kernelSize ?? MINER_CONSTANTS.DEFAULT_KERNEL_SIZE
-    const numNoncesPerSearch = BigInt(kernelSize) * BigInt(iterations)
+    const requestedNoncesPerSearch = BigInt(kernelSize) * BigInt(iterations)
+    const maxDispatchNonces = BigInt(this.maxNonceCountPerSearch)
+    const numNoncesPerSearch =
+      requestedNoncesPerSearch > maxDispatchNonces
+        ? maxDispatchNonces
+        : requestedNoncesPerSearch
 
     const baseBig = BigInt(this.currentWork.nonceIdx) * numNoncesPerSearch
     if (baseBig > BigInt(0xffffffff)) {
-      console.warn('Nonce base overflow range reached; waiting for new work')
+      // Prevent hot-loop spam and wasted CPU: discard stale work and wait for fresh block template.
+      this.currentWork = null
+      this.nextBlock = null
       return
     }
     const base = Number(baseBig)
