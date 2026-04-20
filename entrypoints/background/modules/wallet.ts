@@ -936,32 +936,6 @@ class WalletManager {
     voteAmountXPI: string,
   ): [Transaction, OutPoint[]] => {
     const tx = new Transaction()
-    // set some default tx params
-    tx.feePerByte(2)
-    tx.change(this.wallet.address)
-    // Add the paid RANK output to the tx
-    const paidRankOutput = ranks.shift()!
-    tx.addOutput(
-      this.craftRankOutput({
-        satoshis: Number(voteAmountXPI),
-        ...paidRankOutput,
-      }),
-    )
-    // Add neutral RANK outputs to the tx
-    for (const rank of ranks) {
-      tx.addOutput(
-        this.craftRankOutput({
-          satoshis: 0,
-          ...rank,
-        }),
-      )
-    }
-    /*
-    if (comment) {
-      // TODO: add comment bytes to 2nd OP_RETURN output
-    }
-    */
-    const txFee = tx.estimatedSize * 2
     // track the inputs used in the tx
     const spentInputs: OutPoint[] = []
     // gather utxos until we have more than outValue
@@ -984,9 +958,32 @@ class WalletManager {
       )
       spentInputs.push({ txid, outIdx })
       // don't use anymore inputs if we have enough value already
-      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE + txFee) {
+      if (tx.inputAmount > RANK_OUTPUT_MIN_VALUE) {
         break
       }
+    }
+
+    // set some default tx params
+    // These MUST be set after inputs for proper fee calculation
+    tx.feePerByte(2)
+    tx.change(this.wallet.address)
+
+    // Add the paid RANK output to the tx
+    const paidRankOutput = ranks.shift()!
+    tx.addOutput(
+      this.craftRankOutput({
+        satoshis: Number(voteAmountXPI),
+        ...paidRankOutput,
+      }),
+    )
+    // Add neutral RANK outputs to the tx
+    for (const rank of ranks) {
+      tx.addOutput(
+        this.craftRankOutput({
+          satoshis: 0,
+          ...rank,
+        }),
+      )
     }
 
     // Finalize tx
