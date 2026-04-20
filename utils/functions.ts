@@ -117,3 +117,50 @@ export async function authorizedFetch(
   }
   return response.json()
 }
+
+/**
+ * Utility functions
+ */
+export const Util = {
+  /** Sha256 operations */
+  sha256: {
+    /**
+     * Validate a sha256 hash
+     * @param str - The sha256 hash to validate
+     * @returns Whether the sha256 hash is valid
+     */
+    validate(str: string) {
+      return str.match(/^[a-f0-9]{64}$/)
+    },
+  },
+  /** Base64 operations */
+  base64: {
+    /**
+     * Encodes a string to a base64 encoded string
+     * @param str The string to encode
+     * @returns The base64 encoded string
+     */
+    encode(str: string) {
+      return Buffer.from(str).toString('base64')
+    },
+    /**
+     * Decodes a base64 encoded string
+     * @param str The base64 encoded string to decode
+     * @returns The decoded string
+     */
+    decode(str: string) {
+      // Don't validate the string; validation should be handled by the caller
+      return Buffer.from(str, 'base64').toString('utf8')
+    },
+  },
+  /** Crypto operations */
+  crypto: {
+    /**
+     * Generates a random UUID
+     * @returns The random UUID
+     */
+    randomUUID(): string {
+      return crypto.randomUUID()
+    },
+  },
+}

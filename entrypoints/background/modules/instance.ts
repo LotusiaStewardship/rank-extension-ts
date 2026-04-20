@@ -1,6 +1,7 @@
+import { AuthorizationData } from 'xpi-ts/lib/rank/api'
+import { Util } from '@/utils/functions'
 import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
 import type { ChainState } from '@/entrypoints/background/stores/wallet'
-import { AuthorizationData, Util } from '@/utils/rank-lib'
 
 /** blockhash or blockheight */
 const authenticateParam = /blockhash=([a-f0-9]{64})|blockheight=(\d{1,10})/g
