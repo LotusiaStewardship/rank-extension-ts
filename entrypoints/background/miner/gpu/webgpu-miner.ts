@@ -14,10 +14,14 @@ type WebGpuMinerRuntime = {
   paramsBuffer: GPUBuffer
   partialHeaderBuffer: GPUBuffer
   outputBuffer: GPUBuffer
-  readbackBuffer: GPUBuffer
+  readbackBuffers: [GPUBuffer, GPUBuffer]
+  readbackCursor: 0 | 1
   outputU32Length: number
   workgroupSize: number
   iterations: number
+  zeroOutput: Uint32Array
+  paramsScratch: Uint32Array
+  rawScratch: Uint32Array
 }
 
 export class WebGpuMiner {
@@ -42,7 +46,9 @@ export class WebGpuMiner {
       129,
     )
 
-    const adapter = await navigator.gpu.requestAdapter()
+    const adapter = await navigator.gpu.requestAdapter({
+      powerPreference: 'high-performance',
+    })
     if (!adapter) {
       throw new Error('No WebGPU adapter found')
     }
@@ -81,7 +87,12 @@ export class WebGpuMiner {
         GPUBufferUsage.COPY_DST,
     })
 
-    const readbackBuffer = device.createBuffer({
+    const readbackBufferA = device.createBuffer({
+      size: outputU32Length * 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    })
+
+    const readbackBufferB = device.createBuffer({
       size: outputU32Length * 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     })
@@ -103,10 +114,14 @@ export class WebGpuMiner {
       paramsBuffer,
       partialHeaderBuffer,
       outputBuffer,
-      readbackBuffer,
+      readbackBuffers: [readbackBufferA, readbackBufferB],
+      readbackCursor: 0,
       outputU32Length,
       workgroupSize,
       iterations,
+      zeroOutput: new Uint32Array(outputU32Length),
+      paramsScratch: new Uint32Array(MINER_CONSTANTS.PARAMS_U32_LENGTH),
+      rawScratch: new Uint32Array(outputU32Length),
     }
   }
 
@@ -130,28 +145,36 @@ export class WebGpuMiner {
   async run(job: MinerJob): Promise<MinerBatchResult> {
     const runtime = this.assertRuntime()
 
-    if (job.partialHeader) {
-      this.setPartialHeader(job.partialHeader)
-    }
     if (!this.partialHeaderReady) {
       throw new Error('No partialHeader has been uploaded yet')
     }
 
-    const params = new Uint32Array(MINER_CONSTANTS.PARAMS_U32_LENGTH)
-    params[0] = job.offset >>> 0
-    runtime.queue.writeBuffer(runtime.paramsBuffer, 0, params)
+    runtime.paramsScratch[0] = job.offset >>> 0
+    runtime.paramsScratch[1] = 0
+    runtime.paramsScratch[2] = 0
+    runtime.paramsScratch[3] = 0
+    runtime.queue.writeBuffer(
+      runtime.paramsBuffer,
+      0,
+      runtime.paramsScratch as GPUAllowSharedBufferSource,
+    )
 
     runtime.queue.writeBuffer(
       runtime.outputBuffer,
       0,
-      new Uint32Array(runtime.outputU32Length),
+      runtime.zeroOutput as GPUAllowSharedBufferSource,
     )
 
     const noncesPerWorkgroup = runtime.workgroupSize * runtime.iterations
+    // Match OpenCL global_work_size behavior: exact kernel_size lanes per dispatch.
+    // Any remainder is intentionally ignored, like the Rust/OpenCL reference miner.
     const dispatchX = Math.max(
       1,
-      Math.ceil(job.nonceCount / noncesPerWorkgroup),
+      Math.floor(job.nonceCount / noncesPerWorkgroup),
     )
+
+    const readback = runtime.readbackBuffers[runtime.readbackCursor]
+    runtime.readbackCursor = runtime.readbackCursor === 0 ? 1 : 0
 
     const encoder = runtime.device.createCommandEncoder()
     const pass = encoder.beginComputePass()
@@ -163,22 +186,23 @@ export class WebGpuMiner {
     encoder.copyBufferToBuffer(
       runtime.outputBuffer,
       0,
-      runtime.readbackBuffer,
+      readback,
       0,
       runtime.outputU32Length * 4,
     )
 
     runtime.queue.submit([encoder.finish()])
-    await runtime.queue.onSubmittedWorkDone()
 
-    await runtime.readbackBuffer.mapAsync(GPUMapMode.READ)
-    const mapped = runtime.readbackBuffer.getMappedRange()
-    const raw = new Uint32Array(mapped.slice(0))
-    runtime.readbackBuffer.unmap()
+    await readback.mapAsync(GPUMapMode.READ)
+    const mapped = readback.getMappedRange()
+    runtime.rawScratch.set(new Uint32Array(mapped))
+    readback.unmap()
+
+    const raw = runtime.rawScratch
 
     return {
       found: raw[MINER_CONSTANTS.FOUND_INDEX] === 1,
-      nonceSlots: raw.slice(0, MINER_CONSTANTS.SLOT_COUNT),
+      nonceSlots: raw.subarray(0, MINER_CONSTANTS.SLOT_COUNT),
       raw,
     }
   }
@@ -188,7 +212,8 @@ export class WebGpuMiner {
     this.runtime.paramsBuffer.destroy()
     this.runtime.partialHeaderBuffer.destroy()
     this.runtime.outputBuffer.destroy()
-    this.runtime.readbackBuffer.destroy()
+    this.runtime.readbackBuffers[0].destroy()
+    this.runtime.readbackBuffers[1].destroy()
     this.runtime = null
     this.partialHeaderReady = false
   }

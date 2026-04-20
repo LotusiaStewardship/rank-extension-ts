@@ -1,7 +1,7 @@
 import { MINER_CONSTANTS } from '@/entrypoints/background/miner/constants'
 import {
   createBlock,
-  lotusHash,
+  sha256,
   prevHash,
   bytesToHex,
   reverseBytes,
@@ -28,11 +28,15 @@ export class LotusMiningService {
 
   private running = false
   private blockPollTimer: ReturnType<typeof setInterval> | null = null
-  private mineTimer: ReturnType<typeof setTimeout> | null = null
   private latestError = ''
 
   private metricsStart = Date.now()
   private testedNonces = 0n
+  private partialHeaderScratch = new Uint8Array(84)
+  private partialHeaderWords = new Uint32Array(
+    MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH,
+  )
+  private readonly targetWordsLe = new Uint32Array(8)
 
   constructor(private readonly settings: LotusMiningSettings) {
     this.rpc = new LotusRpcClient(settings.rpc)
@@ -43,9 +47,12 @@ export class LotusMiningService {
     if (this.running) return
     this.running = true
     this.latestError = ''
+    this.testedNonces = 0n
+    this.metricsStart = Date.now()
 
     await this.miner.init({
-      iterations: this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
+      iterations:
+        this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
       workgroupSize: MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE,
     })
 
@@ -60,15 +67,14 @@ export class LotusMiningService {
     }, pollMs)
 
     const loop = async () => {
-      if (!this.running) return
-      try {
-        await this.mineSomeNonces()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        this.latestError = msg
-        console.error('mineSomeNonces error', err)
-      } finally {
-        this.mineTimer = globalThis.setTimeout(loop, 0)
+      while (this.running) {
+        try {
+          await this.mineSomeNonces()
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          this.latestError = msg
+          console.error('mineSomeNonces error', err)
+        }
       }
     }
     void loop()
@@ -79,10 +85,6 @@ export class LotusMiningService {
     if (this.blockPollTimer !== null) {
       clearInterval(this.blockPollTimer)
       this.blockPollTimer = null
-    }
-    if (this.mineTimer !== null) {
-      clearTimeout(this.mineTimer)
-      this.mineTimer = null
     }
     this.miner.destroy()
   }
@@ -104,15 +106,21 @@ export class LotusMiningService {
   }
 
   private async updateNextBlock(): Promise<void> {
-    const unsolved = await this.rpc.getRawUnsolvedBlock(this.settings.mineToAddress)
+    const unsolved = await this.rpc.getRawUnsolvedBlock(
+      this.settings.mineToAddress,
+    )
     if (!unsolved) {
       return
     }
 
     const block = createBlock(unsolved)
-    const prev = this.currentWork ? this.currentWork.header.slice(0, 32) : null
-    if (!prev || bytesToHex(prev) !== bytesToHex(prevHash(block))) {
-      console.info('Switched mining tip:', bytesToHex(reverseBytes(prevHash(block))))
+    const prev = this.currentWork?.header.subarray(0, 32) ?? null
+    const nextPrev = prevHash(block)
+    if (!prev || !this.equal32(prev, nextPrev)) {
+      console.info(
+        'Switched mining tip:',
+        bytesToHex(reverseBytes(nextPrev)),
+      )
     }
     this.nextBlock = block
   }
@@ -125,6 +133,7 @@ export class LotusMiningService {
         target: this.nextBlock.target,
         nonceIdx: 0,
       }
+      this.fillTargetWordsLe(this.currentWork.target)
       this.nextBlock = null
     }
 
@@ -134,7 +143,8 @@ export class LotusMiningService {
 
     const iterations =
       this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS
-    const kernelSize = this.settings.kernelSize ?? MINER_CONSTANTS.DEFAULT_KERNEL_SIZE
+    const kernelSize =
+      this.settings.kernelSize ?? MINER_CONSTANTS.DEFAULT_KERNEL_SIZE
     const numNoncesPerSearch = BigInt(kernelSize) * BigInt(iterations)
 
     const baseBig = BigInt(this.currentWork.nonceIdx) * numNoncesPerSearch
@@ -165,8 +175,8 @@ export class LotusMiningService {
 
     const foundNonce = await this.validateCandidateSlots(
       this.currentWork.header,
-      this.currentWork.target,
       result.nonceSlots,
+      bigNonce,
     )
     if (foundNonce === null) {
       return
@@ -187,17 +197,17 @@ export class LotusMiningService {
     }
   }
 
-  private async buildPartialHeader(header160: Uint8Array): Promise<Uint32Array> {
-    const partialHeader = new Uint8Array(84)
-    partialHeader.set(header160.slice(0, 52), 0)
-    partialHeader.set(
-      await crypto.subtle
-        .digest('SHA-256', header160.slice(52).buffer.slice(header160.slice(52).byteOffset, header160.slice(52).byteOffset + header160.slice(52).byteLength))
-        .then(d => new Uint8Array(d)),
-      52,
-    )
+  private async buildPartialHeader(
+    header160: Uint8Array,
+  ): Promise<Uint32Array> {
+    const partialHeader = this.partialHeaderScratch
+    partialHeader.set(header160.subarray(0, 52), 0)
 
-    const out = new Uint32Array(MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH)
+    const txLayerView = header160.subarray(52)
+    const txLayerHash = await sha256(txLayerView)
+    partialHeader.set(txLayerHash, 52)
+
+    const out = this.partialHeaderWords
     const dv = new DataView(partialHeader.buffer, partialHeader.byteOffset, 84)
     for (let i = 0; i < MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH; i++) {
       out[i] = dv.getUint32(i * 4, false)
@@ -207,57 +217,99 @@ export class LotusMiningService {
 
   private async validateCandidateSlots(
     header160: Uint8Array,
-    targetLe: Uint8Array,
     slots: Uint32Array,
+    bigNonce: bigint,
   ): Promise<bigint | null> {
+    const header = header160.slice()
+    const headerView = new DataView(
+      header.buffer,
+      header.byteOffset,
+      header.byteLength,
+    )
+    const highNonce = Number((bigNonce >> 32n) & 0xffffffffn) >>> 0
+
     for (let i = 0; i < 0x7f; i++) {
       const raw = slots[i]!
       if (raw === 0) {
         continue
       }
-      const nonce = this.swapU32(raw)
-      const candidateHeader = header160.slice()
-      const nonceBytes = new Uint8Array(8)
-      new DataView(nonceBytes.buffer).setUint32(0, nonce, true)
-      candidateHeader.set(nonceBytes.slice(0, 4), 44)
+      const nonceLow = this.swapU32(raw)
+      headerView.setUint32(44, nonceLow, true)
 
-      const hash = await lotusHash(candidateHeader)
+      const hash = await this.lotusHashLocal(header)
       if (hash[31] !== 0) {
         continue
       }
 
-      if (this.hashBelowTarget(hash, targetLe)) {
-        const low = BigInt(
-          new DataView(
-            candidateHeader.buffer,
-            candidateHeader.byteOffset + 44,
-            4,
-          ).getUint32(0, true),
-        )
-        const high = BigInt(
-          new DataView(
-            candidateHeader.buffer,
-            candidateHeader.byteOffset + 48,
-            4,
-          ).getUint32(0, true),
-        )
-        return (high << 32n) | low
+      if (this.hashBelowTarget(hash)) {
+        return (BigInt(highNonce) << 32n) | BigInt(nonceLow)
       }
     }
     return null
   }
 
-  private hashBelowTarget(hashLe: Uint8Array, targetLe: Uint8Array): boolean {
-    for (let i = 31; i >= 0; i--) {
-      const h = hashLe[i]!
-      const t = targetLe[i]!
-      if (h > t) return false
-      if (h < t) return true
+  private hashBelowTarget(hashLe: Uint8Array): boolean {
+    for (let i = 7; i >= 0; i--) {
+      const o = i * 4
+      const h =
+        (hashLe[o] ?? 0) |
+        ((hashLe[o + 1] ?? 0) << 8) |
+        ((hashLe[o + 2] ?? 0) << 16) |
+        ((hashLe[o + 3] ?? 0) << 24)
+      const t = this.targetWordsLe[i]!
+      const hu = h >>> 0
+      if (hu > t) return false
+      if (hu < t) return true
     }
     return false
   }
 
-  private serializeSolvedBlockHex(solvedHeader: Uint8Array, body: Uint8Array): string {
+  private fillTargetWordsLe(targetLe: Uint8Array): void {
+    if (targetLe.length !== 32) {
+      throw new Error(`Expected 32-byte target, got ${targetLe.length}`)
+    }
+    for (let i = 0; i < 8; i++) {
+      const o = i * 4
+      this.targetWordsLe[i] =
+        ((targetLe[o] ?? 0) |
+          ((targetLe[o + 1] ?? 0) << 8) |
+          ((targetLe[o + 2] ?? 0) << 16) |
+          ((targetLe[o + 3] ?? 0) << 24)) >>>
+        0
+    }
+  }
+
+  private async lotusHashLocal(header160: Uint8Array): Promise<Uint8Array> {
+    const txLayerHash = await sha256(header160.subarray(52))
+
+    const powLayer = new Uint8Array(52)
+    powLayer.set(header160.subarray(32, 52), 0)
+    powLayer.set(txLayerHash, 20)
+    const powLayerHash = await sha256(powLayer)
+
+    const chainLayer = new Uint8Array(64)
+    chainLayer.set(header160.subarray(0, 32), 0)
+    chainLayer.set(powLayerHash, 32)
+
+    return sha256(chainLayer)
+  }
+
+  private equal32(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length < 32 || b.length < 32) {
+      return false
+    }
+    for (let i = 0; i < 32; i++) {
+      if (a[i] !== b[i]) {
+        return false
+      }
+    }
+    return true
+  }
+
+  private serializeSolvedBlockHex(
+    solvedHeader: Uint8Array,
+    body: Uint8Array,
+  ): string {
     const bytes = new Uint8Array(solvedHeader.length + body.length)
     bytes.set(solvedHeader, 0)
     bytes.set(body, solvedHeader.length)
@@ -266,7 +318,8 @@ export class LotusMiningService {
 
   private maybeReportHashrate(): void {
     const windowMs =
-      this.settings.hashrateWindowMs ?? MINER_CONSTANTS.DEFAULT_HASHRATE_WINDOW_MS
+      this.settings.hashrateWindowMs ??
+      MINER_CONSTANTS.DEFAULT_HASHRATE_WINDOW_MS
     const elapsed = Date.now() - this.metricsStart
     if (elapsed < windowMs) return
 
@@ -290,11 +343,12 @@ export class LotusMiningService {
 
   private swapU32(v: number): number {
     return (
-      ((v & 0xff) << 24) |
-      ((v & 0xff00) << 8) |
-      ((v >>> 8) & 0xff00) |
-      ((v >>> 24) & 0xff)
-    ) >>> 0
+      (((v & 0xff) << 24) |
+        ((v & 0xff00) << 8) |
+        ((v >>> 8) & 0xff00) |
+        ((v >>> 24) & 0xff)) >>>
+      0
+    )
   }
 
   private randomU64(): bigint {

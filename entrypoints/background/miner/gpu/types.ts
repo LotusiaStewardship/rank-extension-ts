@@ -14,8 +14,6 @@ export type MinerJob = {
   offset: number
   /** Number of nonces to test in this dispatch */
   nonceCount: number
-  /** Optional 21-word header payload (required once, then reused) */
-  partialHeader?: Uint32Array
 }
 
 export type MinerBatchResult = {

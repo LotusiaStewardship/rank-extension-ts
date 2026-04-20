@@ -117,7 +117,7 @@ fn sha256_compress(schedule_array: ptr<function, array<u32, 64>>, hash: ptr<func
     (*hash)[7] = (*hash)[7] + h;
 }
 
-fn sha256_compress_const(schedule_array: ptr<function, array<u32, 64>>, hash: ptr<function, array<u32, 8>>) {
+fn sha256_compress_chain_const(hash: ptr<function, array<u32, 8>>) {
     var a = (*hash)[0];
     var b = (*hash)[1];
     var c = (*hash)[2];
@@ -130,7 +130,7 @@ fn sha256_compress_const(schedule_array: ptr<function, array<u32, 64>>, hash: pt
     var i: u32 = 0u;
     loop {
         if (i >= 64u) { break; }
-        let tmp1 = h + sigma1(e) + choose(e, f, g) + K[i] + (*schedule_array)[i];
+        let tmp1 = h + sigma1(e) + choose(e, f, g) + K[i] + CHAIN_LAYER_SCHEDULE_ARRAY[i];
         let tmp2 = sigma0(a) + majority(a, b, c);
 
         h = g;
@@ -176,8 +176,7 @@ fn sha256_chain_layer(schedule_array: ptr<function, array<u32, 64>>, hash: ptr<f
     sha256_extend(schedule_array);
     sha256_compress(schedule_array, hash);
 
-    var const_schedule: array<u32, 64> = CHAIN_LAYER_SCHEDULE_ARRAY;
-    sha256_compress_const(&const_schedule, hash);
+    sha256_compress_chain_const(hash);
 }
 
 @compute @workgroup_size(256)

@@ -12,7 +12,11 @@ export type LotusRpcSettings = {
 }
 
 export class LotusRpcClient {
-  constructor(private readonly settings: LotusRpcSettings) {}
+  private readonly authHeader: string
+
+  constructor(private readonly settings: LotusRpcSettings) {
+    this.authHeader = `Basic ${btoa(`${settings.rpcUser}:${settings.rpcPassword}`)}`
+  }
 
   async getRawUnsolvedBlock(
     mineToAddress: string,
@@ -36,22 +40,20 @@ export class LotusRpcClient {
     method: string,
     params: unknown[],
   ): Promise<JsonRpcResponse<T>> {
-    const auth = btoa(`${this.settings.rpcUser}:${this.settings.rpcPassword}`)
     const res = await fetch(this.settings.rpcUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${auth}`,
+        Authorization: this.authHeader,
       },
-      body: JSON.stringify({ method, params }),
+      body: JSON.stringify({ method, params, id: 1 }),
     })
 
-    const text = await res.text()
     if (!res.ok) {
+      const text = await res.text()
       throw new Error(`${method} HTTP ${res.status}: ${text}`)
     }
 
-    const parsed = JSON.parse(text) as JsonRpcResponse<T>
-    return parsed
+    return (await res.json()) as JsonRpcResponse<T>
   }
 }
