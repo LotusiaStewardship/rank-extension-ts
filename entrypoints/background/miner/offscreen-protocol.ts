@@ -4,8 +4,10 @@ import type {
 } from '@/entrypoints/background/stores/miner'
 import type { LotusMiningSettings } from '@/entrypoints/background/miner/service'
 
+/** Runtime message channel for background <-> offscreen document control-plane traffic. */
 export const OFFSCREEN_MINER_CHANNEL = 'lotusia:offscreen-miner' as const
 
+/** Commands accepted by the offscreen document controller endpoint. */
 export type OffscreenMinerCommandType =
   | 'ping'
   | 'start'
@@ -14,6 +16,7 @@ export type OffscreenMinerCommandType =
   | 'updateConfig'
   | 'shutdown'
 
+/** Per-command payload contract. */
 export type OffscreenMinerCommandPayloadMap = {
   ping: undefined
   start: { settings: LotusMiningSettings }
@@ -23,14 +26,25 @@ export type OffscreenMinerCommandPayloadMap = {
   shutdown: undefined
 }
 
+/**
+ * Background -> offscreen document command envelope.
+ */
 export type OffscreenMinerCommand<T extends OffscreenMinerCommandType = OffscreenMinerCommandType> = {
+  /** Protocol channel discriminator. */
   channel: typeof OFFSCREEN_MINER_CHANNEL
+  /** Message kind discriminator. */
   kind: 'command'
+  /** Correlation id for request/response matching. */
   requestId: string
+  /** Command name. */
   command: T
+  /** Command payload matching `command` type. */
   payload: OffscreenMinerCommandPayloadMap[T]
 }
 
+/**
+ * Offscreen document -> background response envelope.
+ */
 export type OffscreenMinerResponse<T = unknown> = {
   channel: typeof OFFSCREEN_MINER_CHANNEL
   kind: 'response'
@@ -40,6 +54,9 @@ export type OffscreenMinerResponse<T = unknown> = {
   error?: string
 }
 
+/**
+ * Offscreen document -> background async event stream.
+ */
 export type OffscreenMinerEvent =
   | {
       channel: typeof OFFSCREEN_MINER_CHANNEL
@@ -59,6 +76,9 @@ export type OffscreenMinerEvent =
       data: { message: string }
     }
 
+/**
+ * Create a normalized default miner status snapshot.
+ */
 export function createDefaultMinerStatus(): MinerStatus {
   return {
     running: false,
@@ -70,6 +90,9 @@ export function createDefaultMinerStatus(): MinerStatus {
   }
 }
 
+/**
+ * Convert persisted UI config shape into mining-service runtime settings.
+ */
 export function mapConfigToMiningSettings(config: MinerConfig): LotusMiningSettings {
   return {
     mineToAddress: config.mineToAddress,

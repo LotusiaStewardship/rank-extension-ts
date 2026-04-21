@@ -1,3 +1,9 @@
+/**
+ * Miner module barrel.
+ *
+ * Exposes GPU primitives, RPC client, offscreen orchestration, hashing utils,
+ * and end-to-end mining service APIs.
+ */
 export { LOTUS_OG_WGSL, WebGpuMiner } from './gpu'
 export { LotusRpcClient } from './network'
 export {

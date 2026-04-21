@@ -9,14 +9,28 @@ import {
   type OffscreenMinerResponse,
 } from '@/entrypoints/background/miner/offscreen-protocol'
 
+/**
+ * Construction options for {@link OffscreenMinerController}.
+ */
 type ControllerOptions = {
+  /** Relative offscreen document URL in extension bundle. */
   offscreenPath?: string
+  /** Optional status callback for async status/event updates. */
   onStatus?: (status: MinerStatus) => Promise<void> | void
 }
 
+/**
+ * Background service-worker facade for controlling the offscreen miner runtime.
+ *
+ * This class owns command/response messaging, ensures offscreen document
+ * creation, and normalizes status payloads received from events/responses.
+ */
 export class OffscreenMinerController {
+  /** Offscreen HTML path loaded with `browser.offscreen.createDocument`. */
   private readonly offscreenPath: string
+  /** In-flight createDocument promise used to avoid duplicate creation races. */
   private creating: Promise<void> | null = null
+  /** Optional external status sink for propagated status updates. */
   private readonly onStatus?: (status: MinerStatus) => Promise<void> | void
 
   constructor(options: ControllerOptions = {}) {
@@ -29,6 +43,7 @@ export class OffscreenMinerController {
     })
   }
 
+  /** Start mining in offscreen runtime using provided settings. */
   async start(
     settings: OffscreenMinerCommand<'start'>['payload']['settings'],
   ): Promise<MinerStatus> {
@@ -36,6 +51,7 @@ export class OffscreenMinerController {
     return this.requireStatus(response)
   }
 
+  /** Stop mining if offscreen runtime exists. */
   async stop(): Promise<MinerStatus> {
     if (!(await this.hasOffscreenDocument())) {
       return this.defaultStatus()
@@ -44,6 +60,7 @@ export class OffscreenMinerController {
     return this.requireStatus(response)
   }
 
+  /** Query latest miner status from offscreen runtime. */
   async getStatus(): Promise<MinerStatus> {
     if (!(await this.hasOffscreenDocument())) {
       return this.defaultStatus()
@@ -52,6 +69,7 @@ export class OffscreenMinerController {
     return this.requireStatus(response)
   }
 
+  /** Update runtime settings; may trigger restart in offscreen layer. */
   async updateConfig(
     settings: OffscreenMinerCommand<'updateConfig'>['payload']['settings'],
   ): Promise<MinerStatus> {
@@ -59,6 +77,7 @@ export class OffscreenMinerController {
     return this.requireStatus(response)
   }
 
+  /** Health-check command to verify offscreen runtime reachability. */
   async ping(): Promise<boolean> {
     try {
       const response = await this.sendCommand('ping', undefined)
@@ -68,6 +87,9 @@ export class OffscreenMinerController {
     }
   }
 
+  /**
+   * Best-effort shutdown of offscreen miner and document context.
+   */
   async shutdown(): Promise<void> {
     const hasDocument = await this.hasOffscreenDocument()
     if (!hasDocument) {
@@ -85,6 +107,9 @@ export class OffscreenMinerController {
     }
   }
 
+  /**
+   * Send one protocol command and require a successful response.
+   */
   private async sendCommand<T extends OffscreenMinerCommandType>(
     command: T,
     payload: OffscreenMinerCommand<T>['payload'],
@@ -116,6 +141,9 @@ export class OffscreenMinerController {
     return response
   }
 
+  /**
+   * Sanitize and normalize a status payload.
+   */
   private requireStatus(
     response: OffscreenMinerResponse<unknown>,
   ): MinerStatus {
@@ -134,6 +162,9 @@ export class OffscreenMinerController {
     }
   }
 
+  /**
+   * Build default status fallback for cases with no active offscreen runtime.
+   */
   private defaultStatus(): MinerStatus {
     return {
       ...createDefaultMinerStatus(),
@@ -142,6 +173,9 @@ export class OffscreenMinerController {
     }
   }
 
+  /**
+   * Ensure offscreen document exists before sending commands.
+   */
   private async ensureOffscreenDocument(): Promise<void> {
     if (await this.hasOffscreenDocument()) {
       return
@@ -165,6 +199,9 @@ export class OffscreenMinerController {
     }
   }
 
+  /**
+   * Detect whether the target offscreen document is currently alive.
+   */
   private async hasOffscreenDocument(): Promise<boolean> {
     const offscreenUrl = browser.runtime.getURL(
       this.offscreenPath as PublicPath,
@@ -188,6 +225,9 @@ export class OffscreenMinerController {
     return contexts.length > 0
   }
 
+  /**
+   * Handle async event messages emitted by offscreen runtime.
+   */
   private async handleEventMessage(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object') {
       return
@@ -215,6 +255,7 @@ export class OffscreenMinerController {
     }
   }
 
+  /** Generate a lightweight correlation id for command messages. */
   private newRequestId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`
   }

@@ -15,10 +15,16 @@ import {
 } from '@/entrypoints/background/miner/offscreen-worker-protocol'
 import type { MinerStatus } from '@/entrypoints/background/stores/miner'
 
+/** Active dedicated worker running the mining service implementation. */
 let worker: Worker | null = null
+/** Latest status snapshot cached for immediate responses and rebroadcasts. */
 let latestStatus: MinerStatus = createDefaultMinerStatus()
+/** Persisted JSON settings used to rehydrate worker state on recreation. */
 let currentSettingsJson = ''
 
+/**
+ * Entry command listener for background -> offscreen document messages.
+ */
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const maybeCommand = asOffscreenMinerCommand(message)
   if (!maybeCommand) {
@@ -39,12 +45,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true
 })
 
+// Inform background that offscreen control plane is ready.
 void sendEventToBackground({
   channel: OFFSCREEN_MINER_CHANNEL,
   kind: 'event',
   event: 'ready',
 })
 
+/**
+ * Execute one control-plane command from background runtime.
+ */
 async function handleBackgroundCommand(
   command: OffscreenMinerCommand<OffscreenMinerCommandType>,
 ): Promise<OffscreenMinerResponse<unknown> | undefined> {
@@ -134,6 +144,9 @@ async function handleBackgroundCommand(
   }
 }
 
+/**
+ * Runtime guard and type narrowing for background command payloads.
+ */
 function asOffscreenMinerCommand(
   message: unknown,
 ): OffscreenMinerCommand<OffscreenMinerCommandType> | null {
@@ -154,6 +167,9 @@ function asOffscreenMinerCommand(
   return command as OffscreenMinerCommand<OffscreenMinerCommandType>
 }
 
+/**
+ * Lazily create or return the dedicated mining worker.
+ */
 function ensureWorker(): Worker {
   if (worker) {
     return worker
@@ -175,6 +191,7 @@ function ensureWorker(): Worker {
     void handleWorkerError('Offscreen miner worker message deserialization failed')
   })
 
+  // Re-apply latest settings if worker was recreated.
   if (currentSettingsJson) {
     const settings = JSON.parse(currentSettingsJson) as OffscreenMinerCommand<'start'>['payload']['settings']
     void sendWorkerCommand('start', { settings }).catch(err => {
@@ -185,6 +202,9 @@ function ensureWorker(): Worker {
   return worker
 }
 
+/**
+ * Send one request/response command to the dedicated worker.
+ */
 async function sendWorkerCommand<T extends OffscreenWorkerCommandType>(
   command: T,
   payload: OffscreenWorkerCommand<T>['payload'],
@@ -242,6 +262,9 @@ async function sendWorkerCommand<T extends OffscreenWorkerCommandType>(
   })
 }
 
+/**
+ * Query and normalize worker status.
+ */
 async function queryWorkerStatus(): Promise<MinerStatus> {
   if (!worker) {
     return {
@@ -270,6 +293,9 @@ async function queryWorkerStatus(): Promise<MinerStatus> {
   }
 }
 
+/**
+ * Handle asynchronous worker events and forward status/error upstream.
+ */
 async function handleWorkerEvent(message: unknown): Promise<void> {
   if (!message || typeof message !== 'object') {
     return
@@ -298,6 +324,9 @@ async function handleWorkerEvent(message: unknown): Promise<void> {
   }
 }
 
+/**
+ * Centralized worker error handling and propagation to background runtime.
+ */
 async function handleWorkerError(message: string): Promise<void> {
   latestStatus = {
     ...latestStatus,
@@ -314,6 +343,9 @@ async function handleWorkerError(message: string): Promise<void> {
   })
 }
 
+/**
+ * Build a protocol response envelope for background command replies.
+ */
 function buildResponse(
   requestId: string,
   ok: boolean,
@@ -330,6 +362,7 @@ function buildResponse(
   }
 }
 
+/** Emit a status event to background listeners. */
 async function emitStatus(status: MinerStatus): Promise<void> {
   await sendEventToBackground({
     channel: OFFSCREEN_MINER_CHANNEL,
@@ -339,10 +372,12 @@ async function emitStatus(status: MinerStatus): Promise<void> {
   })
 }
 
+/** Send one offscreen protocol event to background runtime. */
 async function sendEventToBackground(event: OffscreenMinerEvent): Promise<void> {
   await browser.runtime.sendMessage(event)
 }
 
+/** Create a lightweight unique request id for worker commands. */
 function newRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }

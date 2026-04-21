@@ -1,6 +1,17 @@
-// Ported from lotus-gpu-miner/kernels/lotus_og.cl (behavior mirrored)
-// Embedded as a TS string so the background runtime can create GPUShaderModule directly.
-
+/**
+ * WGSL compute kernel port of `lotus-gpu-miner/kernels/lotus_og.cl`.
+ *
+ * Design notes:
+ * - Exposed as a string so extension runtimes can build a `GPUShaderModule`
+ *   without external asset loading.
+ * - Buffer contract is defined by host-side constants in `constants.ts`:
+ *   - `params`: `[offset, target0, target1, target2]`
+ *   - `partial_header`: 21 u32 words (84 bytes)
+ *   - `output`: at least `[foundFlag, nonceLow]`
+ * - `hash_below_target` intentionally mirrors the reference kernel pre-filter
+ *   (`hash[7] == 0`) and does not perform a full target compare. The host
+ *   verifies against the full 256-bit target before submission.
+ */
 export const LOTUS_OG_WGSL = /* wgsl */ `
 alias num_t = u32;
 

@@ -13,10 +13,16 @@ import {
 } from '@/entrypoints/background/miner/service'
 import type { MinerStatus } from '@/entrypoints/background/stores/miner'
 
+/** Active mining service instance for this worker runtime. */
 let miningService: LotusMiningService | null = null
+/** Last received start settings. */
 let currentSettings: LotusMiningSettings | null = null
+/** Periodic status emission timer. */
 let statusTimer: ReturnType<typeof setInterval> | null = null
 
+/**
+ * Offscreen miner worker script entrypoint.
+ */
 export default defineUnlistedScript({
   main() {
     self.addEventListener('message', event => {
@@ -25,6 +31,9 @@ export default defineUnlistedScript({
   },
 })
 
+/**
+ * Parse, execute, and respond to one worker protocol command.
+ */
 async function handleCommand(message: unknown): Promise<void> {
   if (!message || typeof message !== 'object') return
 
@@ -78,6 +87,9 @@ async function handleCommand(message: unknown): Promise<void> {
   }
 }
 
+/**
+ * Recreate runtime with fresh settings and start mining.
+ */
 async function startWithSettings(settings: LotusMiningSettings): Promise<void> {
   currentSettings = settings
   await stopRuntime()
@@ -86,6 +98,9 @@ async function startWithSettings(settings: LotusMiningSettings): Promise<void> {
   startStatusLoop()
 }
 
+/**
+ * Stop mining service and clear recurring status emissions.
+ */
 async function stopRuntime(): Promise<void> {
   if (statusTimer) {
     clearInterval(statusTimer)
@@ -98,6 +113,9 @@ async function stopRuntime(): Promise<void> {
   miningService = null
 }
 
+/**
+ * Emit periodic status updates to the offscreen document.
+ */
 function startStatusLoop(): void {
   if (statusTimer) {
     clearInterval(statusTimer)
@@ -114,6 +132,9 @@ function startStatusLoop(): void {
   }, 1000)
 }
 
+/**
+ * Build normalized status from active mining service.
+ */
 async function buildStatus(): Promise<MinerStatus> {
   const stats = miningService?.getStats()
   const running = Boolean(miningService?.isRunning)
@@ -128,6 +149,9 @@ async function buildStatus(): Promise<MinerStatus> {
   }
 }
 
+/**
+ * Send a response envelope to the offscreen document.
+ */
 function respond(
   requestId: string,
   ok: boolean,
@@ -145,6 +169,9 @@ function respond(
   self.postMessage(response)
 }
 
+/**
+ * Emit async worker events (status/error).
+ */
 function emitEvent(event: OffscreenWorkerEvent): void {
   self.postMessage(event)
 }

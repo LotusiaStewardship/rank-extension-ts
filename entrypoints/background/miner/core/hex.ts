@@ -1,3 +1,10 @@
+/**
+ * Decode a hexadecimal string into bytes.
+ *
+ * @param hex Hex string (with even length).
+ * @returns Decoded bytes.
+ * @throws If the input length is odd or includes non-hex characters.
+ */
 export function hexToBytes(hex: string): Uint8Array {
   const clean = hex.trim().toLowerCase()
   if (clean.length % 2 !== 0) {
@@ -15,6 +22,9 @@ export function hexToBytes(hex: string): Uint8Array {
   return out
 }
 
+/**
+ * Encode bytes into lowercase hexadecimal.
+ */
 export function bytesToHex(bytes: Uint8Array): string {
   let out = ''
   for (let i = 0; i < bytes.length; i++) {
@@ -23,6 +33,10 @@ export function bytesToHex(bytes: Uint8Array): string {
   return out
 }
 
+/**
+ * Return a reversed copy of a byte array.
+ * Useful when converting between little-endian and big-endian byte ordering.
+ */
 export function reverseBytes(bytes: Uint8Array): Uint8Array {
   const out = new Uint8Array(bytes.length)
   for (let i = 0; i < bytes.length; i++) {

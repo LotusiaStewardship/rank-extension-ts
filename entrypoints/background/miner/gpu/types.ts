@@ -1,28 +1,35 @@
+/**
+ * Initialization options for {@link WebGpuMiner}.
+ */
 export type MinerInitParams = {
-  /** WGSL source code for the compute kernel */
+  /** WGSL source code for the compute kernel (`search` entrypoint required). */
   shaderCode?: string
-  /** Ordered adapter preference list */
+  /** Ordered adapter preference list tried during adapter discovery. */
   gpuPreferences?: Array<'high-performance' | 'low-power'>
-  /** OpenCL-style ITERATIONS override constant */
+  /** OpenCL-style ITERATIONS override constant. */
   iterations?: number
-  /** Must match @workgroup_size in shader */
+  /** Must match `@workgroup_size` in the shader. */
   workgroupSize?: number
-  /** Output storage u32 length, must be >= 129 for lotus_og behavior */
+  /** Output storage u32 length. Minimum 2 (`found`, `nonceLow`). */
   outputU32Length?: number
 }
 
+/** One GPU dispatch request. */
 export type MinerJob = {
-  /** First nonce for this dispatch */
+  /** First nonce offset for this dispatch. */
   offset: number
-  /** Number of nonces to test in this dispatch */
+  /** Number of candidate nonces requested for this dispatch. */
   nonceCount: number
 }
 
+/**
+ * GPU dispatch result payload.
+ */
 export type MinerBatchResult = {
-  /** output[0] == 1 */
+  /** True when kernel set output[0] == 1. */
   found: boolean
-  /** Candidate low 32-bit nonce word (kernel-endian) */
+  /** Candidate low 32-bit nonce word (kernel-endian). */
   nonceLow: number
-  /** Full output buffer */
+  /** Full output buffer snapshot from GPU readback. */
   raw: Uint32Array
 }

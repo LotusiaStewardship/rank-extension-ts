@@ -12,31 +12,46 @@ import type { LotusBlock } from '@/entrypoints/background/miner/core'
 import type { LotusMiningSettings, MiningStats, MiningWork } from './types'
 
 /**
- * End-to-end Lotus miner loop for browser extension runtime.
- * Mirrors lotus-gpu-miner flow:
- * - poll getrawunsolvedblock
- * - run OpenCL-equivalent kernel search
- * - kernel validates candidate against target and returns nonce
- * - submitblock on success
+ * End-to-end Lotus mining coordinator for extension worker runtimes.
+ *
+ * Responsibilities:
+ * - Poll node RPC for fresh `getrawunsolvedblock` templates.
+ * - Prepare and upload partial header + target to GPU runtime.
+ * - Dispatch kernel searches over nonce windows.
+ * - Validate candidates on CPU and submit solved blocks.
+ * - Track miner metrics and last known error state.
  */
 export class LotusMiningService {
+  /** JSON-RPC client for template fetch and submission. */
   private readonly rpc: LotusRpcClient
+  /** Low-level WebGPU miner execution engine. */
   private readonly miner: WebGpuMiner
 
+  /** Actively mined template, if any. */
   private currentWork: MiningWork | null = null
+  /** Most recently fetched template waiting to become current work. */
   private nextBlock: LotusBlock | null = null
+  /** Current chain tip (prev-hash) used to detect template switches. */
   private currentTip: Uint8Array | null = null
 
+  /** Miner lifecycle flag toggled by `start`/`stop`. */
   private running = false
+  /** Background polling timer for block template refresh. */
   private blockPollTimer: ReturnType<typeof setInterval> | null = null
+  /** Last error message observed in the mining loop. */
   private latestError = ''
 
+  /** Timestamp used for hashrate window calculations. */
   private metricsStart = Date.now()
+  /** Count of tested nonces accumulated in the current stats window. */
   private testedNonces = 0n
+  /** Reused 84-byte scratch for partial header construction. */
   private partialHeaderScratch = new Uint8Array(84)
+  /** Reused 21-word partial header view uploaded to GPU. */
   private partialHeaderWords = new Uint32Array(
     MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH,
   )
+  /** Device-limited nonce capacity for one `miner.run()` call. */
   private maxNonceCountPerSearch = 0
 
   constructor(private readonly settings: LotusMiningSettings) {
@@ -44,6 +59,9 @@ export class LotusMiningService {
     this.miner = new WebGpuMiner()
   }
 
+  /**
+   * Initialize GPU runtime and launch the asynchronous mining loop.
+   */
   async start(): Promise<void> {
     if (this.running) return
     this.running = true
@@ -61,6 +79,7 @@ export class LotusMiningService {
 
       this.maxNonceCountPerSearch = this.miner.maxNonceCountPerDispatch
 
+      // Prime work immediately before periodic polling begins.
       await this.updateNextBlock()
 
       const pollMs =
@@ -71,6 +90,7 @@ export class LotusMiningService {
         )
       }, pollMs)
 
+      // Keep loop detached from caller to preserve fire-and-forget runtime model.
       const loop = async () => {
         while (this.running) {
           try {
@@ -92,6 +112,9 @@ export class LotusMiningService {
     }
   }
 
+  /**
+   * Stop mining and release GPU resources.
+   */
   stop(): void {
     this.running = false
     this.currentTip = null
@@ -102,6 +125,9 @@ export class LotusMiningService {
     this.miner.destroy()
   }
 
+  /**
+   * Get current stats snapshot (hashrate + tested nonce count).
+   */
   getStats(): MiningStats {
     const elapsedSec = Math.max(0.001, (Date.now() - this.metricsStart) / 1000)
     return {
@@ -110,14 +136,19 @@ export class LotusMiningService {
     }
   }
 
+  /** True while the mining loop is active. */
   get isRunning(): boolean {
     return this.running
   }
 
+  /** Last captured runtime error, if any. */
   get lastError(): string {
     return this.latestError
   }
 
+  /**
+   * Refresh pending block template from RPC.
+   */
   private async updateNextBlock(): Promise<void> {
     const unsolved = await this.rpc.getRawUnsolvedBlock(
       this.settings.mineToAddress,
@@ -138,6 +169,9 @@ export class LotusMiningService {
     this.nextBlock = block
   }
 
+  /**
+   * Execute one mining batch over a nonce range and handle candidate submission.
+   */
   private async mineSomeNonces(): Promise<void> {
     if (this.nextBlock) {
       this.currentWork = {
@@ -174,6 +208,7 @@ export class LotusMiningService {
     }
     const base = Number(baseBig)
 
+    // Each dispatch explores a 64-bit nonce space chunk with random high word.
     const bigNonce = this.randomU64()
     this.setBigNonce(this.currentWork.header, bigNonce)
 
@@ -221,12 +256,16 @@ export class LotusMiningService {
     }
   }
 
+  /**
+   * Build 21-word partial header consumed by the Lotus kernel.
+   */
   private async buildPartialHeader(
     header160: Uint8Array,
   ): Promise<Uint32Array> {
     const partialHeader = this.partialHeaderScratch
     partialHeader.set(header160.subarray(0, 52), 0)
 
+    // tx-layer hash = SHA-256(header[52..160])
     const txLayerView = header160.subarray(52)
     const txLayerHash = await crypto.subtle.digest(
       'SHA-256',
@@ -234,6 +273,7 @@ export class LotusMiningService {
     )
     partialHeader.set(new Uint8Array(txLayerHash), 52)
 
+    // Kernel expects big-endian u32 words, same layout as reference miner.
     const out = this.partialHeaderWords
     const dv = new DataView(partialHeader.buffer, partialHeader.byteOffset, 84)
     for (let i = 0; i < MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH; i++) {
@@ -242,6 +282,7 @@ export class LotusMiningService {
     return out
   }
 
+  /** Compare first 32 bytes of two arrays. */
   private equal32(a: Uint8Array, b: Uint8Array): boolean {
     if (a.length < 32 || b.length < 32) {
       return false
@@ -254,6 +295,9 @@ export class LotusMiningService {
     return true
   }
 
+  /**
+   * Serialize solved block bytes into RPC `submitblock` hex payload.
+   */
   private serializeSolvedBlockHex(
     solvedHeader: Uint8Array,
     body: Uint8Array,
@@ -264,6 +308,9 @@ export class LotusMiningService {
     return bytesToHex(bytes)
   }
 
+  /**
+   * Periodically emit hashrate logs and reset window counters.
+   */
   private maybeReportHashrate(): void {
     const windowMs =
       this.settings.hashrateWindowMs ??
@@ -277,6 +324,9 @@ export class LotusMiningService {
     this.metricsStart = Date.now()
   }
 
+  /**
+   * Write a 64-bit nonce into header bytes 44..51 as little-endian words.
+   */
   private setBigNonce(header160: Uint8Array, nonce: bigint): void {
     const low = Number(nonce & 0xffffffffn)
     const high = Number((nonce >> 32n) & 0xffffffffn)
@@ -289,6 +339,9 @@ export class LotusMiningService {
     dv.setUint32(48, high >>> 0, true)
   }
 
+  /**
+   * Convert u32 endianness (big <-> little) for kernel nonce word handling.
+   */
   private swapU32(v: number): number {
     return (
       (((v & 0xff) << 24) |
@@ -299,6 +352,9 @@ export class LotusMiningService {
     )
   }
 
+  /**
+   * Generate a random unsigned 64-bit value via WebCrypto.
+   */
   private randomU64(): bigint {
     const bytes = new Uint8Array(8)
     crypto.getRandomValues(bytes)
@@ -308,8 +364,12 @@ export class LotusMiningService {
     return (high << 32n) | low
   }
 
+  /**
+   * Compare hash and target as little-endian 256-bit values.
+   *
+   * This mirrors `lotus-gpu-miner` CPU-side validation before `submitblock`.
+   */
   private isHashBelowTarget(hash: Uint8Array, target: Uint8Array): boolean {
-    // Match lotus-gpu-miner validation in lotus-miner-lib/src/miner.rs.
     for (let i = hash.length - 1; i >= 0; i--) {
       const h = hash[i] ?? 0
       const t = target[i] ?? 0

@@ -6,40 +6,73 @@ import type {
   MinerJob,
 } from '@/entrypoints/background/miner/gpu/types'
 
+/**
+ * Internal runtime resources allocated after `init()`.
+ */
 type WebGpuMinerRuntime = {
+  /** Logical device used for compute pipeline + buffers. */
   device: GPUDevice
+  /** GPU queue used for uploads, dispatch submission, and readback scheduling. */
   queue: GPUQueue
+  /** Compiled `search` compute pipeline. */
   pipeline: GPUComputePipeline
+  /** Bind group wiring params/header/output buffers to set 0. */
   bindGroup: GPUBindGroup
+  /** Uniform buffer containing dispatch params. */
   paramsBuffer: GPUBuffer
+  /** Storage buffer containing precomputed partial header words. */
   partialHeaderBuffer: GPUBuffer
+  /** Storage buffer written by the kernel (`found`, `nonce`, ...). */
   outputBuffer: GPUBuffer
+  /** Double-buffered readback targets to avoid map hazards between dispatches. */
   readbackBuffers: [GPUBuffer, GPUBuffer]
+  /** Alternates active readback buffer each run. */
   readbackCursor: 0 | 1
+  /** Output u32 length used for output and readback buffers. */
   outputU32Length: number
+  /** Device maximum allowed dispatch dimension on X axis. */
   maxDispatchX: number
+  /** Workgroup size expected by shader. */
   workgroupSize: number
+  /** Iterations override constant injected into pipeline. */
   iterations: number
+  /** Zeroed output upload scratch used before each dispatch. */
   zeroOutput: Uint32Array
+  /** Uniform params scratch array (`offset`, `target0`, `target1`, `target2`). */
   paramsScratch: Uint32Array
+  /** Full 256-bit target scratch as little-endian u32 words. */
   targetScratch: Uint32Array
+  /** Reused CPU-side output snapshot buffer. */
   rawScratch: Uint32Array
 }
 
+/**
+ * Low-level WebGPU mining runner.
+ *
+ * This class owns GPU resources and executes the Lotus kernel in batches.
+ * It does not fetch blocks, manage nonce strategy, or submit solutions.
+ */
 export class WebGpuMiner {
   private runtime: WebGpuMinerRuntime | null = null
   private partialHeaderReady = false
   private targetReady = false
 
+  /**
+   * Maximum nonce capacity for a single dispatch on the active device.
+   */
   public get maxNonceCountPerDispatch(): number {
     const runtime = this.assertRuntime()
     return runtime.maxDispatchX * runtime.workgroupSize * runtime.iterations
   }
 
+  /** True once `init()` succeeded and resources are allocated. */
   public get isReady(): boolean {
     return this.runtime !== null
   }
 
+  /**
+   * Allocate GPU resources and compile the compute pipeline.
+   */
   async init(params: MinerInitParams = {}): Promise<void> {
     if (!('gpu' in navigator) || !navigator.gpu) {
       throw new Error('WebGPU is not supported in this browser runtime')
@@ -135,6 +168,9 @@ export class WebGpuMiner {
     }
   }
 
+  /**
+   * Upload the 21-word partial header payload consumed by the kernel.
+   */
   setPartialHeader(partialHeader: Uint32Array): void {
     const runtime = this.assertRuntime()
     if (partialHeader.length < MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH) {
@@ -152,6 +188,9 @@ export class WebGpuMiner {
     this.partialHeaderReady = true
   }
 
+  /**
+   * Store target threshold bytes (little-endian) for later params uploads.
+   */
   setTarget(targetLe: Uint8Array): void {
     const runtime = this.assertRuntime()
     if (targetLe.length !== 32) {
@@ -169,6 +208,9 @@ export class WebGpuMiner {
     this.targetReady = true
   }
 
+  /**
+   * Execute one dispatch of the mining kernel and read back output state.
+   */
   async run(job: MinerJob): Promise<MinerBatchResult> {
     const runtime = this.assertRuntime()
 
@@ -179,6 +221,7 @@ export class WebGpuMiner {
       throw new Error('No target has been uploaded yet')
     }
 
+    // Kernel params are a compact subset expected by the WGSL `Params` struct.
     runtime.paramsScratch[0] = job.offset >>> 0
     runtime.paramsScratch[1] = runtime.targetScratch[5] ?? 0
     runtime.paramsScratch[2] = runtime.targetScratch[6] ?? 0
@@ -189,6 +232,7 @@ export class WebGpuMiner {
       runtime.paramsScratch as GPUAllowSharedBufferSource,
     )
 
+    // Reset output so stale success flags never leak across dispatches.
     runtime.queue.writeBuffer(
       runtime.outputBuffer,
       0,
@@ -238,6 +282,9 @@ export class WebGpuMiner {
     }
   }
 
+  /**
+   * Release all GPU resources and reset state flags.
+   */
   destroy(): void {
     if (!this.runtime) return
     this.runtime.paramsBuffer.destroy()
@@ -250,6 +297,9 @@ export class WebGpuMiner {
     this.targetReady = false
   }
 
+  /**
+   * Ensure runtime is initialized before any GPU operation.
+   */
   private assertRuntime(): WebGpuMinerRuntime {
     if (!this.runtime) {
       throw new Error('WebGpuMiner is not initialized')
@@ -257,6 +307,9 @@ export class WebGpuMiner {
     return this.runtime
   }
 
+  /**
+   * Request a GPU adapter using caller preference order, with plain fallback.
+   */
   private async requestAdapter(
     gpuPreferences: Array<'high-performance' | 'low-power'> = [
       'high-performance',
