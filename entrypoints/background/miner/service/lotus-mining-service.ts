@@ -24,6 +24,7 @@ export class LotusMiningService {
 
   private currentWork: MiningWork | null = null
   private nextBlock: LotusBlock | null = null
+  private currentTip: Uint8Array | null = null
 
   private running = false
   private blockPollTimer: ReturnType<typeof setInterval> | null = null
@@ -92,6 +93,7 @@ export class LotusMiningService {
 
   stop(): void {
     this.running = false
+    this.currentTip = null
     if (this.blockPollTimer !== null) {
       clearInterval(this.blockPollTimer)
       this.blockPollTimer = null
@@ -124,9 +126,9 @@ export class LotusMiningService {
     }
 
     const block = createBlock(unsolved)
-    const prev = this.currentWork?.header.subarray(0, 32) ?? null
     const nextPrev = prevHash(block)
-    if (!prev || !this.equal32(prev, nextPrev)) {
+    if (!this.currentTip || !this.equal32(this.currentTip, nextPrev)) {
+      this.currentTip = nextPrev.slice(0, 32)
       console.info(
         'Switched mining tip:',
         bytesToHex(reverseBytes(nextPrev)),

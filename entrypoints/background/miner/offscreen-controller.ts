@@ -1,4 +1,5 @@
 import type { MinerStatus } from '@/entrypoints/background/stores'
+import type { PublicPath } from 'wxt/browser'
 import {
   OFFSCREEN_MINER_CHANNEL,
   createDefaultMinerStatus,
@@ -28,17 +29,25 @@ export class OffscreenMinerController {
     })
   }
 
-  async start(settings: OffscreenMinerCommand<'start'>['payload']['settings']): Promise<MinerStatus> {
+  async start(
+    settings: OffscreenMinerCommand<'start'>['payload']['settings'],
+  ): Promise<MinerStatus> {
     const response = await this.sendCommand('start', { settings })
     return this.requireStatus(response)
   }
 
   async stop(): Promise<MinerStatus> {
+    if (!(await this.hasOffscreenDocument())) {
+      return this.defaultStatus()
+    }
     const response = await this.sendCommand('stop', undefined)
     return this.requireStatus(response)
   }
 
   async getStatus(): Promise<MinerStatus> {
+    if (!(await this.hasOffscreenDocument())) {
+      return this.defaultStatus()
+    }
     const response = await this.sendCommand('getStatus', undefined)
     return this.requireStatus(response)
   }
@@ -60,6 +69,11 @@ export class OffscreenMinerController {
   }
 
   async shutdown(): Promise<void> {
+    const hasDocument = await this.hasOffscreenDocument()
+    if (!hasDocument) {
+      return
+    }
+
     try {
       await this.sendCommand('shutdown', undefined)
     } catch {
@@ -85,25 +99,29 @@ export class OffscreenMinerController {
       payload,
     }
 
-    const response = (await browser.runtime.sendMessage(
-      request,
-    )) as OffscreenMinerResponse<unknown> | undefined
+    const response = (await browser.runtime.sendMessage(request)) as
+      | OffscreenMinerResponse<unknown>
+      | undefined
 
     if (!response || response.channel !== OFFSCREEN_MINER_CHANNEL) {
       throw new Error('No valid response from offscreen miner runtime')
     }
 
     if (!response.ok) {
-      throw new Error(response.error ?? `Offscreen miner command failed: ${command}`)
+      throw new Error(
+        response.error ?? `Offscreen miner command failed: ${command}`,
+      )
     }
 
     return response
   }
 
-  private requireStatus(response: OffscreenMinerResponse<unknown>): MinerStatus {
+  private requireStatus(
+    response: OffscreenMinerResponse<unknown>,
+  ): MinerStatus {
     const data = response.data
     if (!data || typeof data !== 'object') {
-      return createDefaultMinerStatus()
+      return this.defaultStatus()
     }
     const status = data as MinerStatus
     return {
@@ -113,6 +131,14 @@ export class OffscreenMinerController {
       webgpuSupported: Boolean(status.webgpuSupported),
       lastError: String(status.lastError ?? ''),
       updatedAt: Number(status.updatedAt ?? Date.now()),
+    }
+  }
+
+  private defaultStatus(): MinerStatus {
+    return {
+      ...createDefaultMinerStatus(),
+      webgpuSupported: 'gpu' in navigator,
+      updatedAt: Date.now(),
     }
   }
 
@@ -126,7 +152,7 @@ export class OffscreenMinerController {
       return
     }
 
-    this.creating = chrome.offscreen.createDocument({
+    this.creating = browser.offscreen.createDocument({
       url: this.offscreenPath,
       reasons: ['WORKERS'],
       justification: 'Run WebGPU miner in isolated offscreen runtime',
@@ -140,7 +166,9 @@ export class OffscreenMinerController {
   }
 
   private async hasOffscreenDocument(): Promise<boolean> {
-    const offscreenUrl = chrome.runtime.getURL(this.offscreenPath)
+    const offscreenUrl = browser.runtime.getURL(
+      this.offscreenPath as PublicPath,
+    )
     const runtimeWithContexts = chrome.runtime as typeof chrome.runtime & {
       getContexts?: (filter: {
         contextTypes: string[]
@@ -167,8 +195,8 @@ export class OffscreenMinerController {
 
     const eventMessage = message as OffscreenMinerEvent
     if (
-      eventMessage.channel !== OFFSCREEN_MINER_CHANNEL
-      || eventMessage.kind !== 'event'
+      eventMessage.channel !== OFFSCREEN_MINER_CHANNEL ||
+      eventMessage.kind !== 'event'
     ) {
       return
     }

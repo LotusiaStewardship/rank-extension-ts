@@ -315,8 +315,14 @@ export default defineBackground({
 
     async function stopMinerRuntime(): Promise<void> {
       try {
-        const status = await minerController.stop()
-        await minerStore.setStatus(status)
+        await minerController.shutdown()
+        await minerStore.patchStatus({
+          running: false,
+          hashrate: 0,
+          testedNonces: '0',
+          lastError: '',
+          webgpuSupported: 'gpu' in navigator,
+        })
       } catch {
         await minerStore.patchStatus({
           running: false,
