@@ -14,7 +14,11 @@ import {
   walletMessaging,
   minerMessaging,
 } from '@/entrypoints/background/messaging'
-import { LotusMiningService } from '@/entrypoints/background/miner'
+import {
+  OffscreenMinerController,
+  mapConfigToMiningSettings,
+  createDefaultMinerStatus,
+} from '@/entrypoints/background/miner'
 import assert from 'assert'
 
 export default defineBackground({
@@ -23,8 +27,12 @@ export default defineBackground({
   main: () => {
     /** Instantiated `WalletManager` used during background service-worker runtime */
     const walletManager = new WalletManager()
-    /** Instantiated mining runtime; recreated on config changes */
-    let miningService: LotusMiningService | null = null
+    /** Offscreen miner controller (control-plane only in service worker) */
+    const minerController = new OffscreenMinerController({
+      onStatus: async status => {
+        await minerStore.setStatus(status)
+      },
+    })
     /**
      *
      *  Register Event Handlers
@@ -79,7 +87,8 @@ export default defineBackground({
     minerMessaging.onMessage('popup:minerSaveConfig', async ({ sender, data }) => {
       validateMessageSender(sender.id)
       await minerStore.setConfig(data)
-      await stopMinerRuntime()
+      const settings = mapConfigToMiningSettings(data)
+      await minerController.updateConfig(settings)
       return await minerStore.getConfig()
     })
 
@@ -101,22 +110,9 @@ export default defineBackground({
         })
         return next
       }
-      await stopMinerRuntime()
-      miningService = new LotusMiningService({
-        mineToAddress: config.mineToAddress,
-        rpc: {
-          rpcUrl: config.rpcUrl,
-          rpcUser: config.rpcUser,
-          rpcPassword: config.rpcPassword,
-        },
-        gpuPreferences: config.gpuPreferences,
-        rpcPollIntervalMs: config.rpcPollIntervalMs,
-        iterations: config.iterations,
-        kernelSize: config.kernelSize,
-        hashrateWindowMs: config.hashrateWindowMs,
-      })
+      const settings = mapConfigToMiningSettings(config)
       try {
-        await miningService.start()
+        await minerController.start(settings)
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
         await minerStore.patchStatus({
@@ -318,29 +314,29 @@ export default defineBackground({
     }
 
     async function stopMinerRuntime(): Promise<void> {
-      if (!miningService) {
-        return
+      try {
+        const status = await minerController.stop()
+        await minerStore.setStatus(status)
+      } catch {
+        await minerStore.patchStatus({
+          running: false,
+          hashrate: 0,
+          testedNonces: '0',
+        })
       }
-      miningService.stop()
-      miningService = null
-      await minerStore.patchStatus({
-        running: false,
-        hashrate: 0,
-        testedNonces: '0',
-      })
     }
 
     async function buildMinerStatus(): Promise<MinerStatus> {
-      const stats = miningService?.getStats()
-      const running = Boolean(miningService?.isRunning)
-      const lastError = miningService?.lastError ?? ''
-      return {
-        running,
-        hashrate: stats?.hashrate ?? 0,
-        testedNonces: (stats?.testedNonces ?? 0n).toString(),
-        webgpuSupported: 'gpu' in navigator,
-        lastError,
-        updatedAt: Date.now(),
+      try {
+        return await minerController.getStatus()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return {
+          ...createDefaultMinerStatus(),
+          webgpuSupported: 'gpu' in navigator,
+          lastError: message,
+          updatedAt: Date.now(),
+        }
       }
     }
 

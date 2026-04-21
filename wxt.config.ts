@@ -28,7 +28,7 @@ export default defineConfig({
       'http://localhost:10604/*',
       'http://localhost:10605/*',
     ],
-    permissions: ['storage', 'notifications'],
+    permissions: ['storage', 'notifications', 'offscreen'],
   },
   vite: () => ({
     css: {
