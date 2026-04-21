@@ -183,36 +183,12 @@ fn sha256_chain_layer(schedule_array: ptr<function, array<u32, 64>>, hash: ptr<f
 }
 
 fn hash_below_target(hash: ptr<function, array<u32, 8>>) -> bool {
-    // Quick reject: top bytes must still satisfy target's top bytes.
-    if (((*hash)[7] >> 24u) != 0u) {
-        return false;
-    }
-
-    // Compare little-endian hash words against little-endian target words.
-    // First 5 words are always 0 for Lotus target shape, so only compare 7..5 and 4..0.
-    let t7 = params.target2;
-    let t6 = params.target1;
-    let t5 = params.target0;
-
-    if ((*hash)[7] > t7) { return false; }
-    if ((*hash)[7] < t7) { return true; }
-
-    if ((*hash)[6] > t6) { return false; }
-    if ((*hash)[6] < t6) { return true; }
-
-    if ((*hash)[5] > t5) { return false; }
-    if ((*hash)[5] < t5) { return true; }
-
-    var i: i32 = 4;
-    loop {
-        if (i < 0) { break; }
-        if ((*hash)[u32(i)] > 0u) {
-            return false;
-        }
-        i = i - 1;
-    }
-
-    return false;
+    // Match lotus_og.cl pre-filter exactly.
+    // Full target comparison is done on CPU before submit.
+    _ = params.target0;
+    _ = params.target1;
+    _ = params.target2;
+    return (*hash)[7] == 0u;
 }
 
 @compute @workgroup_size(256)

@@ -4,6 +4,7 @@ import {
   prevHash,
   bytesToHex,
   reverseBytes,
+  lotusHash,
 } from '@/entrypoints/background/miner/core'
 import { WebGpuMiner } from '@/entrypoints/background/miner/gpu/webgpu-miner'
 import { LotusRpcClient } from '@/entrypoints/background/miner/network'
@@ -200,6 +201,12 @@ export class LotusMiningService {
       ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
 
     this.setBigNonce(this.currentWork.header, foundNonce)
+
+    const hash = await lotusHash(this.currentWork.header)
+    if (!this.isHashBelowTarget(hash, this.currentWork.target)) {
+      return
+    }
+
     console.info('Block hash below target with nonce:', foundNonce.toString())
 
     const solvedBlockHex = this.serializeSolvedBlockHex(
@@ -299,5 +306,20 @@ export class LotusMiningService {
     const low = BigInt(dv.getUint32(0, true))
     const high = BigInt(dv.getUint32(4, true))
     return (high << 32n) | low
+  }
+
+  private isHashBelowTarget(hash: Uint8Array, target: Uint8Array): boolean {
+    // Match lotus-gpu-miner validation in lotus-miner-lib/src/miner.rs.
+    for (let i = hash.length - 1; i >= 0; i--) {
+      const h = hash[i] ?? 0
+      const t = target[i] ?? 0
+      if (h > t) {
+        return false
+      }
+      if (t > h) {
+        return true
+      }
+    }
+    return false
   }
 }
