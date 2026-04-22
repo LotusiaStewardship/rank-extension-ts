@@ -181,10 +181,20 @@ export class LotusMiningService {
       this.settings.kernelSize ?? MINER_DEFAULTS.DEFAULT_KERNEL_SIZE
     const requestedNoncesPerSearch = BigInt(kernelSize) * BigInt(iterations)
     const maxDispatchNonces = BigInt(this.maxNonceCountPerSearch)
-    const numNoncesPerSearch =
+    const noncesPerWorkgroup = BigInt(this.miner.noncesPerWorkgroup)
+
+    let numNoncesPerSearch =
       requestedNoncesPerSearch > maxDispatchNonces
         ? maxDispatchNonces
         : requestedNoncesPerSearch
+
+    // WebGPU dispatch granularity is whole workgroups. Keep batches aligned so
+    // offset progression exactly matches covered nonce ranges (no silent tail loss).
+    numNoncesPerSearch =
+      (numNoncesPerSearch / noncesPerWorkgroup) * noncesPerWorkgroup
+    if (numNoncesPerSearch === 0n) {
+      numNoncesPerSearch = noncesPerWorkgroup
+    }
 
     const baseBig = BigInt(this.currentWork.nonceIdx) * numNoncesPerSearch
     if (baseBig > BigInt(0xffffffff)) {
@@ -215,30 +225,44 @@ export class LotusMiningService {
       return
     }
 
-    const nonceLow = this.swapU32(result.nonceLow)
-    if (nonceLow === 0) {
+    const work = this.currentWork
+    for (let i = 0; i <= MINER_DEFAULTS.NONCE_MASK; i++) {
+      const candidate = result.raw[i] ?? 0
+      if (candidate === 0) {
+        continue
+      }
+
+      const nonceLow = this.swapU32(candidate)
+      if (nonceLow === 0) {
+        continue
+      }
+
+      const foundNonce = ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
+      this.setBigNonce(work.header, foundNonce)
+
+      const hash = await lotusHash(work.header)
+      if (!this.isHashBelowTarget(hash, work.target)) {
+        continue
+      }
+
+      console.info('Block hash below target with nonce:', foundNonce.toString())
+
+      const solvedBlockHex = this.serializeSolvedBlockHex(work.header, work.body)
+
+      // Match reference miner flow: stop mining this template immediately after
+      // finding a valid candidate, regardless of submission result.
+      this.currentWork = null
+
+      const submitResult = await this.rpc.submitBlock(solvedBlockHex)
+      if (submitResult === null) {
+        console.info('BLOCK ACCEPTED!')
+      } else {
+        console.error('REJECTED BLOCK:', submitResult)
+      }
+
+      // Immediately fetch fresh template instead of waiting for next poll tick.
+      await this.updateNextBlock()
       return
-    }
-    const foundNonce = ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
-
-    this.setBigNonce(this.currentWork.header, foundNonce)
-
-    const hash = await lotusHash(this.currentWork.header)
-    if (!this.isHashBelowTarget(hash, this.currentWork.target)) {
-      return
-    }
-
-    console.info('Block hash below target with nonce:', foundNonce.toString())
-
-    const solvedBlockHex = this.serializeSolvedBlockHex(
-      this.currentWork.header,
-      this.currentWork.body,
-    )
-    const submitResult = await this.rpc.submitBlock(solvedBlockHex)
-    if (submitResult === null) {
-      console.info('BLOCK ACCEPTED!')
-    } else {
-      console.error('REJECTED BLOCK:', submitResult)
     }
   }
 

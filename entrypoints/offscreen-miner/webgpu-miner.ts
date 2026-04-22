@@ -63,6 +63,12 @@ export class WebGpuMiner {
     return this.runtime !== null
   }
 
+  /** Nonces covered by one dispatched workgroup. */
+  public get noncesPerWorkgroup(): number {
+    const runtime = this.assertRuntime()
+    return runtime.workgroupSize * runtime.iterations
+  }
+
   /**
    * Allocate GPU resources and compile the compute pipeline.
    */
@@ -233,13 +239,18 @@ export class WebGpuMiner {
     )
 
     const noncesPerWorkgroup = runtime.workgroupSize * runtime.iterations
-    // Match OpenCL global_work_size behavior: exact kernel_size lanes per dispatch.
-    // Any remainder is intentionally ignored, like the Rust/OpenCL reference miner.
-    const dispatchXRequested = Math.max(
-      1,
-      Math.floor(job.nonceCount / noncesPerWorkgroup),
-    )
-    const dispatchX = Math.min(dispatchXRequested, runtime.maxDispatchX)
+    if (job.nonceCount % noncesPerWorkgroup !== 0) {
+      throw new Error(
+        `nonceCount (${job.nonceCount}) must be a multiple of noncesPerWorkgroup (${noncesPerWorkgroup})`,
+      )
+    }
+
+    const dispatchX = Math.max(1, job.nonceCount / noncesPerWorkgroup)
+    if (dispatchX > runtime.maxDispatchX) {
+      throw new Error(
+        `dispatchX (${dispatchX}) exceeds device maxComputeWorkgroupsPerDimension (${runtime.maxDispatchX})`,
+      )
+    }
 
     const readback = runtime.readbackBuffers[runtime.readbackCursor]
     runtime.readbackCursor = runtime.readbackCursor === 0 ? 1 : 0
