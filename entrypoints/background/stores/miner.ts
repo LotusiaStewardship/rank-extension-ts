@@ -1,12 +1,10 @@
 type WxtStorageItemObject<T> = ReturnType<typeof storage.defineItem<T>>
-
+export type MinerGpuPreference = 'high-performance' | 'low-power'
 export type MinerPowerProfile =
   | 'low-power'
   | 'balanced'
   | 'high-power'
   | 'custom'
-
-export type MinerGpuPreference = 'high-performance' | 'low-power'
 
 export type MinerConfig = {
   rpcUrl: string
@@ -39,7 +37,7 @@ export const DefaultMinerConfig: MinerConfig = {
   gpuPreferences: ['high-performance'],
   rpcPollIntervalMs: 3000,
   iterations: 16,
-  kernelSize: 1 << 23,
+  kernelSize: MINER_DEFAULTS.DEFAULT_KERNEL_SIZE,
   hashrateWindowMs: 5000,
 }
 
@@ -57,12 +55,18 @@ class MinerStore {
   private statusStorageItem: WxtStorageItemObject<MinerStatus>
 
   constructor() {
-    this.configStorageItem = storage.defineItem<MinerConfig>('local:miner:config', {
-      init: () => ({ ...DefaultMinerConfig }),
-    })
-    this.statusStorageItem = storage.defineItem<MinerStatus>('local:miner:status', {
-      init: () => ({ ...DefaultMinerStatus }),
-    })
+    this.configStorageItem = storage.defineItem<MinerConfig>(
+      'local:miner:config',
+      {
+        init: () => ({ ...DefaultMinerConfig }),
+      },
+    )
+    this.statusStorageItem = storage.defineItem<MinerStatus>(
+      'local:miner:status',
+      {
+        init: () => ({ ...DefaultMinerStatus }),
+      },
+    )
   }
 
   get minerConfigStorageItem(): WxtStorageItemObject<MinerConfig> {

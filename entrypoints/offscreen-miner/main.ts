@@ -1,20 +1,4 @@
-import {
-  OFFSCREEN_MINER_CHANNEL,
-  createDefaultMinerStatus,
-  type OffscreenMinerCommand,
-  type OffscreenMinerCommandType,
-  type OffscreenMinerEvent,
-  type OffscreenMinerResponse,
-} from '@/entrypoints/background/miner/offscreen-protocol'
-import {
-  OFFSCREEN_WORKER_CHANNEL,
-  type OffscreenWorkerCommand,
-  type OffscreenWorkerCommandType,
-  type OffscreenWorkerEvent,
-  type OffscreenWorkerResponse,
-} from '@/entrypoints/background/miner/offscreen-worker-protocol'
-import type { MinerStatus } from '@/entrypoints/background/stores/miner'
-
+import type { MinerStatus } from '../background/stores'
 /** Active dedicated worker running the mining service implementation. */
 let worker: Worker | null = null
 /** Latest status snapshot cached for immediate responses and rebroadcasts. */
@@ -36,7 +20,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse(response)
     })
     .catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       sendResponse(
         buildResponse(maybeCommand.requestId, false, undefined, errorMessage),
       )
@@ -72,7 +57,12 @@ async function handleBackgroundCommand(
       case 'start': {
         const payload = command.payload
         if (!payload) {
-          return buildResponse(command.requestId, false, undefined, 'Missing start payload')
+          return buildResponse(
+            command.requestId,
+            false,
+            undefined,
+            'Missing start payload',
+          )
         }
         const settings = payload.settings
         currentSettingsJson = JSON.stringify(settings)
@@ -123,7 +113,12 @@ async function handleBackgroundCommand(
       }
 
       default:
-        return buildResponse(command.requestId, false, undefined, 'Unknown offscreen command')
+        return buildResponse(
+          command.requestId,
+          false,
+          undefined,
+          'Unknown offscreen command',
+        )
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -154,12 +149,14 @@ function asOffscreenMinerCommand(
     return null
   }
 
-  const command = message as Partial<OffscreenMinerCommand<OffscreenMinerCommandType>>
+  const command = message as Partial<
+    OffscreenMinerCommand<OffscreenMinerCommandType>
+  >
   if (
-    command.channel !== OFFSCREEN_MINER_CHANNEL
-    || command.kind !== 'command'
-    || typeof command.requestId !== 'string'
-    || typeof command.command !== 'string'
+    command.channel !== OFFSCREEN_MINER_CHANNEL ||
+    command.kind !== 'command' ||
+    typeof command.requestId !== 'string' ||
+    typeof command.command !== 'string'
   ) {
     return null
   }
@@ -188,12 +185,16 @@ function ensureWorker(): Worker {
   })
 
   worker.addEventListener('messageerror', () => {
-    void handleWorkerError('Offscreen miner worker message deserialization failed')
+    void handleWorkerError(
+      'Offscreen miner worker message deserialization failed',
+    )
   })
 
   // Re-apply latest settings if worker was recreated.
   if (currentSettingsJson) {
-    const settings = JSON.parse(currentSettingsJson) as OffscreenMinerCommand<'start'>['payload']['settings']
+    const settings = JSON.parse(
+      currentSettingsJson,
+    ) as OffscreenMinerCommand<'start'>['payload']['settings']
     void sendWorkerCommand('start', { settings }).catch(err => {
       void handleWorkerError(err instanceof Error ? err.message : String(err))
     })
@@ -219,47 +220,49 @@ async function sendWorkerCommand<T extends OffscreenWorkerCommandType>(
     payload,
   }
 
-  return await new Promise<OffscreenWorkerResponse<unknown>>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup()
-      reject(new Error(`Offscreen worker command timeout: ${command}`))
-    }, 10_000)
+  return await new Promise<OffscreenWorkerResponse<unknown>>(
+    (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup()
+        reject(new Error(`Offscreen worker command timeout: ${command}`))
+      }, 10_000)
 
-    const onMessage = (event: MessageEvent<unknown>) => {
-      const data = event.data as OffscreenWorkerResponse<unknown>
-      if (
-        !data
-        || typeof data !== 'object'
-        || data.channel !== OFFSCREEN_WORKER_CHANNEL
-        || data.kind !== 'response'
-        || data.requestId !== request.requestId
-      ) {
-        return
+      const onMessage = (event: MessageEvent<unknown>) => {
+        const data = event.data as OffscreenWorkerResponse<unknown>
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          data.channel !== OFFSCREEN_WORKER_CHANNEL ||
+          data.kind !== 'response' ||
+          data.requestId !== request.requestId
+        ) {
+          return
+        }
+
+        cleanup()
+        if (!data.ok) {
+          reject(new Error(data.error ?? `Worker command failed: ${command}`))
+          return
+        }
+        resolve(data)
       }
 
-      cleanup()
-      if (!data.ok) {
-        reject(new Error(data.error ?? `Worker command failed: ${command}`))
-        return
+      const onError = (event: ErrorEvent) => {
+        cleanup()
+        reject(new Error(event.message || 'Worker error during command'))
       }
-      resolve(data)
-    }
 
-    const onError = (event: ErrorEvent) => {
-      cleanup()
-      reject(new Error(event.message || 'Worker error during command'))
-    }
+      const cleanup = () => {
+        clearTimeout(timeout)
+        activeWorker.removeEventListener('message', onMessage)
+        activeWorker.removeEventListener('error', onError)
+      }
 
-    const cleanup = () => {
-      clearTimeout(timeout)
-      activeWorker.removeEventListener('message', onMessage)
-      activeWorker.removeEventListener('error', onError)
-    }
-
-    activeWorker.addEventListener('message', onMessage)
-    activeWorker.addEventListener('error', onError)
-    activeWorker.postMessage(request)
-  })
+      activeWorker.addEventListener('message', onMessage)
+      activeWorker.addEventListener('error', onError)
+      activeWorker.postMessage(request)
+    },
+  )
 }
 
 /**
@@ -373,7 +376,9 @@ async function emitStatus(status: MinerStatus): Promise<void> {
 }
 
 /** Send one offscreen protocol event to background runtime. */
-async function sendEventToBackground(event: OffscreenMinerEvent): Promise<void> {
+async function sendEventToBackground(
+  event: OffscreenMinerEvent,
+): Promise<void> {
   await browser.runtime.sendMessage(event)
 }
 

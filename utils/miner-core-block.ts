@@ -1,5 +1,3 @@
-import { hexToBytes, reverseBytes } from '@/entrypoints/background/miner/core/hex'
-
 /** Raw RPC shape from `getrawunsolvedblock`. */
 export type RawUnsolvedBlockAndTarget = {
   /** Full block bytes (header + body) as hex. */

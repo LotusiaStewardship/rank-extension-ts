@@ -1,9 +1,10 @@
-import type {
-  MinerConfig,
-  MinerStatus,
-} from '@/entrypoints/background/stores/miner'
-import type { LotusMiningSettings } from '@/entrypoints/background/miner/service'
+/**
+ * Communication protocol definitions
+ */
 
+// ==================================================
+// Offscreen Protocol (background sw <-> offscreen)
+// ==================================================
 /** Runtime message channel for background <-> offscreen document control-plane traffic. */
 export const OFFSCREEN_MINER_CHANNEL = 'lotusia:offscreen-miner' as const
 
@@ -29,7 +30,9 @@ export type OffscreenMinerCommandPayloadMap = {
 /**
  * Background -> offscreen document command envelope.
  */
-export type OffscreenMinerCommand<T extends OffscreenMinerCommandType = OffscreenMinerCommandType> = {
+export type OffscreenMinerCommand<
+  T extends OffscreenMinerCommandType = OffscreenMinerCommandType,
+> = {
   /** Protocol channel discriminator. */
   channel: typeof OFFSCREEN_MINER_CHANNEL
   /** Message kind discriminator. */
@@ -93,7 +96,9 @@ export function createDefaultMinerStatus(): MinerStatus {
 /**
  * Convert persisted UI config shape into mining-service runtime settings.
  */
-export function mapConfigToMiningSettings(config: MinerConfig): LotusMiningSettings {
+export function mapConfigToMiningSettings(
+  config: MinerConfig,
+): LotusMiningSettings {
   return {
     mineToAddress: config.mineToAddress,
     rpc: {
@@ -108,3 +113,62 @@ export function mapConfigToMiningSettings(config: MinerConfig): LotusMiningSetti
     hashrateWindowMs: config.hashrateWindowMs,
   }
 }
+// ==================================================
+// Offscreen Protocol (offscreen <-> worker)
+// ==================================================
+/** Runtime message channel for offscreen document <-> dedicated worker traffic. */
+export const OFFSCREEN_WORKER_CHANNEL =
+  'lotusia:offscreen-miner-worker' as const
+
+/** Commands accepted by the offscreen worker runtime. */
+export type OffscreenWorkerCommandType =
+  | 'ping'
+  | 'start'
+  | 'stop'
+  | 'getStatus'
+  | 'shutdown'
+
+/** Per-command payload contract. */
+export type OffscreenWorkerCommandPayloadMap = {
+  ping: undefined
+  start: { settings: LotusMiningSettings }
+  stop: undefined
+  getStatus: undefined
+  shutdown: undefined
+}
+
+/** Offscreen document -> worker command envelope. */
+export type OffscreenWorkerCommand<
+  T extends OffscreenWorkerCommandType = OffscreenWorkerCommandType,
+> = {
+  channel: typeof OFFSCREEN_WORKER_CHANNEL
+  kind: 'command'
+  requestId: string
+  command: T
+  payload: OffscreenWorkerCommandPayloadMap[T]
+}
+
+/** Worker -> offscreen document response envelope. */
+export type OffscreenWorkerResponse<T = unknown> = {
+  channel: typeof OFFSCREEN_WORKER_CHANNEL
+  kind: 'response'
+  requestId: string
+  ok: boolean
+  data?: T
+  error?: string
+}
+
+/** Worker -> offscreen document event stream. */
+export type OffscreenWorkerEvent =
+  | {
+      channel: typeof OFFSCREEN_WORKER_CHANNEL
+      kind: 'event'
+      event: 'status'
+      data: MinerStatus
+    }
+  | {
+      channel: typeof OFFSCREEN_WORKER_CHANNEL
+      kind: 'event'
+      event: 'error'
+      data: { message: string }
+    }

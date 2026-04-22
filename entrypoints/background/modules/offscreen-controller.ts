@@ -1,13 +1,5 @@
-import type { MinerStatus } from '@/entrypoints/background/stores'
 import type { PublicPath } from 'wxt/browser'
-import {
-  OFFSCREEN_MINER_CHANNEL,
-  createDefaultMinerStatus,
-  type OffscreenMinerCommand,
-  type OffscreenMinerCommandType,
-  type OffscreenMinerEvent,
-  type OffscreenMinerResponse,
-} from '@/entrypoints/background/miner/offscreen-protocol'
+import type { MinerStatus } from '../stores'
 
 /**
  * Construction options for {@link OffscreenMinerController}.
@@ -34,7 +26,7 @@ export class OffscreenMinerController {
   private readonly onStatus?: (status: MinerStatus) => Promise<void> | void
 
   constructor(options: ControllerOptions = {}) {
-    this.offscreenPath = options.offscreenPath ?? 'offscreen-miner.html'
+    this.offscreenPath = options.offscreenPath ?? '/offscreen-miner.html'
     this.onStatus = options.onStatus
 
     browser.runtime.onMessage.addListener((message: unknown) => {

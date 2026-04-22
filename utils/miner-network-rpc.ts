@@ -1,5 +1,3 @@
-import type { RawUnsolvedBlockAndTarget } from '@/entrypoints/background/miner/core'
-
 /**
  * Generic JSON-RPC response shape returned by Lotus daemon endpoints.
  */
@@ -65,7 +63,7 @@ export class LotusRpcClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: this.authHeader,
+        'Authorization': this.authHeader,
       },
       body: JSON.stringify({ method, params, id: 1 }),
     })

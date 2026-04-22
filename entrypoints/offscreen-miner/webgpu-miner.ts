@@ -1,11 +1,4 @@
-import { MINER_CONSTANTS } from '@/entrypoints/background/miner/constants'
-import { LOTUS_OG_WGSL } from '@/entrypoints/background/miner/gpu/lotus-og-kernel'
-import type {
-  MinerBatchResult,
-  MinerInitParams,
-  MinerJob,
-} from '@/entrypoints/background/miner/gpu/types'
-
+/// <reference types="@webgpu/types" />
 /**
  * Internal runtime resources allocated after `init()`.
  */
@@ -79,11 +72,11 @@ export class WebGpuMiner {
     }
 
     const shaderCode = params.shaderCode ?? LOTUS_OG_WGSL
-    const iterations = params.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS
+    const iterations = params.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS
     const workgroupSize =
-      params.workgroupSize ?? MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE
+      params.workgroupSize ?? MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE
     const outputU32Length = Math.max(
-      params.outputU32Length ?? MINER_CONSTANTS.DEFAULT_OUTPUT_U32_LENGTH,
+      params.outputU32Length ?? MINER_DEFAULTS.DEFAULT_OUTPUT_U32_LENGTH,
       2,
     )
 
@@ -111,12 +104,12 @@ export class WebGpuMiner {
     })
 
     const paramsBuffer = device.createBuffer({
-      size: MINER_CONSTANTS.PARAMS_U32_LENGTH * 4,
+      size: MINER_DEFAULTS.PARAMS_U32_LENGTH * 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     })
 
     const partialHeaderBuffer = device.createBuffer({
-      size: MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH * 4,
+      size: MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH * 4,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     })
 
@@ -162,8 +155,8 @@ export class WebGpuMiner {
       workgroupSize,
       iterations,
       zeroOutput: new Uint32Array(outputU32Length),
-      paramsScratch: new Uint32Array(MINER_CONSTANTS.PARAMS_U32_LENGTH),
-      targetScratch: new Uint32Array(MINER_CONSTANTS.TARGET_U32_LENGTH),
+      paramsScratch: new Uint32Array(MINER_DEFAULTS.PARAMS_U32_LENGTH),
+      targetScratch: new Uint32Array(MINER_DEFAULTS.TARGET_U32_LENGTH),
       rawScratch: new Uint32Array(outputU32Length),
     }
   }
@@ -173,9 +166,9 @@ export class WebGpuMiner {
    */
   setPartialHeader(partialHeader: Uint32Array): void {
     const runtime = this.assertRuntime()
-    if (partialHeader.length < MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH) {
+    if (partialHeader.length < MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH) {
       throw new Error(
-        `partialHeader must contain at least ${MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH} u32 values`,
+        `partialHeader must contain at least ${MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH} u32 values`,
       )
     }
     runtime.queue.writeBuffer(
@@ -183,7 +176,7 @@ export class WebGpuMiner {
       0,
       partialHeader.buffer,
       partialHeader.byteOffset,
-      MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH * 4,
+      MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH * 4,
     )
     this.partialHeaderReady = true
   }
@@ -196,7 +189,7 @@ export class WebGpuMiner {
     if (targetLe.length !== 32) {
       throw new Error(`target must be 32 bytes, got ${targetLe.length}`)
     }
-    for (let i = 0; i < MINER_CONSTANTS.TARGET_U32_LENGTH; i++) {
+    for (let i = 0; i < MINER_DEFAULTS.TARGET_U32_LENGTH; i++) {
       const o = i * 4
       runtime.targetScratch[i] =
         ((targetLe[o] ?? 0) |
@@ -276,8 +269,8 @@ export class WebGpuMiner {
     const raw = runtime.rawScratch
 
     return {
-      found: raw[MINER_CONSTANTS.FOUND_INDEX] === 1,
-      nonceLow: raw[MINER_CONSTANTS.NONCE_INDEX] ?? 0,
+      found: raw[MINER_DEFAULTS.FOUND_INDEX] === 1,
+      nonceLow: raw[MINER_DEFAULTS.NONCE_INDEX] ?? 0,
       raw,
     }
   }

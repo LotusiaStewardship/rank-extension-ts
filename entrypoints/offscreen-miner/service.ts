@@ -1,15 +1,5 @@
-import { MINER_CONSTANTS } from '@/entrypoints/background/miner/constants'
-import {
-  createBlock,
-  prevHash,
-  bytesToHex,
-  reverseBytes,
-  lotusHash,
-} from '@/entrypoints/background/miner/core'
-import { WebGpuMiner } from '@/entrypoints/background/miner/gpu/webgpu-miner'
-import { LotusRpcClient } from '@/entrypoints/background/miner/network'
-import type { LotusBlock } from '@/entrypoints/background/miner/core'
-import type { LotusMiningSettings, MiningStats, MiningWork } from './types'
+import { WebGpuMiner } from './webgpu-miner'
+import { LotusRpcClient } from './rpc'
 
 /**
  * End-to-end Lotus mining coordinator for extension worker runtimes.
@@ -49,7 +39,7 @@ export class LotusMiningService {
   private partialHeaderScratch = new Uint8Array(84)
   /** Reused 21-word partial header view uploaded to GPU. */
   private partialHeaderWords = new Uint32Array(
-    MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH,
+    MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH,
   )
   /** Device-limited nonce capacity for one `miner.run()` call. */
   private maxNonceCountPerSearch = 0
@@ -73,8 +63,8 @@ export class LotusMiningService {
       await this.miner.init({
         gpuPreferences: this.settings.gpuPreferences,
         iterations:
-          this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS,
-        workgroupSize: MINER_CONSTANTS.DEFAULT_WORKGROUP_SIZE,
+          this.settings.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS,
+        workgroupSize: MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE,
       })
 
       this.maxNonceCountPerSearch = this.miner.maxNonceCountPerDispatch
@@ -83,7 +73,7 @@ export class LotusMiningService {
       await this.updateNextBlock()
 
       const pollMs =
-        this.settings.rpcPollIntervalMs ?? MINER_CONSTANTS.DEFAULT_RPC_POLL_MS
+        this.settings.rpcPollIntervalMs ?? MINER_DEFAULTS.DEFAULT_RPC_POLL_MS
       this.blockPollTimer = globalThis.setInterval(() => {
         void this.updateNextBlock().catch(err =>
           console.error('updateNextBlock error', err),
@@ -161,10 +151,7 @@ export class LotusMiningService {
     const nextPrev = prevHash(block)
     if (!this.currentTip || !this.equal32(this.currentTip, nextPrev)) {
       this.currentTip = nextPrev.slice(0, 32)
-      console.info(
-        'Switched mining tip:',
-        bytesToHex(reverseBytes(nextPrev)),
-      )
+      console.info('Switched mining tip:', bytesToHex(reverseBytes(nextPrev)))
     }
     this.nextBlock = block
   }
@@ -189,9 +176,9 @@ export class LotusMiningService {
     }
 
     const iterations =
-      this.settings.iterations ?? MINER_CONSTANTS.DEFAULT_ITERATIONS
+      this.settings.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS
     const kernelSize =
-      this.settings.kernelSize ?? MINER_CONSTANTS.DEFAULT_KERNEL_SIZE
+      this.settings.kernelSize ?? MINER_DEFAULTS.DEFAULT_KERNEL_SIZE
     const requestedNoncesPerSearch = BigInt(kernelSize) * BigInt(iterations)
     const maxDispatchNonces = BigInt(this.maxNonceCountPerSearch)
     const numNoncesPerSearch =
@@ -232,8 +219,7 @@ export class LotusMiningService {
     if (nonceLow === 0) {
       return
     }
-    const foundNonce =
-      ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
+    const foundNonce = ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
 
     this.setBigNonce(this.currentWork.header, foundNonce)
 
@@ -276,19 +262,19 @@ export class LotusMiningService {
     // Kernel expects big-endian u32 words, same layout as reference miner.
     const out = this.partialHeaderWords
     const dv = new DataView(partialHeader.buffer, partialHeader.byteOffset, 84)
-    for (let i = 0; i < MINER_CONSTANTS.PARTIAL_HEADER_U32_LENGTH; i++) {
+    for (let i = 0; i < MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH; i++) {
       out[i] = dv.getUint32(i * 4, false)
     }
     return out
   }
 
   /** Compare first 32 bytes of two arrays. */
-  private equal32(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length < 32 || b.length < 32) {
+  private equal32(val1: Uint8Array, val2: Uint8Array): boolean {
+    if (val1.length < 32 || val2.length < 32) {
       return false
     }
     for (let i = 0; i < 32; i++) {
-      if (a[i] !== b[i]) {
+      if (val1[i] !== val2[i]) {
         return false
       }
     }
@@ -314,7 +300,7 @@ export class LotusMiningService {
   private maybeReportHashrate(): void {
     const windowMs =
       this.settings.hashrateWindowMs ??
-      MINER_CONSTANTS.DEFAULT_HASHRATE_WINDOW_MS
+      MINER_DEFAULTS.DEFAULT_HASHRATE_WINDOW_MS
     const elapsed = Date.now() - this.metricsStart
     if (elapsed < windowMs) return
 

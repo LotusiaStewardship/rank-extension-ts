@@ -4,3 +4,4 @@ export {
   type AuthenticateHeaderPrefix,
 } from './instance'
 export { WalletTools, WalletBuilder, WalletManager } from './wallet'
+export { OffscreenMinerController } from './offscreen-controller'

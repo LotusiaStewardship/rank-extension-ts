@@ -1,17 +1,6 @@
 /// <reference lib="webworker" />
-
-import {
-  OFFSCREEN_WORKER_CHANNEL,
-  type OffscreenWorkerCommand,
-  type OffscreenWorkerCommandType,
-  type OffscreenWorkerEvent,
-  type OffscreenWorkerResponse,
-} from '@/entrypoints/background/miner/offscreen-worker-protocol'
-import {
-  LotusMiningService,
-  type LotusMiningSettings,
-} from '@/entrypoints/background/miner/service'
-import type { MinerStatus } from '@/entrypoints/background/stores/miner'
+import { LotusMiningService } from './offscreen-miner/service'
+import type { MinerStatus } from './background/stores'
 
 /** Active mining service instance for this worker runtime. */
 let miningService: LotusMiningService | null = null
@@ -38,7 +27,10 @@ async function handleCommand(message: unknown): Promise<void> {
   if (!message || typeof message !== 'object') return
 
   const command = message as OffscreenWorkerCommand<OffscreenWorkerCommandType>
-  if (command.channel !== OFFSCREEN_WORKER_CHANNEL || command.kind !== 'command') {
+  if (
+    command.channel !== OFFSCREEN_WORKER_CHANNEL ||
+    command.kind !== 'command'
+  ) {
     return
   }
 
@@ -73,7 +65,12 @@ async function handleCommand(message: unknown): Promise<void> {
       }
 
       default:
-        return respond(command.requestId, false, undefined, 'Unknown worker command')
+        return respond(
+          command.requestId,
+          false,
+          undefined,
+          'Unknown worker command',
+        )
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

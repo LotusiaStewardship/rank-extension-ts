@@ -14,11 +14,7 @@ import {
   walletMessaging,
   minerMessaging,
 } from '@/entrypoints/background/messaging'
-import {
-  OffscreenMinerController,
-  mapConfigToMiningSettings,
-  createDefaultMinerStatus,
-} from '@/entrypoints/background/miner'
+import { OffscreenMinerController } from '@/entrypoints/background/modules'
 import assert from 'assert'
 
 export default defineBackground({
@@ -84,13 +80,16 @@ export default defineBackground({
       return config
     })
 
-    minerMessaging.onMessage('popup:minerSaveConfig', async ({ sender, data }) => {
-      validateMessageSender(sender.id)
-      await minerStore.setConfig(data)
-      const settings = mapConfigToMiningSettings(data)
-      await minerController.updateConfig(settings)
-      return await minerStore.getConfig()
-    })
+    minerMessaging.onMessage(
+      'popup:minerSaveConfig',
+      async ({ sender, data }) => {
+        validateMessageSender(sender.id)
+        await minerStore.setConfig(data)
+        const settings = mapConfigToMiningSettings(data)
+        await minerController.updateConfig(settings)
+        return await minerStore.getConfig()
+      },
+    )
 
     minerMessaging.onMessage('popup:minerLoadStatus', async ({ sender }) => {
       validateMessageSender(sender.id)
@@ -100,6 +99,7 @@ export default defineBackground({
     })
 
     minerMessaging.onMessage('popup:minerStart', async ({ sender }) => {
+      console.log('[MESSAGE] popup:minerStart received')
       validateMessageSender(sender.id)
       const config = await minerStore.getConfig()
       if (!config.mineToAddress) {
