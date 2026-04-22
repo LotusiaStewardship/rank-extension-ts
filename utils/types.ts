@@ -120,6 +120,23 @@ export type MinerJob = {
 /**
  * GPU dispatch result payload.
  */
+export type MinerRunTelemetry = {
+  /** Workgroups dispatched along X dimension for this batch. */
+  dispatchX: number
+  /** Requested nonce coverage for this batch. */
+  nonceCount: number
+  /** CPU time spent preparing params/output uploads and command recording. */
+  hostEncodeMs: number
+  /** Time from queue submit until readback buffer became mappable. */
+  submitToReadbackMs: number
+  /** Time to copy mapped bytes into reusable CPU scratch + unmap. */
+  readbackCopyMs: number
+  /** CPU time spent scanning output buffer for candidate slots. */
+  parseMs: number
+  /** End-to-end wall-clock time for `run()`. */
+  totalMs: number
+}
+
 export type MinerBatchResult = {
   /** True when kernel set output[0] == 1. */
   found: boolean
@@ -127,6 +144,8 @@ export type MinerBatchResult = {
   nonceLow: number
   /** Full output buffer snapshot from GPU readback. */
   raw: Uint32Array
+  /** Per-dispatch runtime timings for bottleneck analysis. */
+  telemetry: MinerRunTelemetry
 }
 
 // ==================================================
@@ -150,6 +169,10 @@ export type LotusMiningSettings = {
   kernelSize?: number
   /** Window used for periodic hashrate logs. */
   hashrateWindowMs?: number
+  /** Enable verbose per-window telemetry logs for bottleneck analysis. */
+  telemetryEnabled?: boolean
+  /** Window for telemetry aggregation + reporting. */
+  telemetryWindowMs?: number
 }
 
 /**

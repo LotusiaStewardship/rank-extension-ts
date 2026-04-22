@@ -220,6 +220,8 @@ export class WebGpuMiner {
       throw new Error('No target has been uploaded yet')
     }
 
+    const t0 = performance.now()
+
     // Kernel params are a compact subset expected by the WGSL `Params` struct.
     runtime.paramsScratch[0] = job.offset >>> 0
     runtime.paramsScratch[1] = runtime.targetScratch[5] ?? 0
@@ -270,12 +272,17 @@ export class WebGpuMiner {
       runtime.outputU32Length * 4,
     )
 
+    const tEncoded = performance.now()
     runtime.queue.submit([encoder.finish()])
+    const tSubmitted = performance.now()
 
     await readback.mapAsync(GPUMapMode.READ)
+    const tMapped = performance.now()
+
     const mapped = readback.getMappedRange()
     runtime.rawScratch.set(new Uint32Array(mapped))
     readback.unmap()
+    const tReadbackCopied = performance.now()
 
     const raw = runtime.rawScratch
 
@@ -291,10 +298,21 @@ export class WebGpuMiner {
       }
     }
 
+    const tParsed = performance.now()
+
     return {
       found,
       nonceLow,
       raw,
+      telemetry: {
+        dispatchX,
+        nonceCount: job.nonceCount,
+        hostEncodeMs: tEncoded - t0,
+        submitToReadbackMs: tMapped - tSubmitted,
+        readbackCopyMs: tReadbackCopied - tMapped,
+        parseMs: tParsed - tReadbackCopied,
+        totalMs: tParsed - t0,
+      },
     }
   }
 

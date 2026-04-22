@@ -1,6 +1,29 @@
 import { WebGpuMiner } from './webgpu-miner'
 import { LotusRpcClient } from './rpc'
 
+type MiningTelemetryWindow = {
+  windowStartMs: number
+  testedNonces: bigint
+  dispatches: number
+  idleLoops: number
+  templateFetches: number
+  templateFetchMs: number
+  noncePrepMs: number
+  partialHeaderBuildMs: number
+  partialHeaderUploadMs: number
+  gpuHostEncodeMs: number
+  gpuSubmitToReadbackMs: number
+  gpuReadbackCopyMs: number
+  gpuParseMs: number
+  gpuTotalMs: number
+  candidateSlotsScanned: number
+  candidateScanMs: number
+  candidateHashChecks: number
+  candidateHashMs: number
+  submitCount: number
+  submitMs: number
+}
+
 /**
  * End-to-end Lotus mining coordinator for extension worker runtimes.
  *
@@ -43,6 +66,8 @@ export class LotusMiningService {
   )
   /** Device-limited nonce capacity for one `miner.run()` call. */
   private maxNonceCountPerSearch = 0
+  /** Rolling telemetry counters used to surface pipeline bottlenecks. */
+  private telemetryWindow: MiningTelemetryWindow = this.newTelemetryWindow()
 
   constructor(private readonly settings: LotusMiningSettings) {
     this.rpc = new LotusRpcClient(settings.rpc)
@@ -58,6 +83,7 @@ export class LotusMiningService {
     this.latestError = ''
     this.testedNonces = 0n
     this.metricsStart = Date.now()
+    this.telemetryWindow = this.newTelemetryWindow()
 
     try {
       await this.miner.init({
@@ -140,9 +166,12 @@ export class LotusMiningService {
    * Refresh pending block template from RPC.
    */
   private async updateNextBlock(): Promise<void> {
+    const fetchStart = performance.now()
     const unsolved = await this.rpc.getRawUnsolvedBlock(
       this.settings.mineToAddress,
     )
+    this.telemetryWindow.templateFetches += 1
+    this.telemetryWindow.templateFetchMs += performance.now() - fetchStart
     if (!unsolved) {
       return
     }
@@ -172,6 +201,7 @@ export class LotusMiningService {
     }
 
     if (!this.currentWork) {
+      this.telemetryWindow.idleLoops += 1
       return
     }
 
@@ -206,27 +236,48 @@ export class LotusMiningService {
     const base = Number(baseBig)
 
     // Each dispatch explores a 64-bit nonce space chunk with random high word.
+    const noncePrepStart = performance.now()
     const bigNonce = this.randomU64()
     this.setBigNonce(this.currentWork.header, bigNonce)
+    this.telemetryWindow.noncePrepMs += performance.now() - noncePrepStart
 
+    const partialHeaderBuildStart = performance.now()
     const partialHeader = await this.buildPartialHeader(this.currentWork.header)
+    this.telemetryWindow.partialHeaderBuildMs +=
+      performance.now() - partialHeaderBuildStart
+
+    const partialHeaderUploadStart = performance.now()
     this.miner.setPartialHeader(partialHeader)
+    this.telemetryWindow.partialHeaderUploadMs +=
+      performance.now() - partialHeaderUploadStart
 
     const result = await this.miner.run({
       offset: base,
       nonceCount: Number(numNoncesPerSearch),
     })
 
+    this.telemetryWindow.dispatches += 1
+    this.telemetryWindow.testedNonces += numNoncesPerSearch
+    this.telemetryWindow.gpuHostEncodeMs += result.telemetry.hostEncodeMs
+    this.telemetryWindow.gpuSubmitToReadbackMs +=
+      result.telemetry.submitToReadbackMs
+    this.telemetryWindow.gpuReadbackCopyMs += result.telemetry.readbackCopyMs
+    this.telemetryWindow.gpuParseMs += result.telemetry.parseMs
+    this.telemetryWindow.gpuTotalMs += result.telemetry.totalMs
+
     this.currentWork.nonceIdx += 1
     this.testedNonces += numNoncesPerSearch
     this.maybeReportHashrate()
+    this.maybeReportTelemetry()
 
     if (!result.found) {
       return
     }
 
     const work = this.currentWork
+    const candidateScanStart = performance.now()
     for (let i = 0; i <= MINER_DEFAULTS.NONCE_MASK; i++) {
+      this.telemetryWindow.candidateSlotsScanned += 1
       const candidate = result.raw[i] ?? 0
       if (candidate === 0) {
         continue
@@ -240,7 +291,10 @@ export class LotusMiningService {
       const foundNonce = ((bigNonce >> 32n) << 32n) | BigInt(nonceLow >>> 0)
       this.setBigNonce(work.header, foundNonce)
 
+      const hashStart = performance.now()
       const hash = await lotusHash(work.header)
+      this.telemetryWindow.candidateHashChecks += 1
+      this.telemetryWindow.candidateHashMs += performance.now() - hashStart
       if (!this.isHashBelowTarget(hash, work.target)) {
         continue
       }
@@ -253,17 +307,25 @@ export class LotusMiningService {
       // finding a valid candidate, regardless of submission result.
       this.currentWork = null
 
+      const submitStart = performance.now()
       const submitResult = await this.rpc.submitBlock(solvedBlockHex)
+      this.telemetryWindow.submitCount += 1
+      this.telemetryWindow.submitMs += performance.now() - submitStart
       if (submitResult === null) {
         console.info('BLOCK ACCEPTED!')
       } else {
         console.error('REJECTED BLOCK:', submitResult)
       }
 
+      this.telemetryWindow.candidateScanMs +=
+        performance.now() - candidateScanStart
+
       // Immediately fetch fresh template instead of waiting for next poll tick.
       await this.updateNextBlock()
       return
     }
+
+    this.telemetryWindow.candidateScanMs += performance.now() - candidateScanStart
   }
 
   /**
@@ -332,6 +394,115 @@ export class LotusMiningService {
     console.info(`Hashrate ${(hashrate / 1_000_000).toFixed(3)} MH/s`)
     this.testedNonces = 0n
     this.metricsStart = Date.now()
+  }
+
+  /**
+   * Aggregate and emit pipeline timing telemetry to identify dominant bottlenecks.
+   */
+  private maybeReportTelemetry(): void {
+    if (this.settings.telemetryEnabled === false) {
+      return
+    }
+
+    const telemetryWindowMs =
+      this.settings.telemetryWindowMs ??
+      MINER_DEFAULTS.DEFAULT_TELEMETRY_WINDOW_MS
+    const elapsedMs = Date.now() - this.telemetryWindow.windowStartMs
+    if (elapsedMs < telemetryWindowMs) {
+      return
+    }
+
+    const window = this.telemetryWindow
+    const elapsedSec = Math.max(0.001, elapsedMs / 1000)
+    const testedNonces = Number(window.testedNonces)
+    const hashrate = testedNonces / elapsedSec
+
+    const dispatches = Math.max(1, window.dispatches)
+    const avgGpuTotalMs = window.gpuTotalMs / dispatches
+    const avgGpuSubmitToReadbackMs = window.gpuSubmitToReadbackMs / dispatches
+    const avgHeaderBuildMs = window.partialHeaderBuildMs / dispatches
+
+    const avgCandidateSlotsScanned =
+      window.dispatches === 0
+        ? 0
+        : window.candidateSlotsScanned / window.dispatches
+
+    console.info('[MINER_TELEMETRY]', {
+      windowMs: elapsedMs,
+      dispatches: window.dispatches,
+      idleLoops: window.idleLoops,
+      testedNonces,
+      hashrateMhs: hashrate / 1_000_000,
+      effectiveDispatchesPerSec: window.dispatches / elapsedSec,
+      effectiveMNoncesPerDispatch:
+        window.dispatches === 0 ? 0 : testedNonces / window.dispatches / 1_000_000,
+      stageTotalsMs: {
+        templateFetch: window.templateFetchMs,
+        noncePrep: window.noncePrepMs,
+        partialHeaderBuild: window.partialHeaderBuildMs,
+        partialHeaderUpload: window.partialHeaderUploadMs,
+        gpuHostEncode: window.gpuHostEncodeMs,
+        gpuSubmitToReadback: window.gpuSubmitToReadbackMs,
+        gpuReadbackCopy: window.gpuReadbackCopyMs,
+        gpuParse: window.gpuParseMs,
+        gpuTotal: window.gpuTotalMs,
+        candidateScan: window.candidateScanMs,
+        candidateHash: window.candidateHashMs,
+        submit: window.submitMs,
+      },
+      stageAveragesMs: {
+        gpuTotalPerDispatch: avgGpuTotalMs,
+        gpuSubmitToReadbackPerDispatch: avgGpuSubmitToReadbackMs,
+        partialHeaderBuildPerDispatch: avgHeaderBuildMs,
+        templateFetchPerPoll:
+          window.templateFetches === 0
+            ? 0
+            : window.templateFetchMs / window.templateFetches,
+        candidateHashPerCheck:
+          window.candidateHashChecks === 0
+            ? 0
+            : window.candidateHashMs / window.candidateHashChecks,
+        submitPerCall:
+          window.submitCount === 0 ? 0 : window.submitMs / window.submitCount,
+      },
+      counters: {
+        templateFetches: window.templateFetches,
+        candidateSlotsScanned: window.candidateSlotsScanned,
+        avgCandidateSlotsScannedPerDispatch: avgCandidateSlotsScanned,
+        candidateHashChecks: window.candidateHashChecks,
+        submitCount: window.submitCount,
+      },
+    })
+
+    this.telemetryWindow = this.newTelemetryWindow()
+  }
+
+  /**
+   * Construct a fresh rolling telemetry bucket.
+   */
+  private newTelemetryWindow(): MiningTelemetryWindow {
+    return {
+      windowStartMs: Date.now(),
+      testedNonces: 0n,
+      dispatches: 0,
+      idleLoops: 0,
+      templateFetches: 0,
+      templateFetchMs: 0,
+      noncePrepMs: 0,
+      partialHeaderBuildMs: 0,
+      partialHeaderUploadMs: 0,
+      gpuHostEncodeMs: 0,
+      gpuSubmitToReadbackMs: 0,
+      gpuReadbackCopyMs: 0,
+      gpuParseMs: 0,
+      gpuTotalMs: 0,
+      candidateSlotsScanned: 0,
+      candidateScanMs: 0,
+      candidateHashChecks: 0,
+      candidateHashMs: 0,
+      submitCount: 0,
+      submitMs: 0,
+    }
   }
 
   /**

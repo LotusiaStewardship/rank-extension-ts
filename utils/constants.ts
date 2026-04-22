@@ -35,7 +35,7 @@ export const MINER_DEFAULTS = {
    * Required workgroup size for the bundled `LOTUS_OG_WGSL` kernel.
    * Must remain in sync with `@workgroup_size(256)`.
    */
-  DEFAULT_WORKGROUP_SIZE: 256,
+  DEFAULT_WORKGROUP_SIZE: 128,
   /**
    * OpenCL-compatible output shape: nonce slots [0..0x7f] + found flag at 0x80.
    */
@@ -61,6 +61,8 @@ export const MINER_DEFAULTS = {
   DEFAULT_RPC_POLL_MS: 3000,
   /** Default hashrate logging/reporting window. */
   DEFAULT_HASHRATE_WINDOW_MS: 5000,
+  /** Default performance telemetry reporting window. */
+  DEFAULT_TELEMETRY_WINDOW_MS: 5000,
   /**
    * OpenCL-style kernel size baseline from reference miner.
    * Effective nonces per search = `kernelSize * iterations` (clamped by device limits).
