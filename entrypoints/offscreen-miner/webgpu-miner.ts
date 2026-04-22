@@ -15,13 +15,13 @@ type WebGpuMinerRuntime = {
   paramsBuffer: GPUBuffer
   /** Storage buffer containing precomputed partial header words. */
   partialHeaderBuffer: GPUBuffer
-  /** Storage buffer written by the kernel (`found`, `nonce`, ...). */
+  /** Storage buffer written by the kernel (`output[0x80]` flag + nonce slots). */
   outputBuffer: GPUBuffer
   /** Double-buffered readback targets to avoid map hazards between dispatches. */
   readbackBuffers: [GPUBuffer, GPUBuffer]
   /** Alternates active readback buffer each run. */
   readbackCursor: 0 | 1
-  /** Output u32 length used for output and readback buffers. */
+  /** Output u32 length used for output and readback buffers. Must include index 0x80. */
   outputU32Length: number
   /** Device maximum allowed dispatch dimension on X axis. */
   maxDispatchX: number
@@ -77,7 +77,7 @@ export class WebGpuMiner {
       params.workgroupSize ?? MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE
     const outputU32Length = Math.max(
       params.outputU32Length ?? MINER_DEFAULTS.DEFAULT_OUTPUT_U32_LENGTH,
-      2,
+      MINER_DEFAULTS.FOUND_INDEX + 1,
     )
 
     const adapter = await this.requestAdapter(params.gpuPreferences)
@@ -268,9 +268,21 @@ export class WebGpuMiner {
 
     const raw = runtime.rawScratch
 
+    const found = raw[MINER_DEFAULTS.FOUND_INDEX] === 1
+    let nonceLow = 0
+    if (found) {
+      for (let i = 0; i <= MINER_DEFAULTS.NONCE_MASK; i++) {
+        const candidate = raw[i] ?? 0
+        if (candidate !== 0) {
+          nonceLow = candidate
+          break
+        }
+      }
+    }
+
     return {
-      found: raw[MINER_DEFAULTS.FOUND_INDEX] === 1,
-      nonceLow: raw[MINER_DEFAULTS.NONCE_INDEX] ?? 0,
+      found,
+      nonceLow,
       raw,
     }
   }

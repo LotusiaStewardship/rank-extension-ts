@@ -9,7 +9,7 @@ let currentSettingsJson = ''
 /**
  * Entry command listener for background -> offscreen document messages.
  */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const maybeCommand = asOffscreenMinerCommand(message)
   if (!maybeCommand) {
     return undefined
@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true
 })
 
-// Inform background that offscreen control plane is ready.
+// Inform background service worker that offscreen control plane is ready.
 void sendEventToBackground({
   channel: OFFSCREEN_MINER_CHANNEL,
   kind: 'event',
@@ -172,7 +172,7 @@ function ensureWorker(): Worker {
     return worker
   }
 
-  const workerUrl = chrome.runtime.getURL('/offscreen-miner-worker.js')
+  const workerUrl = browser.runtime.getURL('/offscreen-miner-worker.js')
   worker = new Worker(workerUrl, { type: 'module' })
 
   worker.addEventListener('message', event => {

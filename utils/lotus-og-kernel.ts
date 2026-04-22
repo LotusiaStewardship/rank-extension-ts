@@ -7,7 +7,8 @@
  * - Buffer contract is defined by host-side constants in `constants.ts`:
  *   - `params`: `[offset, target0, target1, target2]`
  *   - `partial_header`: 21 u32 words (84 bytes)
- *   - `output`: at least `[foundFlag, nonceLow]`
+ *   - `output`: at least 129 u32 words (`output[0x80]` found flag,
+ *     `output[nonce & 0x7f]` candidate nonce slots)
  * - `hash_below_target` intentionally mirrors the reference kernel pre-filter
  *   (`hash[7] == 0`) and does not perform a full target compare. The host
  *   verifies against the full 256-bit target before submission.
@@ -17,8 +18,8 @@ alias num_t = u32;
 
 override ITERATIONS: u32 = 1u;
 
-const FOUND: u32 = 0u;
-const NONCE_OUT: u32 = 1u;
+const FOUND: u32 = 0x80u;
+const NFLAG: u32 = 0x7Fu;
 
 const H: array<u32, 8> = array<u32, 8>(
     0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
@@ -250,7 +251,7 @@ fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
 
         if (hash_below_target(&hash)) {
             output[FOUND] = 1u;
-            output[NONCE_OUT] = nonce;
+            output[NFLAG & nonce] = nonce;
         }
 
         iteration = iteration + 1u;

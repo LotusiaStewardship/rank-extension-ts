@@ -1,7 +1,7 @@
 /**
  * Communication protocol definitions
  */
-
+import type { MinerConfig, MinerStatus } from '@/entrypoints/background/stores'
 // ==================================================
 // Offscreen Protocol (background sw <-> offscreen)
 // ==================================================

@@ -37,9 +37,9 @@ export const MINER_DEFAULTS = {
    */
   DEFAULT_WORKGROUP_SIZE: 256,
   /**
-   * Minimal output shape from GPU: `[foundFlag, nonceLow]`.
+   * OpenCL-compatible output shape: nonce slots [0..0x7f] + found flag at 0x80.
    */
-  DEFAULT_OUTPUT_U32_LENGTH: 2,
+  DEFAULT_OUTPUT_U32_LENGTH: 0x81,
   /**
    * Number of u32 words uploaded as `partial_header` (84 bytes => 21 u32).
    */
@@ -53,10 +53,10 @@ export const MINER_DEFAULTS = {
    * Layout: `offset`, `target0`, `target1`, `target2`.
    */
   PARAMS_U32_LENGTH: 4,
-  /** Output buffer index storing the found flag. */
-  FOUND_INDEX: 0,
-  /** Output buffer index storing the candidate nonce low word. */
-  NONCE_INDEX: 1,
+  /** Output buffer index storing the found flag (`output[0x80]`). */
+  FOUND_INDEX: 0x80,
+  /** Bitmask used by kernel to place candidate nonce slots (`output[nonce & mask]`). */
+  NONCE_MASK: 0x7f,
   /** Default polling interval for refreshing RPC block templates. */
   DEFAULT_RPC_POLL_MS: 3000,
   /** Default hashrate logging/reporting window. */

@@ -105,7 +105,7 @@ export type MinerInitParams = {
   iterations?: number
   /** Must match `@workgroup_size` in the shader. */
   workgroupSize?: number
-  /** Output storage u32 length. Minimum 2 (`found`, `nonceLow`). */
+  /** Output storage u32 length. Minimum 129 (`output[0x80]` found flag + nonce slots). */
   outputU32Length?: number
 }
 
@@ -123,7 +123,7 @@ export type MinerJob = {
 export type MinerBatchResult = {
   /** True when kernel set output[0] == 1. */
   found: boolean
-  /** Candidate low 32-bit nonce word (kernel-endian). */
+  /** First non-zero candidate low 32-bit nonce word (kernel-endian) from nonce slots. */
   nonceLow: number
   /** Full output buffer snapshot from GPU readback. */
   raw: Uint32Array

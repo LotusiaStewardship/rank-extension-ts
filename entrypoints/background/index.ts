@@ -86,7 +86,10 @@ export default defineBackground({
         validateMessageSender(sender.id)
         await minerStore.setConfig(data)
         const settings = mapConfigToMiningSettings(data)
-        await minerController.updateConfig(settings)
+        // NOTE: we don't want to send to offscreen document
+        // UI "save config" button is disabled while offscreen doc is running
+        // This is by design; updating config should NOT load the offscreen doc
+        //await minerController.updateConfig(settings)
         return await minerStore.getConfig()
       },
     )
