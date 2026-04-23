@@ -92,6 +92,10 @@ const status = ref<MinerStatus>({
   running: false,
   hashrate: 0,
   testedNonces: '0',
+  webgpuAvailable: false,
+  webgpuAdapterAvailable: false,
+  webgpuDeviceReady: false,
+  webgpuPipelineReady: false,
   webgpuSupported: false,
   lastError: '',
   updatedAt: 0,
@@ -402,7 +406,7 @@ onBeforeUnmount(() => {
       <FwbButton color="pink" @click="saveConfig" :disabled="loading || saving || status.running">
         Save Config
       </FwbButton>
-      <FwbButton color="green" @click="startMiner" :disabled="!status.webgpuSupported || status.running || loading">
+      <FwbButton color="green" @click="startMiner" :disabled="!status.webgpuAvailable || status.running || loading">
         Start Miner
       </FwbButton>
       <FwbButton color="red" @click="stopMiner" :disabled="!status.running">
@@ -412,9 +416,15 @@ onBeforeUnmount(() => {
 
     <div class="pt-4 text-sm">
       <FwbP>
-        <strong>WebGPU:</strong>
-        <span :class="status.webgpuSupported ? 'text-green-600 dark:text-green-300' : 'text-red-500 dark:text-red-300'">
-          {{ status.webgpuSupported ? 'Supported' : 'Not supported in this runtime' }}
+        <strong>WebGPU API:</strong>
+        <span :class="status.webgpuAvailable ? 'text-green-600 dark:text-green-300' : 'text-red-500 dark:text-red-300'">
+          {{ status.webgpuAvailable ? 'Available' : 'Not available in this runtime' }}
+        </span>
+      </FwbP>
+      <FwbP>
+        <strong>WebGPU pipeline:</strong>
+        <span :class="status.webgpuPipelineReady ? 'text-green-600 dark:text-green-300' : 'text-amber-500 dark:text-amber-300'">
+          {{ status.webgpuPipelineReady ? 'Ready' : 'Not initialized' }}
         </span>
       </FwbP>
       <FwbP><strong>Status:</strong> {{ status.running ? 'Running' : 'Stopped' }}</FwbP>

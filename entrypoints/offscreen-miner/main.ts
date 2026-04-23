@@ -272,7 +272,7 @@ async function queryWorkerStatus(): Promise<MinerStatus> {
   if (!worker) {
     return {
       ...createDefaultMinerStatus(),
-      webgpuSupported: 'gpu' in navigator,
+      webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
       updatedAt: Date.now(),
     }
   }
@@ -282,7 +282,7 @@ async function queryWorkerStatus(): Promise<MinerStatus> {
   if (!status) {
     return {
       ...createDefaultMinerStatus(),
-      webgpuSupported: 'gpu' in navigator,
+      webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
       updatedAt: Date.now(),
     }
   }
@@ -290,6 +290,10 @@ async function queryWorkerStatus(): Promise<MinerStatus> {
     running: Boolean(status.running),
     hashrate: Number(status.hashrate ?? 0),
     testedNonces: String(status.testedNonces ?? '0'),
+    webgpuAvailable: Boolean(status.webgpuAvailable),
+    webgpuAdapterAvailable: Boolean(status.webgpuAdapterAvailable),
+    webgpuDeviceReady: Boolean(status.webgpuDeviceReady),
+    webgpuPipelineReady: Boolean(status.webgpuPipelineReady),
     webgpuSupported: Boolean(status.webgpuSupported),
     lastError: String(status.lastError ?? ''),
     updatedAt: Number(status.updatedAt ?? Date.now()),
@@ -314,6 +318,10 @@ async function handleWorkerEvent(message: unknown): Promise<void> {
       running: Boolean(event.data.running),
       hashrate: Number(event.data.hashrate ?? 0),
       testedNonces: String(event.data.testedNonces ?? '0'),
+      webgpuAvailable: Boolean(event.data.webgpuAvailable),
+      webgpuAdapterAvailable: Boolean(event.data.webgpuAdapterAvailable),
+      webgpuDeviceReady: Boolean(event.data.webgpuDeviceReady),
+      webgpuPipelineReady: Boolean(event.data.webgpuPipelineReady),
       webgpuSupported: Boolean(event.data.webgpuSupported),
       lastError: String(event.data.lastError ?? ''),
       updatedAt: Number(event.data.updatedAt ?? Date.now()),

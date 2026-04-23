@@ -35,7 +35,7 @@ export const MINER_DEFAULTS = {
    * Required workgroup size for the bundled `LOTUS_OG_WGSL` kernel.
    * Must remain in sync with `@workgroup_size(256)`.
    */
-  DEFAULT_WORKGROUP_SIZE: 128,
+  DEFAULT_WORKGROUP_SIZE: 256,
   /**
    * OpenCL-compatible output shape: nonce slots [0..0x7f] + found flag at 0x80.
    */

@@ -148,6 +148,22 @@ export type MinerBatchResult = {
   telemetry: MinerRunTelemetry
 }
 
+/**
+ * Staged WebGPU capability diagnostics captured during miner initialization.
+ */
+export type WebGpuDiagnostics = {
+  /** WebGPU API is exposed in this runtime (`navigator.gpu`). */
+  apiAvailable: boolean
+  /** A GPU adapter was discovered for the requested power preferences. */
+  adapterAvailable: boolean
+  /** Logical GPU device creation succeeded. */
+  deviceReady: boolean
+  /** Compute pipeline compilation/linking succeeded. */
+  pipelineReady: boolean
+  /** Last initialization-stage WebGPU error, if any. */
+  lastError: string
+}
+
 // ==================================================
 // Lotus Miner Service
 // ==================================================
@@ -195,6 +211,8 @@ type Work = {
   body: Uint8Array
   /** Little-endian 256-bit target threshold. */
   target: Uint8Array
+  /** Cached SHA-256(tx-layer) for header bytes [52..160] (constant per template). */
+  txLayerHash: Uint8Array
   /** Monotonic dispatch counter within the current template. */
   nonceIdx: number
 }

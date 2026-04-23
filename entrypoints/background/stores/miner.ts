@@ -23,6 +23,15 @@ export type MinerStatus = {
   running: boolean
   hashrate: number
   testedNonces: string
+  /** WebGPU API availability in current runtime (`navigator.gpu`). */
+  webgpuAvailable: boolean
+  /** Adapter discovery status from most recent init attempt. */
+  webgpuAdapterAvailable: boolean
+  /** Device creation status from most recent init attempt. */
+  webgpuDeviceReady: boolean
+  /** Pipeline compilation status from most recent init attempt. */
+  webgpuPipelineReady: boolean
+  /** Back-compat summary used by existing UI paths. Equals `webgpuPipelineReady`. */
   webgpuSupported: boolean
   lastError: string
   updatedAt: number
@@ -45,6 +54,10 @@ export const DefaultMinerStatus: MinerStatus = {
   running: false,
   hashrate: 0,
   testedNonces: '0',
+  webgpuAvailable: false,
+  webgpuAdapterAvailable: false,
+  webgpuDeviceReady: false,
+  webgpuPipelineReady: false,
   webgpuSupported: false,
   lastError: '',
   updatedAt: 0,

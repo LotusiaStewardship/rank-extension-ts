@@ -162,6 +162,11 @@ export class LotusMiningService {
     return this.latestError
   }
 
+  /** Latest staged WebGPU diagnostics captured by the low-level GPU runner. */
+  get webGpuDiagnostics(): WebGpuDiagnostics {
+    return this.miner.webGpuDiagnostics
+  }
+
   /**
    * Refresh pending block template from RPC.
    */
@@ -190,10 +195,12 @@ export class LotusMiningService {
    */
   private async mineSomeNonces(): Promise<void> {
     if (this.nextBlock) {
+      const txLayerHash = await sha256(this.nextBlock.header.subarray(52))
       this.currentWork = {
         header: this.nextBlock.header,
         body: this.nextBlock.body,
         target: this.nextBlock.target,
+        txLayerHash,
         nonceIdx: 0,
       }
       this.miner.setTarget(this.currentWork.target)
@@ -242,7 +249,10 @@ export class LotusMiningService {
     this.telemetryWindow.noncePrepMs += performance.now() - noncePrepStart
 
     const partialHeaderBuildStart = performance.now()
-    const partialHeader = await this.buildPartialHeader(this.currentWork.header)
+    const partialHeader = this.buildPartialHeader(
+      this.currentWork.header,
+      this.currentWork.txLayerHash,
+    )
     this.telemetryWindow.partialHeaderBuildMs +=
       performance.now() - partialHeaderBuildStart
 
@@ -331,19 +341,15 @@ export class LotusMiningService {
   /**
    * Build 21-word partial header consumed by the Lotus kernel.
    */
-  private async buildPartialHeader(
+  private buildPartialHeader(
     header160: Uint8Array,
-  ): Promise<Uint32Array> {
+    txLayerHash: Uint8Array,
+  ): Uint32Array {
     const partialHeader = this.partialHeaderScratch
     partialHeader.set(header160.subarray(0, 52), 0)
 
-    // tx-layer hash = SHA-256(header[52..160])
-    const txLayerView = header160.subarray(52)
-    const txLayerHash = await crypto.subtle.digest(
-      'SHA-256',
-      txLayerView as BufferSource,
-    )
-    partialHeader.set(new Uint8Array(txLayerHash), 52)
+    // tx-layer hash is precomputed once per block template.
+    partialHeader.set(txLayerHash, 52)
 
     // Kernel expects big-endian u32 words, same layout as reference miner.
     const out = this.partialHeaderWords

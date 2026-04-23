@@ -148,6 +148,10 @@ export class OffscreenMinerController {
       running: Boolean(status.running),
       hashrate: Number(status.hashrate ?? 0),
       testedNonces: String(status.testedNonces ?? '0'),
+      webgpuAvailable: Boolean(status.webgpuAvailable),
+      webgpuAdapterAvailable: Boolean(status.webgpuAdapterAvailable),
+      webgpuDeviceReady: Boolean(status.webgpuDeviceReady),
+      webgpuPipelineReady: Boolean(status.webgpuPipelineReady),
       webgpuSupported: Boolean(status.webgpuSupported),
       lastError: String(status.lastError ?? ''),
       updatedAt: Number(status.updatedAt ?? Date.now()),
@@ -160,7 +164,7 @@ export class OffscreenMinerController {
   private defaultStatus(): MinerStatus {
     return {
       ...createDefaultMinerStatus(),
-      webgpuSupported: 'gpu' in navigator,
+      webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
       updatedAt: Date.now(),
     }
   }

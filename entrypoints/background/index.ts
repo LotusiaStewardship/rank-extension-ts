@@ -109,7 +109,7 @@ export default defineBackground({
         const next = await minerStore.patchStatus({
           running: false,
           lastError: 'mineToAddress is required',
-          webgpuSupported: 'gpu' in navigator,
+          webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
         })
         return next
       }
@@ -121,7 +121,7 @@ export default defineBackground({
         await minerStore.patchStatus({
           running: false,
           lastError: message,
-          webgpuSupported: 'gpu' in navigator,
+          webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
         })
       }
       return await buildMinerStatus()
@@ -324,7 +324,7 @@ export default defineBackground({
           hashrate: 0,
           testedNonces: '0',
           lastError: '',
-          webgpuSupported: 'gpu' in navigator,
+          webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
         })
       } catch {
         await minerStore.patchStatus({
@@ -342,7 +342,7 @@ export default defineBackground({
         const message = error instanceof Error ? error.message : String(error)
         return {
           ...createDefaultMinerStatus(),
-          webgpuSupported: 'gpu' in navigator,
+          webgpuAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
           lastError: message,
           updatedAt: Date.now(),
         }

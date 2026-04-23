@@ -8,6 +8,8 @@ let miningService: LotusMiningService | null = null
 let currentSettings: LotusMiningSettings | null = null
 /** Periodic status emission timer. */
 let statusTimer: ReturnType<typeof setInterval> | null = null
+/** Last known staged WebGPU diagnostics snapshot (survives runtime stop). */
+let lastWebGpuDiagnostics: WebGpuDiagnostics = defaultWebGpuDiagnostics()
 
 /**
  * Offscreen miner worker script entrypoint.
@@ -91,8 +93,14 @@ async function startWithSettings(settings: LotusMiningSettings): Promise<void> {
   currentSettings = settings
   await stopRuntime()
   miningService = new LotusMiningService(settings)
-  await miningService.start()
-  startStatusLoop()
+  try {
+    await miningService.start()
+    lastWebGpuDiagnostics = miningService.webGpuDiagnostics
+    startStatusLoop()
+  } catch (error) {
+    lastWebGpuDiagnostics = miningService.webGpuDiagnostics
+    throw error
+  }
 }
 
 /**
@@ -106,6 +114,7 @@ async function stopRuntime(): Promise<void> {
   if (!miningService) {
     return
   }
+  lastWebGpuDiagnostics = miningService.webGpuDiagnostics
   miningService.stop()
   miningService = null
 }
@@ -135,12 +144,18 @@ function startStatusLoop(): void {
 async function buildStatus(): Promise<MinerStatus> {
   const stats = miningService?.getStats()
   const running = Boolean(miningService?.isRunning)
-  const lastError = miningService?.lastError ?? ''
+  const diagnostics = miningService?.webGpuDiagnostics ?? lastWebGpuDiagnostics
+  const lastError = miningService?.lastError || diagnostics.lastError || ''
+
   return {
     running,
     hashrate: stats?.hashrate ?? 0,
     testedNonces: (stats?.testedNonces ?? 0n).toString(),
-    webgpuSupported: 'gpu' in navigator,
+    webgpuAvailable: diagnostics.apiAvailable,
+    webgpuAdapterAvailable: diagnostics.adapterAvailable,
+    webgpuDeviceReady: diagnostics.deviceReady,
+    webgpuPipelineReady: diagnostics.pipelineReady,
+    webgpuSupported: diagnostics.pipelineReady,
     lastError,
     updatedAt: Date.now(),
   }
@@ -171,4 +186,14 @@ function respond(
  */
 function emitEvent(event: OffscreenWorkerEvent): void {
   self.postMessage(event)
+}
+
+function defaultWebGpuDiagnostics(): WebGpuDiagnostics {
+  return {
+    apiAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
+    adapterAvailable: false,
+    deviceReady: false,
+    pipelineReady: false,
+    lastError: '',
+  }
 }

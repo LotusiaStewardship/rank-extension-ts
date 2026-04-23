@@ -49,6 +49,7 @@ export class WebGpuMiner {
   private runtime: WebGpuMinerRuntime | null = null
   private partialHeaderReady = false
   private targetReady = false
+  private diagnostics: WebGpuDiagnostics = this.newDiagnostics()
 
   /**
    * Maximum nonce capacity for a single dispatch on the active device.
@@ -69,101 +70,118 @@ export class WebGpuMiner {
     return runtime.workgroupSize * runtime.iterations
   }
 
+  /** Last captured staged WebGPU capability diagnostics. */
+  public get webGpuDiagnostics(): WebGpuDiagnostics {
+    return { ...this.diagnostics }
+  }
+
   /**
    * Allocate GPU resources and compile the compute pipeline.
    */
   async init(params: MinerInitParams = {}): Promise<void> {
-    if (!('gpu' in navigator) || !navigator.gpu) {
-      throw new Error('WebGPU is not supported in this browser runtime')
-    }
+    this.diagnostics = this.newDiagnostics()
 
-    const shaderCode = params.shaderCode ?? LOTUS_OG_WGSL
-    const iterations = params.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS
-    const workgroupSize =
-      params.workgroupSize ?? MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE
-    const outputU32Length = Math.max(
-      params.outputU32Length ?? MINER_DEFAULTS.DEFAULT_OUTPUT_U32_LENGTH,
-      MINER_DEFAULTS.FOUND_INDEX + 1,
-    )
+    try {
+      if (!this.diagnostics.apiAvailable) {
+        throw new Error('WebGPU is not supported in this browser runtime')
+      }
 
-    const adapter = await this.requestAdapter(params.gpuPreferences)
-    if (!adapter) {
-      throw new Error(
-        'No available adapters. WebGPU may be disabled in this Chromium runtime, or the browser may not expose a usable GPU adapter to extension service workers.',
+      const shaderCode = params.shaderCode ?? LOTUS_OG_WGSL
+      const iterations = params.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS
+      const workgroupSize =
+        params.workgroupSize ?? MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE
+      const outputU32Length = Math.max(
+        params.outputU32Length ?? MINER_DEFAULTS.DEFAULT_OUTPUT_U32_LENGTH,
+        MINER_DEFAULTS.FOUND_INDEX + 1,
       )
-    }
 
-    const device = await adapter.requestDevice()
-    const queue = device.queue
+      const adapter = await this.requestAdapter(params.gpuPreferences)
+      if (!adapter) {
+        throw new Error(
+          'No available adapters. WebGPU may be disabled in this Chromium runtime, or the browser may not expose a usable GPU adapter to extension service workers.',
+        )
+      }
+      this.diagnostics.adapterAvailable = true
 
-    const shaderModule = device.createShaderModule({ code: shaderCode })
+      const device = await adapter.requestDevice()
+      this.diagnostics.deviceReady = true
+      const queue = device.queue
 
-    const pipeline = await device.createComputePipelineAsync({
-      layout: 'auto',
-      compute: {
-        module: shaderModule,
-        entryPoint: 'search',
-        constants: {
-          ITERATIONS: iterations,
+      const shaderModule = device.createShaderModule({ code: shaderCode })
+
+      const pipeline = await device.createComputePipelineAsync({
+        layout: 'auto',
+        compute: {
+          module: shaderModule,
+          entryPoint: 'search',
+          constants: {
+            ITERATIONS: iterations,
+          },
         },
-      },
-    })
+      })
+      this.diagnostics.pipelineReady = true
+      this.diagnostics.lastError = ''
 
-    const paramsBuffer = device.createBuffer({
-      size: MINER_DEFAULTS.PARAMS_U32_LENGTH * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    })
+      const paramsBuffer = device.createBuffer({
+        size: MINER_DEFAULTS.PARAMS_U32_LENGTH * 4,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      })
 
-    const partialHeaderBuffer = device.createBuffer({
-      size: MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    })
+      const partialHeaderBuffer = device.createBuffer({
+        size: MINER_DEFAULTS.PARTIAL_HEADER_U32_LENGTH * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      })
 
-    const outputBuffer = device.createBuffer({
-      size: outputU32Length * 4,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    })
+      const outputBuffer = device.createBuffer({
+        size: outputU32Length * 4,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      })
 
-    const readbackBufferA = device.createBuffer({
-      size: outputU32Length * 4,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    })
+      const readbackBufferA = device.createBuffer({
+        size: outputU32Length * 4,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      })
 
-    const readbackBufferB = device.createBuffer({
-      size: outputU32Length * 4,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    })
+      const readbackBufferB = device.createBuffer({
+        size: outputU32Length * 4,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      })
 
-    const bindGroup = device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: paramsBuffer } },
-        { binding: 1, resource: { buffer: partialHeaderBuffer } },
-        { binding: 2, resource: { buffer: outputBuffer } },
-      ],
-    })
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: paramsBuffer } },
+          { binding: 1, resource: { buffer: partialHeaderBuffer } },
+          { binding: 2, resource: { buffer: outputBuffer } },
+        ],
+      })
 
-    this.runtime = {
-      device,
-      queue,
-      pipeline,
-      bindGroup,
-      paramsBuffer,
-      partialHeaderBuffer,
-      outputBuffer,
-      readbackBuffers: [readbackBufferA, readbackBufferB],
-      readbackCursor: 0,
-      outputU32Length,
-      maxDispatchX: device.limits.maxComputeWorkgroupsPerDimension,
-      workgroupSize,
-      iterations,
-      zeroOutput: new Uint32Array(outputU32Length),
-      paramsScratch: new Uint32Array(MINER_DEFAULTS.PARAMS_U32_LENGTH),
-      targetScratch: new Uint32Array(MINER_DEFAULTS.TARGET_U32_LENGTH),
-      rawScratch: new Uint32Array(outputU32Length),
+      this.runtime = {
+        device,
+        queue,
+        pipeline,
+        bindGroup,
+        paramsBuffer,
+        partialHeaderBuffer,
+        outputBuffer,
+        readbackBuffers: [readbackBufferA, readbackBufferB],
+        readbackCursor: 0,
+        outputU32Length,
+        maxDispatchX: device.limits.maxComputeWorkgroupsPerDimension,
+        workgroupSize,
+        iterations,
+        zeroOutput: new Uint32Array(outputU32Length),
+        paramsScratch: new Uint32Array(MINER_DEFAULTS.PARAMS_U32_LENGTH),
+        targetScratch: new Uint32Array(MINER_DEFAULTS.TARGET_U32_LENGTH),
+        rawScratch: new Uint32Array(outputU32Length),
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.diagnostics.lastError = message
+      throw error
     }
   }
 
@@ -350,12 +368,20 @@ export class WebGpuMiner {
       'low-power',
     ],
   ): Promise<GPUAdapter | null> {
-    const attempts: Array<GPURequestAdapterOptions | undefined> = [undefined]
+    const attempts: Array<GPURequestAdapterOptions | undefined> = []
 
-    // Prefer user-selected order, but still include plain request fallback.
+    // Respect caller preference order first.
+    const seen = new Set<'high-performance' | 'low-power'>()
     for (const powerPreference of gpuPreferences) {
+      if (seen.has(powerPreference)) {
+        continue
+      }
+      seen.add(powerPreference)
       attempts.push({ powerPreference })
     }
+
+    // Always include plain fallback as final attempt.
+    attempts.push(undefined)
 
     for (const options of attempts) {
       const adapter = await navigator.gpu.requestAdapter(options)
@@ -365,5 +391,16 @@ export class WebGpuMiner {
     }
 
     return null
+  }
+
+  /** Create a fresh staged WebGPU diagnostics snapshot. */
+  private newDiagnostics(): WebGpuDiagnostics {
+    return {
+      apiAvailable: 'gpu' in navigator && Boolean(navigator.gpu),
+      adapterAvailable: false,
+      deviceReady: false,
+      pipelineReady: false,
+      lastError: '',
+    }
   }
 }

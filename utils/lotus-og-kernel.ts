@@ -203,7 +203,7 @@ fn hash_below_target(hash: ptr<function, array<u32, 8>>) -> bool {
     return (*hash)[7] == 0u;
 }
 
-@compute @workgroup_size(128)
+@compute @workgroup_size(256, 1, 1)
 fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
     var pow_layer: array<u32, 64>;
     var chain_layer: array<u32, 64>;
