@@ -103,6 +103,13 @@ export function createDefaultMinerStatus(): MinerStatus {
 export function mapConfigToMiningSettings(
   config: MinerConfig,
 ): LotusMiningSettings {
+  const profileKey =
+    config.powerProfile === 'low-power' ||
+    config.powerProfile === 'balanced' ||
+    config.powerProfile === 'high-power'
+      ? config.powerProfile
+      : 'high-power'
+  const profile = config.webgpuProfiles[profileKey]
   return {
     mineToAddress: config.mineToAddress,
     rpc: {
@@ -111,6 +118,7 @@ export function mapConfigToMiningSettings(
       rpcPassword: config.rpcPassword,
     },
     gpuPreferences: config.gpuPreferences,
+    workgroupSize: profile?.workgroupSizeX,
     rpcPollIntervalMs: config.rpcPollIntervalMs,
     iterations: config.iterations,
     kernelSize: config.kernelSize,

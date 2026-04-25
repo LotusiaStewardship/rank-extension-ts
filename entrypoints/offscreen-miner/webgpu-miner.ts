@@ -1,4 +1,7 @@
 /// <reference types="@webgpu/types" />
+
+import type { MinerGpuPreference } from '../background/stores'
+
 /**
  * Internal runtime resources allocated after `init()`.
  */
@@ -103,7 +106,23 @@ export class WebGpuMiner {
       }
       this.diagnostics.adapterAvailable = true
 
-      const device = await adapter.requestDevice()
+      if (adapter.limits.maxComputeWorkgroupSizeX < workgroupSize) {
+        throw new Error(
+          `Requested workgroupSizeX=${workgroupSize} exceeds adapter limit maxComputeWorkgroupSizeX=${adapter.limits.maxComputeWorkgroupSizeX}`,
+        )
+      }
+      if (adapter.limits.maxComputeInvocationsPerWorkgroup < workgroupSize) {
+        throw new Error(
+          `Requested workgroupSize=${workgroupSize} exceeds adapter limit maxComputeInvocationsPerWorkgroup=${adapter.limits.maxComputeInvocationsPerWorkgroup}`,
+        )
+      }
+
+      const device = await adapter.requestDevice({
+        requiredLimits: {
+          maxComputeWorkgroupSizeX: workgroupSize,
+          maxComputeInvocationsPerWorkgroup: workgroupSize,
+        },
+      })
       this.diagnostics.deviceReady = true
       const queue = device.queue
 
@@ -363,7 +382,7 @@ export class WebGpuMiner {
    * Request a GPU adapter using caller preference order, with plain fallback.
    */
   private async requestAdapter(
-    gpuPreferences: Array<'high-performance' | 'low-power'> = [
+    gpuPreferences: Array<MinerGpuPreference> = [
       'high-performance',
       'low-power',
     ],

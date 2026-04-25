@@ -8,6 +8,8 @@ import {
   minerStore,
   type ExtensionInstance,
   type MinerStatus,
+  type MinerWebGpuLimits,
+  type MinerWebGpuProfileConfig,
 } from '@/entrypoints/background/stores'
 import {
   instanceMessaging,
@@ -15,12 +17,19 @@ import {
   minerMessaging,
 } from '@/entrypoints/background/messaging'
 import { OffscreenMinerController } from '@/entrypoints/background/modules'
+import { mapConfigToMiningSettings } from '@/utils/protocols'
 import assert from 'assert'
+
+const WEBGPU_PROFILE_PCTS = {
+  'low-power': 0.1,
+  balanced: 0.35,
+  'high-power': 0.9,
+} as const
 
 export default defineBackground({
   persistent: true,
   type: 'module',
-  main: () => {
+  main: async () => {
     /** Instantiated `WalletManager` used during background service-worker runtime */
     const walletManager = new WalletManager()
     /** Offscreen miner controller (control-plane only in service worker) */
@@ -29,6 +38,8 @@ export default defineBackground({
         await minerStore.setStatus(status)
       },
     })
+    await initializeWebGpuMinerDefaults()
+
     /**
      *
      *  Register Event Handlers
@@ -36,6 +47,9 @@ export default defineBackground({
      */
     /**
      * Register the extension instance with the Lotusia Stewardship
+     *
+     * TODO: this is currently dead code. The `instanceId` still is used, but no registration occurs.
+     * This `popup:registerInstance` message is never called.
      */
     instanceMessaging.onMessage(
       'popup:registerInstance',
@@ -60,6 +74,7 @@ export default defineBackground({
         }
       },
     )
+
     minerMessaging.onMessage('popup:minerLoadConfig', async ({ sender }) => {
       validateMessageSender(sender.id)
       const config = await minerStore.getConfig()
@@ -133,6 +148,8 @@ export default defineBackground({
       return await buildMinerStatus()
     })
 
+    // TODO: migrate this timer to an event-driven arch
+    // timers are lazy coding
     setInterval(async () => {
       const status = await buildMinerStatus()
       await minerStore.setStatus(status)
@@ -207,7 +224,7 @@ export default defineBackground({
           undefined,
         )) as string[]
       } catch (e) {
-        console.error('error during "popup:consolidateWallet"', e)
+        console.error('error during "popup:defragWallet"', e)
         return []
       }
     })
@@ -371,6 +388,79 @@ export default defineBackground({
         },
       )
       return await result.json()
+    }
+
+    async function initializeWebGpuMinerDefaults(): Promise<void> {
+      const config = await minerStore.getConfig()
+      if (config.webgpuHighPerformanceLimits && config.webgpuProfiles) {
+        return
+      }
+
+      const limits = await fetchWebGpuLimits()
+      if (!limits) {
+        return
+      }
+
+      const profiles = buildWebGpuProfiles(limits)
+      await minerStore.patchConfig({
+        webgpuHighPerformanceLimits: limits,
+        webgpuProfiles: profiles,
+      })
+    }
+
+    async function fetchWebGpuLimits(): Promise<MinerWebGpuLimits | null> {
+      if (!('gpu' in navigator) || !navigator.gpu) {
+        return null
+      }
+
+      const adapter = await navigator.gpu.requestAdapter({
+        powerPreference: 'high-performance',
+      })
+      if (!adapter) {
+        return null
+      }
+
+      const { limits } = adapter
+      return {
+        maxComputeWorkgroupSizeX: limits.maxComputeWorkgroupSizeX,
+        maxComputeWorkgroupSizeY: limits.maxComputeWorkgroupSizeY,
+        maxComputeWorkgroupSizeZ: limits.maxComputeWorkgroupSizeZ,
+        maxComputeInvocationsPerWorkgroup:
+          limits.maxComputeInvocationsPerWorkgroup,
+        maxComputeWorkgroupsPerDimension:
+          limits.maxComputeWorkgroupsPerDimension,
+      }
+    }
+
+    function buildWebGpuProfiles(
+      limits: MinerWebGpuLimits,
+    ): Record<'low-power' | 'balanced' | 'high-power', MinerWebGpuProfileConfig> {
+      return {
+        'low-power': deriveWebGpuProfile(limits, WEBGPU_PROFILE_PCTS['low-power']),
+        balanced: deriveWebGpuProfile(limits, WEBGPU_PROFILE_PCTS.balanced),
+        'high-power': deriveWebGpuProfile(
+          limits,
+          WEBGPU_PROFILE_PCTS['high-power'],
+        ),
+      }
+    }
+
+    function deriveWebGpuProfile(
+      limits: MinerWebGpuLimits,
+      pct: number,
+    ): MinerWebGpuProfileConfig {
+      const workgroupSizeX = Math.max(
+        1,
+        Math.floor(limits.maxComputeWorkgroupSizeX * pct),
+      )
+      return {
+        workgroupSizePct: pct,
+        workgroupSizeX: Math.min(
+          workgroupSizeX,
+          limits.maxComputeWorkgroupSizeX,
+          limits.maxComputeInvocationsPerWorkgroup,
+        ),
+      }
     }
   },
 })

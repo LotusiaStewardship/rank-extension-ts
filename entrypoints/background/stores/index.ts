@@ -24,4 +24,6 @@ export type {
   MinerStatus,
   MinerGpuPreference,
   MinerPowerProfile,
+  MinerWebGpuLimits,
+  MinerWebGpuProfileConfig,
 } from './miner'

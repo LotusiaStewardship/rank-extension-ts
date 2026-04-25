@@ -177,6 +177,8 @@ export type LotusMiningSettings = {
   rpc: LotusRpcSettings
   /** Optional GPU adapter preference order. */
   gpuPreferences?: MinerGpuPreference[]
+  /** Selected workgroup size for the active WebGPU profile. */
+  workgroupSize?: number
   /** Poll interval for fetching fresh block templates. */
   rpcPollIntervalMs?: number
   /** Kernel iterations override. */

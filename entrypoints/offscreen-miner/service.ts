@@ -86,11 +86,15 @@ export class LotusMiningService {
     this.telemetryWindow = this.newTelemetryWindow()
 
     try {
+      const workgroupSize = this.settings.workgroupSize
+      if (!workgroupSize) {
+        throw new Error('Missing WebGPU workgroup size in mining settings')
+      }
       await this.miner.init({
         gpuPreferences: this.settings.gpuPreferences,
         iterations:
           this.settings.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS,
-        workgroupSize: MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE,
+        workgroupSize,
       })
 
       this.maxNonceCountPerSearch = this.miner.maxNonceCountPerDispatch

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { FwbBadge, FwbButton, FwbHeading, FwbInput, FwbP } from 'flowbite-vue'
+import { FwbButton, FwbHeading, FwbInput, FwbP } from 'flowbite-vue'
 import type { ShallowRef } from 'vue'
 import type {
   MinerConfig,
-  MinerStatus,
   MinerGpuPreference,
   MinerPowerProfile,
+  MinerStatus,
 } from '@/entrypoints/background/stores'
 import { minerMessaging } from '@/entrypoints/background/messaging'
 
@@ -18,6 +18,16 @@ type MinerPreset = Pick<
   MinerConfig,
   'iterations' | 'kernelSize' | 'rpcPollIntervalMs' | 'hashrateWindowMs'
 >
+
+const PRESETS: Array<{
+  key: MinerPowerProfile
+  label: string
+  helper: string
+}> = [
+  { key: 'low-power', label: 'Eco', helper: 'Lower throughput' },
+  { key: 'balanced', label: 'Balanced', helper: 'Recommended' },
+  { key: 'high-power', label: 'Turbo', helper: 'Highest throughput' },
+]
 
 const POWER_PRESETS: Record<
   Exclude<MinerPowerProfile, 'custom'>,
@@ -43,74 +53,30 @@ const POWER_PRESETS: Record<
   },
 }
 
-const POWER_OPTIONS: Array<{
-  key: MinerPowerProfile
-  title: string
-  subtitle: string
-}> = [
-  {
-    key: 'low-power',
-    title: 'Eco',
-    subtitle: 'Cooler and quieter. Great for background mining.',
-  },
-  {
-    key: 'balanced',
-    title: 'Balanced',
-    subtitle: 'Recommended default for most systems.',
-  },
-  {
-    key: 'high-power',
-    title: 'Turbo',
-    subtitle: 'Maximum throughput with higher thermals.',
-  },
-  {
-    key: 'custom',
-    title: 'Custom',
-    subtitle: 'Fine-tune all controls manually.',
-  },
-]
-
-const GPU_OPTIONS: Array<{
-  preference: MinerGpuPreference
-  label: string
-  helper: string
-}> = [
-  {
-    preference: 'high-performance',
-    label: 'High-performance GPU',
-    helper: 'Discrete/performance adapter path',
-  },
-  {
-    preference: 'low-power',
-    label: 'Power-efficient GPU',
-    helper: 'Integrated/low-power adapter path',
-  },
-]
-
-const HASHRATE_GRAPH_WIDTH = 320
-const HASHRATE_GRAPH_HEIGHT = 72
-const HASHRATE_GRAPH_MAX_POINTS = 48
-
-const loading = shallowRef(false)
-const saving = shallowRef(false)
-const actionMessage = shallowRef('')
-const validationError = shallowRef('')
-
-/** Configuration in localStorage. Iniitalized with defaults before loaded via `loadConfig()` */
-const storedConfig = ref<MinerConfig>({
+const defaultConfig: MinerConfig = {
   rpcUrl: 'http://127.0.0.1:10604',
   rpcUser: 'lotus',
   rpcPassword: 'lotus',
   mineToAddress: '',
   powerProfile: 'balanced',
   gpuPreferences: ['high-performance'],
-  rpcPollIntervalMs: 3000,
-  iterations: 16,
-  kernelSize: 1 << 23,
-  hashrateWindowMs: 5000,
-})
+  webgpuHighPerformanceLimits: null,
+  webgpuProfiles: {
+    'low-power': { workgroupSizePct: 0.1, workgroupSizeX: 0 },
+    balanced: { workgroupSizePct: 0.35, workgroupSizeX: 0 },
+    'high-power': { workgroupSizePct: 0.9, workgroupSizeX: 0 },
+  },
+  ...POWER_PRESETS['high-power'], // KEEP THIS PRESET AS DEFAULT
+}
 
-/** Runtime status */
+const loading = shallowRef(false)
+const saving = shallowRef(false)
+const message = shallowRef('')
+const error = shallowRef('')
+const showAdvanced = shallowRef(false)
+
+const config = ref<MinerConfig>({ ...defaultConfig })
+const baseline = ref<MinerConfig>({ ...defaultConfig })
 const status = ref<MinerStatus>({
   running: false,
   hashrate: 0,
@@ -123,175 +89,118 @@ const status = ref<MinerStatus>({
   lastError: '',
   updatedAt: 0,
 })
-
 const refreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
-const hashrateHistory = ref<number[]>([])
-
-const selectedGpuPreferences = computed({
-  get() {
-    return storedConfig.value.gpuPreferences
-  },
-  set(next) {
-    if (!next.length) {
-      storedConfig.value.gpuPreferences = ['high-performance']
-      return
-    }
-    storedConfig.value.gpuPreferences = [...new Set(next)]
-  },
-})
 
 const isRunning = computed(() => status.value.running)
-const hashrateMhs = computed(() => status.value.hashrate / 1_000_000)
-const hashrateMhsLabel = computed(() => hashrateMhs.value.toFixed(3))
-const testedNoncesLabel = computed(() =>
-  BigInt(status.value.testedNonces || '0').toLocaleString(),
-)
-const estimatedSearchSize = computed(
-  () => storedConfig.value.kernelSize * storedConfig.value.iterations,
-)
-
-const maxHashrateMhs = computed(() => {
-  const values = hashrateHistory.value.map(hashrate => hashrate / 1_000_000)
-  return values.length ? Math.max(...values) : 0
-})
-
-const avgHashrateMhs = computed(() => {
-  if (!hashrateHistory.value.length) return 0
-  const total = hashrateHistory.value.reduce((sum, next) => sum + next, 0)
-  return total / hashrateHistory.value.length / 1_000_000
-})
-
-const graphPoints = computed(() => {
-  if (!hashrateHistory.value.length) {
-    return `0,${HASHRATE_GRAPH_HEIGHT} ${HASHRATE_GRAPH_WIDTH},${HASHRATE_GRAPH_HEIGHT}`
-  }
-
-  const values = hashrateHistory.value.map(hashrate => hashrate / 1_000_000)
-  const maxValue = Math.max(0.001, ...values)
-  const stepX = HASHRATE_GRAPH_WIDTH / Math.max(1, values.length - 1)
-
-  return values
-    .map((hashrate, index) => {
-      const x = index * stepX
-      const y =
-        HASHRATE_GRAPH_HEIGHT - (hashrate / maxValue) * HASHRATE_GRAPH_HEIGHT
-      return `${x.toFixed(2)},${Math.max(2, y).toFixed(2)}`
-    })
-    .join(' ')
-})
-
-const profileSummary = computed(() => {
-  const profile = storedConfig.value.powerProfile
-  if (profile === 'custom') {
-    return `Custom • ${storedConfig.value.iterations} iterations • kernel ${storedConfig.value.kernelSize.toLocaleString()}`
-  }
-  return (
-    POWER_OPTIONS.find(option => option.key === profile)?.subtitle ??
-    'Balanced profile'
+const isReady = computed(() => status.value.webgpuAvailable)
+const hasRequiredConfig = computed(() => {
+  return Boolean(
+    config.value.rpcUrl.trim() &&
+      config.value.rpcUser.trim() &&
+      config.value.rpcPassword.trim() &&
+      config.value.mineToAddress.trim() &&
+      config.value.gpuPreferences.length,
   )
 })
+const hashrateLabel = computed(() =>
+  (status.value.hashrate / 1_000_000).toFixed(3),
+)
+const noncesLabel = computed(() =>
+  BigInt(status.value.testedNonces || '0').toLocaleString(),
+)
+const profileHint = computed(() => {
+  if (config.value.powerProfile === 'custom')
+    return `Custom • ${config.value.iterations} iterations`
+  return (
+    PRESETS.find(p => p.key === config.value.powerProfile)?.helper ??
+    'Recommended'
+  )
+})
+const dirty = computed(
+  () =>
+    JSON.stringify(normalized(config.value)) !==
+    JSON.stringify(normalized(baseline.value)),
+)
+const canStart = computed(
+  () =>
+    !loading.value &&
+    !saving.value &&
+    !isRunning.value &&
+    isReady.value &&
+    hasRequiredConfig.value,
+)
 
-function validateConfig(): boolean {
-  validationError.value = ''
+const gpuPreferences = computed({
+  get: () => config.value.gpuPreferences,
+  set(next: MinerGpuPreference[]) {
+    config.value.gpuPreferences = [
+      ...new Set(next.length ? next : ['high-performance']),
+    ] as MinerGpuPreference[]
+  },
+})
 
-  if (!storedConfig.value.rpcUrl.trim()) {
-    validationError.value = 'RPC URL is required'
-    return false
-  }
-  if (!storedConfig.value.rpcUser.trim()) {
-    validationError.value = 'RPC username is required'
-    return false
-  }
-  if (!storedConfig.value.rpcPassword.trim()) {
-    validationError.value = 'RPC password is required'
-    return false
-  }
-  if (!storedConfig.value.mineToAddress.trim()) {
-    validationError.value = 'Mine-to address is required'
-    return false
-  }
-  if (!storedConfig.value.gpuPreferences.length) {
-    validationError.value = 'Select at least one GPU option'
-    return false
-  }
-  if (storedConfig.value.rpcPollIntervalMs < 250) {
-    validationError.value = 'RPC poll interval must be at least 250 ms'
-    return false
-  }
-  if (storedConfig.value.iterations < 1) {
-    validationError.value = 'Iterations must be at least 1'
-    return false
-  }
-  if (storedConfig.value.kernelSize < 256) {
-    validationError.value = 'Kernel size must be at least 256'
-    return false
-  }
-  if (storedConfig.value.hashrateWindowMs < 1000) {
-    validationError.value = 'Hashrate window must be at least 1000 ms'
-    return false
-  }
+function normalized(input: MinerConfig): MinerConfig {
+  return { ...input, gpuPreferences: [...new Set(input.gpuPreferences)].sort() }
+}
 
+function fail(text: string): false {
+  error.value = text
+  message.value = ''
+  return false
+}
+
+function validate(): boolean {
+  error.value = ''
+  if (!config.value.rpcUrl.trim()) return fail('RPC URL is required')
+  if (!config.value.rpcUser.trim()) return fail('RPC username is required')
+  if (!config.value.rpcPassword.trim()) return fail('RPC password is required')
+  if (!config.value.mineToAddress.trim())
+    return fail('Payout address is required')
+  if (!config.value.gpuPreferences.length)
+    return fail('Select a GPU preference')
   return true
 }
 
-function applyPowerProfile(profile: MinerPowerProfile) {
-  storedConfig.value.powerProfile = profile
-  if (profile === 'custom') {
-    return
-  }
-  const preset = POWER_PRESETS[profile]
-  storedConfig.value.iterations = preset.iterations
-  storedConfig.value.kernelSize = preset.kernelSize
-  storedConfig.value.rpcPollIntervalMs = preset.rpcPollIntervalMs
-  storedConfig.value.hashrateWindowMs = preset.hashrateWindowMs
+function applyPreset(profile: MinerPowerProfile) {
+  config.value.powerProfile = profile
+  if (profile === 'custom') return
+  Object.assign(config.value, POWER_PRESETS[profile])
 }
 
-function inferProfileFromConfig() {
-  const match = (
+function inferPreset() {
+  const found = (
     Object.entries(POWER_PRESETS) as Array<
       [Exclude<MinerPowerProfile, 'custom'>, MinerPreset]
     >
   ).find(
     ([, preset]) =>
-      preset.iterations === storedConfig.value.iterations &&
-      preset.kernelSize === storedConfig.value.kernelSize &&
-      preset.rpcPollIntervalMs === storedConfig.value.rpcPollIntervalMs &&
-      preset.hashrateWindowMs === storedConfig.value.hashrateWindowMs,
+      preset.iterations === config.value.iterations &&
+      preset.kernelSize === config.value.kernelSize &&
+      preset.rpcPollIntervalMs === config.value.rpcPollIntervalMs &&
+      preset.hashrateWindowMs === config.value.hashrateWindowMs,
   )
-
-  storedConfig.value.powerProfile = match?.[0] ?? 'custom'
+  config.value.powerProfile = found?.[0] ?? 'custom'
 }
 
-function normalizeConfigDefaults() {
-  if (!storedConfig.value.gpuPreferences?.length) {
-    storedConfig.value.gpuPreferences = ['high-performance']
-  }
-  storedConfig.value.gpuPreferences = [
-    ...new Set(storedConfig.value.gpuPreferences),
-  ]
-
-  if (!storedConfig.value.mineToAddress && walletAddress.value) {
-    storedConfig.value.mineToAddress = walletAddress.value
-  }
-
-  inferProfileFromConfig()
-}
-
-function pushHashrateSample(hashrate: number) {
-  hashrateHistory.value.push(hashrate)
-  if (hashrateHistory.value.length > HASHRATE_GRAPH_MAX_POINTS) {
-    hashrateHistory.value.shift()
-  }
+function loadDefaults() {
+  if (!config.value.gpuPreferences.length)
+    config.value.gpuPreferences = ['high-performance']
+  if (!config.value.mineToAddress && walletAddress.value)
+    config.value.mineToAddress = walletAddress.value
+  inferPreset()
 }
 
 async function loadConfig() {
   loading.value = true
   try {
-    storedConfig.value = await minerMessaging.sendMessage(
+    config.value = await minerMessaging.sendMessage(
       'popup:minerLoadConfig',
       undefined,
     )
-    normalizeConfigDefaults()
+    loadDefaults()
+    baseline.value = structuredClone(normalized(config.value))
+  } catch (e) {
+    error.value = `Failed to load miner settings: ${e instanceof Error ? e.message : String(e)}`
   } finally {
     loading.value = false
   }
@@ -302,24 +211,21 @@ async function loadStatus() {
     'popup:minerLoadStatus',
     undefined,
   )
-  pushHashrateSample(status.value.hashrate)
 }
 
 async function saveConfig(): Promise<boolean> {
-  if (!validateConfig()) return false
-
+  if (!validate()) return false
   saving.value = true
-  actionMessage.value = ''
-
   try {
-    storedConfig.value = await minerMessaging.sendMessage(
+    config.value = await minerMessaging.sendMessage(
       'popup:minerSaveConfig',
-      storedConfig.value,
+      config.value,
     )
-    actionMessage.value = 'Miner settings saved'
+    baseline.value = structuredClone(normalized(config.value))
+    message.value = 'Saved'
     return true
   } catch (e) {
-    actionMessage.value = `Failed to save settings: ${e instanceof Error ? e.message : String(e)}`
+    error.value = `Failed to save settings: ${e instanceof Error ? e.message : String(e)}`
     return false
   } finally {
     saving.value = false
@@ -327,400 +233,360 @@ async function saveConfig(): Promise<boolean> {
 }
 
 async function startMiner() {
-  const didSave = await saveConfig()
-  if (!didSave) return
-
-  actionMessage.value = ''
+  if (!validate()) return
+  if (dirty.value && !(await saveConfig())) return
+  message.value = 'Starting miner…'
   status.value = await minerMessaging.sendMessage('popup:minerStart', undefined)
+  message.value = status.value.running ? 'Mining started' : 'Start requested'
 }
 
 async function stopMiner() {
-  actionMessage.value = ''
+  message.value = 'Stopping miner…'
   status.value = await minerMessaging.sendMessage('popup:minerStop', undefined)
+  message.value = 'Mining stopped'
 }
 
 function useWalletAddress() {
   if (!walletAddress.value) return
-  storedConfig.value.mineToAddress = walletAddress.value
+  config.value.mineToAddress = walletAddress.value
+  message.value = 'Wallet address applied'
 }
 
-watch(walletAddress, nextAddress => {
-  if (!nextAddress) return
-  if (!storedConfig.value.mineToAddress) {
-    storedConfig.value.mineToAddress = nextAddress
-  }
+watch(walletAddress, next => {
+  if (next && !config.value.mineToAddress) config.value.mineToAddress = next
 })
 
 watch(
   () => [
-    storedConfig.value.iterations,
-    storedConfig.value.kernelSize,
-    storedConfig.value.rpcPollIntervalMs,
-    storedConfig.value.hashrateWindowMs,
+    config.value.iterations,
+    config.value.kernelSize,
+    config.value.rpcPollIntervalMs,
+    config.value.hashrateWindowMs,
   ],
   () => {
-    if (storedConfig.value.powerProfile !== 'custom') {
-      const preset =
-        POWER_PRESETS[
-          storedConfig.value.powerProfile as Exclude<
-            MinerPowerProfile,
-            'custom'
-          >
-        ]
-      const matchesPreset =
-        storedConfig.value.iterations === preset.iterations &&
-        storedConfig.value.kernelSize === preset.kernelSize &&
-        storedConfig.value.rpcPollIntervalMs === preset.rpcPollIntervalMs &&
-        storedConfig.value.hashrateWindowMs === preset.hashrateWindowMs
-      if (!matchesPreset) {
-        storedConfig.value.powerProfile = 'custom'
-      }
+    if (config.value.powerProfile === 'custom') {
+      inferPreset()
       return
     }
-
-    inferProfileFromConfig()
+    const preset =
+      POWER_PRESETS[
+        config.value.powerProfile as Exclude<MinerPowerProfile, 'custom'>
+      ]
+    if (
+      config.value.iterations !== preset.iterations ||
+      config.value.kernelSize !== preset.kernelSize ||
+      config.value.rpcPollIntervalMs !== preset.rpcPollIntervalMs ||
+      config.value.hashrateWindowMs !== preset.hashrateWindowMs
+    ) {
+      config.value.powerProfile = 'custom'
+    }
   },
 )
 
 onMounted(async () => {
   await loadConfig()
   await loadStatus()
-
   refreshTimer.value = setInterval(() => {
     void loadStatus()
   }, 1000)
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
+  if (refreshTimer.value) clearInterval(refreshTimer.value)
 })
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="flex items-start justify-between gap-3">
-      <div>
-        <FwbHeading tag="h5">Lotus Miner</FwbHeading>
-        <FwbP class="text-sm text-gray-600 dark:text-gray-300">
-          One-click start with live hashrate tracking.
-        </FwbP>
-      </div>
-      <FwbBadge :type="isRunning ? 'green' : 'red'" size="sm">
-        {{ isRunning ? 'Running' : 'Stopped' }}
-      </FwbBadge>
-    </div>
+  <FwbHeading class="pb-2" color="dark:text-white" tag="h4"
+    >WebGPU Miner</FwbHeading
+  >
+  <FwbP>Simple mining controls with a clear default setup.</FwbP>
 
-    <div
-      class="rounded-xl border p-3"
-      :class="
-        isRunning
-          ? 'border-green-300 dark:border-green-700 bg-green-50/70 dark:bg-green-950/20'
-          : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
-      "
+  <div v-if="loading" class="py-4">
+    <FwbP class="text-gray-500 dark:text-gray-400"
+      >Loading miner settings…</FwbP
     >
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span
-            class="inline-block size-3 rounded-full"
-            :class="isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-400'"
-          />
-          <span class="font-semibold">{{
-            isRunning ? 'Miner active' : 'Miner offline'
-          }}</span>
-        </div>
-        <div class="text-right">
-          <div class="text-2xl font-bold text-pink-600 dark:text-pink-300">
-            {{ hashrateMhsLabel }} MH/s
+  </div>
+
+  <template v-else>
+    <div class="py-3 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <div class="text-sm font-medium text-gray-900 dark:text-white">
+            Status
           </div>
-          <div class="text-xs text-gray-500 dark:text-gray-400">
-            Current hashrate
+          <FwbP class="text-xs text-gray-500 dark:text-gray-400">
+            {{
+              isRunning
+                ? 'Mining in progress'
+                : isReady
+                  ? 'Ready to start'
+                  : 'Waiting for WebGPU support'
+            }}
+          </FwbP>
+        </div>
+        <span
+          class="rounded px-3 py-1 text-sm font-semibold"
+          :class="
+            isRunning
+              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+              : isReady
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+          "
+        >
+          {{ isRunning ? 'Running' : isReady ? 'Ready' : 'Not ready' }}
+        </span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div
+          class="rounded-lg border border-gray-200 dark:border-gray-600 p-2 text-center"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">WebGPU</div>
+          <div
+            class="text-sm font-semibold"
+            :class="
+              status.webgpuAvailable
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            "
+          >
+            {{ status.webgpuAvailable ? 'Available' : 'Unavailable' }}
+          </div>
+        </div>
+        <div
+          class="rounded-lg border border-gray-200 dark:border-gray-600 p-2 text-center"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">Adapter</div>
+          <div
+            class="text-sm font-semibold"
+            :class="
+              status.webgpuAdapterAvailable
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            "
+          >
+            {{ status.webgpuAdapterAvailable ? 'Found' : 'Missing' }}
+          </div>
+        </div>
+        <div
+          class="rounded-lg border border-gray-200 dark:border-gray-600 p-2 text-center"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">Device</div>
+          <div
+            class="text-sm font-semibold"
+            :class="
+              status.webgpuDeviceReady
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            "
+          >
+            {{ status.webgpuDeviceReady ? 'Ready' : 'Pending' }}
+          </div>
+        </div>
+        <div
+          class="rounded-lg border border-gray-200 dark:border-gray-600 p-2 text-center"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">Pipeline</div>
+          <div
+            class="text-sm font-semibold"
+            :class="
+              status.webgpuPipelineReady
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            "
+          >
+            {{ status.webgpuPipelineReady ? 'Ready' : 'Pending' }}
+          </div>
+        </div>
+        <div
+          class="rounded-lg border border-gray-200 dark:border-gray-600 p-2 text-center"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">Miner</div>
+          <div
+            class="text-sm font-semibold"
+            :class="
+              isRunning
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-gray-700 dark:text-gray-300'
+            "
+          >
+            {{ isRunning ? 'Running' : 'Stopped' }}
           </div>
         </div>
       </div>
 
-      <div
-        class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 p-2"
-      >
-        <svg
-          :viewBox="`0 0 ${HASHRATE_GRAPH_WIDTH} ${HASHRATE_GRAPH_HEIGHT}`"
-          class="w-full h-20"
-          preserveAspectRatio="none"
-        >
-          <line
-            x1="0"
-            :y1="HASHRATE_GRAPH_HEIGHT"
-            :x2="HASHRATE_GRAPH_WIDTH"
-            :y2="HASHRATE_GRAPH_HEIGHT"
-            class="stroke-gray-300 dark:stroke-gray-700"
-            stroke-width="1"
-          />
-          <polyline
-            :points="graphPoints"
-            fill="none"
-            stroke="#db2777"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <div
-          class="mt-1 grid grid-cols-3 gap-2 text-xs text-gray-600 dark:text-gray-300"
-        >
+      <div class="rounded-lg border border-gray-200 dark:border-gray-600 p-3">
+        <div class="flex items-end justify-between gap-3">
           <div>
-            Now: <span class="font-semibold">{{ hashrateMhsLabel }} MH/s</span>
-          </div>
-          <div>
-            Avg:
-            <span class="font-semibold"
-              >{{ avgHashrateMhs.toFixed(3) }} MH/s</span
-            >
+            <div class="text-sm font-medium text-gray-900 dark:text-white">
+              Current hashrate
+            </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              {{ profileHint }}
+            </div>
           </div>
           <div class="text-right">
-            Peak:
-            <span class="font-semibold"
-              >{{ maxHashrateMhs.toFixed(3) }} MH/s</span
+            <div
+              class="text-3xl font-bold text-purple-600 dark:text-purple-400"
             >
+              {{ hashrateLabel }} MH/s
+            </div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              {{ noncesLabel }} tested nonces
+            </div>
           </div>
         </div>
       </div>
-
-      <div class="mt-2 text-xs text-gray-600 dark:text-gray-300">
-        Tested nonces:
-        <span class="font-semibold">{{ testedNoncesLabel }}</span>
-      </div>
     </div>
 
-    <div class="grid gap-2">
-      <FwbP class="text-sm font-semibold">Power profile</FwbP>
-      <div class="grid grid-cols-2 gap-2">
-        <button
-          v-for="option in POWER_OPTIONS"
-          :key="option.key"
-          type="button"
-          class="rounded-lg border p-2 text-left transition"
-          :class="
-            storedConfig.powerProfile === option.key
-              ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20'
-              : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/60'
-          "
-          @click="applyPowerProfile(option.key)"
+    <div class="py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <label class="text-sm font-medium text-gray-900 dark:text-white"
+          >Power profile</label
         >
-          <div class="text-sm font-semibold">{{ option.title }}</div>
-          <div class="text-xs text-gray-600 dark:text-gray-400">
-            {{ option.subtitle }}
+        <span class="text-xs text-gray-500 dark:text-gray-400"
+          >Balanced is recommended</span
+        >
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button
+          v-for="preset in PRESETS"
+          :key="preset.key"
+          type="button"
+          class="rounded-lg border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-800"
+          :class="
+            config.powerProfile === preset.key
+              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+              : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/60'
+          "
+          :aria-pressed="config.powerProfile === preset.key"
+          @click="applyPreset(preset.key)"
+        >
+          <div class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ preset.label }}
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">
+            {{ preset.helper }}
           </div>
         </button>
       </div>
-      <FwbP class="text-xs text-gray-500 dark:text-gray-400">{{
-        profileSummary
-      }}</FwbP>
     </div>
 
-    <div class="grid gap-2">
-      <FwbP class="text-sm font-semibold">GPU adapters</FwbP>
-      <div class="grid gap-2">
-        <label
-          v-for="gpu in GPU_OPTIONS"
-          :key="gpu.preference"
-          class="flex items-start gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2"
-        >
-          <input
-            v-model="selectedGpuPreferences"
-            type="checkbox"
-            :value="gpu.preference"
-            class="mt-1"
-          />
-          <div>
-            <div class="text-sm font-medium">{{ gpu.label }}</div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ gpu.helper }}
-            </div>
-          </div>
-        </label>
-      </div>
-    </div>
-
-    <div
-      class="grid gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/40"
+    <details
+      :open="showAdvanced"
+      class="py-2"
+      @toggle="showAdvanced = ($event.target as HTMLDetailsElement).open"
     >
-      <div>
-        <div class="flex justify-between text-xs mb-1">
-          <span>Iterations</span>
-          <span class="font-semibold">{{ storedConfig.iterations }}</span>
-        </div>
-        <input
-          v-model.number="storedConfig.iterations"
-          type="range"
-          min="1"
-          max="64"
-          step="1"
-          class="w-full"
-        />
-      </div>
-
-      <div>
-        <div class="flex justify-between text-xs mb-1">
-          <span>Kernel size</span>
-          <span class="font-semibold">{{
-            storedConfig.kernelSize.toLocaleString()
-          }}</span>
-        </div>
-        <input
-          v-model.number="storedConfig.kernelSize"
-          type="range"
-          :min="262144"
-          :max="33554432"
-          :step="262144"
-          class="w-full"
-        />
-      </div>
-
-      <div>
-        <div class="flex justify-between text-xs mb-1">
-          <span>RPC poll interval</span>
-          <span class="font-semibold"
-            >{{ storedConfig.rpcPollIntervalMs }} ms</span
-          >
-        </div>
-        <input
-          v-model.number="storedConfig.rpcPollIntervalMs"
-          type="range"
-          :min="250"
-          :max="10000"
-          :step="250"
-          class="w-full"
-        />
-      </div>
-
-      <div>
-        <div class="flex justify-between text-xs mb-1">
-          <span>Hashrate window</span>
-          <span class="font-semibold"
-            >{{ storedConfig.hashrateWindowMs }} ms</span
-          >
-        </div>
-        <input
-          v-model.number="storedConfig.hashrateWindowMs"
-          type="range"
-          :min="1000"
-          :max="20000"
-          :step="500"
-          class="w-full"
-        />
-      </div>
-
-      <div class="text-xs text-gray-600 dark:text-gray-300">
-        Work size per search:
-        <span class="font-semibold">{{
-          estimatedSearchSize.toLocaleString()
-        }}</span>
-        nonces
-      </div>
-    </div>
-
-    <details class="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-      <summary class="cursor-pointer text-sm font-semibold">
-        Connection & payout settings
+      <summary
+        class="cursor-pointer text-sm font-medium text-gray-900 dark:text-white"
+      >
+        Advanced settings
       </summary>
-      <div class="pt-3 grid gap-2">
+      <div class="pt-3 space-y-3">
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <label class="text-sm font-medium text-gray-900 dark:text-white"
+              >GPU preference</label
+            >
+          </div>
+          <div class="space-y-2">
+            <label
+              class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+            >
+              <input
+                v-model="gpuPreferences"
+                type="checkbox"
+                value="high-performance"
+              />
+              Prefer high-performance GPU
+            </label>
+            <label
+              class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+            >
+              <input
+                v-model="gpuPreferences"
+                type="checkbox"
+                value="low-power"
+              />
+              Prefer power-efficient GPU
+            </label>
+          </div>
+        </div>
+
         <FwbInput
-          v-model="storedConfig.rpcUrl"
+          v-model="config.rpcUrl"
           label="RPC URL"
           placeholder="http://127.0.0.1:10604"
           size="sm"
         />
         <FwbInput
-          v-model="storedConfig.rpcUser"
-          label="RPC Username"
+          v-model="config.rpcUser"
+          label="RPC username"
           placeholder="lotus"
           size="sm"
         />
         <FwbInput
-          v-model="storedConfig.rpcPassword"
+          v-model="config.rpcPassword"
           type="password"
-          label="RPC Password"
+          label="RPC password"
           placeholder="lotus"
           size="sm"
         />
-        <div>
-          <FwbInput
-            v-model="storedConfig.mineToAddress"
-            label="Mine-to address"
-            placeholder="bitcoincash:..."
-            size="sm"
-          />
-          <div class="pt-1">
-            <FwbButton
-              color="purple"
-              outline
-              size="xs"
-              @click="useWalletAddress"
-              :disabled="!walletAddress"
-            >
-              Use wallet address
-            </FwbButton>
-          </div>
-        </div>
+        <FwbInput
+          v-model="config.mineToAddress"
+          label="Payout address"
+          placeholder="bitcoincash:..."
+          size="sm"
+        />
+        <FwbButton
+          color="purple"
+          outline
+          size="xs"
+          :disabled="!walletAddress"
+          @click="useWalletAddress"
+          >Use wallet address</FwbButton
+        >
       </div>
     </details>
 
-    <div class="flex flex-wrap gap-2">
-      <FwbBadge :type="status.webgpuAvailable ? 'green' : 'red'" size="sm">
-        API {{ status.webgpuAvailable ? 'ready' : 'unavailable' }}
-      </FwbBadge>
-      <FwbBadge
-        :type="status.webgpuAdapterAvailable ? 'green' : 'yellow'"
-        size="sm"
+    <div v-if="error || message || status.lastError" class="py-2 space-y-1">
+      <FwbP v-if="error" class="text-red-500 dark:text-red-400">{{
+        error
+      }}</FwbP>
+      <FwbP v-else-if="message" class="text-purple-600 dark:text-purple-400">{{
+        message
+      }}</FwbP>
+      <FwbP v-if="status.lastError" class="text-red-500 dark:text-red-400"
+        >Last error: {{ status.lastError }}</FwbP
       >
-        Adapter
-        {{ status.webgpuAdapterAvailable ? 'detected' : 'not detected' }}
-      </FwbBadge>
-      <FwbBadge
-        :type="status.webgpuPipelineReady ? 'green' : 'yellow'"
-        size="sm"
-      >
-        Pipeline {{ status.webgpuPipelineReady ? 'ready' : 'pending' }}
-      </FwbBadge>
     </div>
 
-    <FwbP
-      v-if="validationError"
-      class="text-sm text-red-500 dark:text-red-300"
-      >{{ validationError }}</FwbP
-    >
-    <FwbP
-      v-if="actionMessage"
-      class="text-sm text-purple-600 dark:text-purple-300"
-      >{{ actionMessage }}</FwbP
-    >
-    <FwbP
-      v-if="status.lastError"
-      class="text-sm text-red-500 dark:text-red-300"
-    >
-      Last error: {{ status.lastError }}
-    </FwbP>
-
-    <div class="flex gap-2 pt-1">
+    <div class="pt-2 flex gap-2">
       <FwbButton
         color="purple"
+        :disabled="loading || saving || !dirty || isRunning"
         @click="saveConfig"
-        :disabled="loading || saving || isRunning"
+        >{{ saving ? 'Saving…' : 'Save changes' }}</FwbButton
       >
-        Save settings
-      </FwbButton>
       <FwbButton
+        v-if="!isRunning"
         color="green"
+        :disabled="!canStart"
+        :title="
+          !isReady
+            ? 'WebGPU is not available in this browser'
+            : !hasRequiredConfig
+              ? 'Complete the miner settings to start'
+              : ''
+        "
         @click="startMiner"
-        :disabled="!status.webgpuAvailable || isRunning || loading"
+        >Start mining</FwbButton
       >
-        Start
-      </FwbButton>
-      <FwbButton color="red" @click="stopMiner" :disabled="!isRunning">
-        Stop
-      </FwbButton>
+      <FwbButton v-else color="red" :disabled="saving" @click="stopMiner"
+        >Stop mining</FwbButton
+      >
     </div>
-  </div>
+  </template>
 </template>

@@ -6,20 +6,39 @@ export type MinerPowerProfile =
   | 'high-power'
   | 'custom'
 
-export type MinerConfig = {
+export type MinerWebGpuLimits = {
+  maxComputeWorkgroupSizeX: number
+  maxComputeWorkgroupSizeY: number
+  maxComputeWorkgroupSizeZ: number
+  maxComputeInvocationsPerWorkgroup: number
+  maxComputeWorkgroupsPerDimension: number
+}
+
+export type MinerWebGpuProfileConfig = {
+  /** Percent of the probed high-performance limit used for workgroup size. */
+  workgroupSizePct: number
+  /** Derived workgroup size X in use by the miner. */
+  workgroupSizeX: number
+}
+
+export interface MinerConfig {
   rpcUrl: string
   rpcUser: string
   rpcPassword: string
   mineToAddress: string
   powerProfile: MinerPowerProfile
   gpuPreferences: MinerGpuPreference[]
+  /** Probe-derived high-performance GPU limits used as the source of truth. */
+  webgpuHighPerformanceLimits: MinerWebGpuLimits | null
+  /** Derived profile settings based on the probed limits. */
+  webgpuProfiles: Record<'low-power' | 'balanced' | 'high-power', MinerWebGpuProfileConfig>
   rpcPollIntervalMs: number
   iterations: number
   kernelSize: number
   hashrateWindowMs: number
 }
 
-export type MinerStatus = {
+export interface MinerStatus {
   running: boolean
   hashrate: number
   testedNonces: string
@@ -44,10 +63,16 @@ export const DefaultMinerConfig: MinerConfig = {
   mineToAddress: '',
   powerProfile: 'balanced',
   gpuPreferences: ['high-performance'],
-  rpcPollIntervalMs: 3000,
-  iterations: 16,
+  webgpuHighPerformanceLimits: null,
+  webgpuProfiles: {
+    'low-power': { workgroupSizePct: 0.1, workgroupSizeX: 0 },
+    balanced: { workgroupSizePct: 0.35, workgroupSizeX: 0 },
+    'high-power': { workgroupSizePct: 0.9, workgroupSizeX: 0 },
+  },
+  rpcPollIntervalMs: MINER_DEFAULTS.DEFAULT_RPC_POLL_MS,
+  iterations: MINER_DEFAULTS.DEFAULT_ITERATIONS,
   kernelSize: MINER_DEFAULTS.DEFAULT_KERNEL_SIZE,
-  hashrateWindowMs: 5000,
+  hashrateWindowMs: MINER_DEFAULTS.DEFAULT_HASHRATE_WINDOW_MS,
 }
 
 export const DefaultMinerStatus: MinerStatus = {
