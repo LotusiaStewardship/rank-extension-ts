@@ -140,7 +140,22 @@ const gpuPreferences = computed({
 })
 
 function normalized(input: MinerConfig): MinerConfig {
-  return { ...input, gpuPreferences: [...new Set(input.gpuPreferences)].sort() }
+  return {
+    ...input,
+    gpuPreferences: [...new Set(input.gpuPreferences)].sort(),
+    webgpuProfiles: {
+      'low-power': { ...input.webgpuProfiles['low-power'] },
+      balanced: { ...input.webgpuProfiles.balanced },
+      'high-power': { ...input.webgpuProfiles['high-power'] },
+    },
+    webgpuHighPerformanceLimits: input.webgpuHighPerformanceLimits
+      ? { ...input.webgpuHighPerformanceLimits }
+      : null,
+  }
+}
+
+function cloneConfig(input: MinerConfig): MinerConfig {
+  return structuredClone(toRaw(normalized(input)))
 }
 
 function fail(text: string): false {
@@ -198,7 +213,7 @@ async function loadConfig() {
       undefined,
     )
     loadDefaults()
-    baseline.value = structuredClone(normalized(config.value))
+    baseline.value = cloneConfig(config.value)
   } catch (e) {
     error.value = `Failed to load miner settings: ${e instanceof Error ? e.message : String(e)}`
   } finally {
@@ -221,7 +236,7 @@ async function saveConfig(): Promise<boolean> {
       'popup:minerSaveConfig',
       config.value,
     )
-    baseline.value = structuredClone(normalized(config.value))
+    baseline.value = cloneConfig(config.value)
     message.value = 'Saved'
     return true
   } catch (e) {

@@ -28,24 +28,24 @@ const formattedTotalSats = computed(() => {
 const formattedFirstSeen = computed(() => {
   return props.data?.firstSeen
     ? new Date(props.data.firstSeen).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    })
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      })
     : ''
 })
 
 const formattedLastSeen = computed(() => {
   return props.data?.lastSeen
     ? new Date(props.data.lastSeen).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    })
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      })
     : ''
 })
 
@@ -68,21 +68,19 @@ const activityDuration = computed(() => {
           <div class="text-3xl font-bold text-pink-600 dark:text-pink-300 mb-1">
             {{ formattedTotalSats }} XPI
           </div>
-          <div class="text-sm">
-            Burned Today
-          </div>
+          <div class="text-sm">Burned Today</div>
         </div>
       </div>
 
       <!-- Total Votes Card -->
       <div class="rounded-xl p-4 flex-1">
         <div class="text-center">
-          <div class="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-1">
+          <div
+            class="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-1"
+          >
             {{ data?.totalVotes?.toLocaleString() || 0 }}
           </div>
-          <div class="text-sm">
-            Total Votes
-          </div>
+          <div class="text-sm">Total Votes</div>
         </div>
       </div>
     </div>
@@ -91,19 +89,19 @@ const activityDuration = computed(() => {
     <div class="rounded-xl p-6">
       <div class="space-y-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            First Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
+          <span class="text-sm font-medium"> First Seen </span>
+          <div
+            class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg"
+          >
             {{ formattedFirstSeen }}
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            Last Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
+          <span class="text-sm font-medium"> Last Seen </span>
+          <div
+            class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg"
+          >
             {{ formattedLastSeen }}
           </div>
         </div>

@@ -1,5 +1,7 @@
 /// <reference types="@webgpu/types" />
 
+import { createLotusOgWgsl } from '@/utils/lotus-og-kernel'
+import type { MinerWebGpuWorkgroupSize } from '@/utils/types'
 import type { MinerGpuPreference } from '../background/stores'
 
 /**
@@ -29,7 +31,7 @@ type WebGpuMinerRuntime = {
   /** Device maximum allowed dispatch dimension on X axis. */
   maxDispatchX: number
   /** Workgroup size expected by shader. */
-  workgroupSize: number
+  workgroupSize: MinerWebGpuWorkgroupSize
   /** Iterations override constant injected into pipeline. */
   iterations: number
   /** Zeroed output upload scratch used before each dispatch. */
@@ -59,7 +61,7 @@ export class WebGpuMiner {
    */
   public get maxNonceCountPerDispatch(): number {
     const runtime = this.assertRuntime()
-    return runtime.maxDispatchX * runtime.workgroupSize * runtime.iterations
+    return runtime.maxDispatchX * runtime.workgroupSize.x * runtime.iterations
   }
 
   /** True once `init()` succeeded and resources are allocated. */
@@ -70,7 +72,7 @@ export class WebGpuMiner {
   /** Nonces covered by one dispatched workgroup. */
   public get noncesPerWorkgroup(): number {
     const runtime = this.assertRuntime()
-    return runtime.workgroupSize * runtime.iterations
+    return runtime.workgroupSize.x * runtime.iterations
   }
 
   /** Last captured staged WebGPU capability diagnostics. */
@@ -89,10 +91,11 @@ export class WebGpuMiner {
         throw new Error('WebGPU is not supported in this browser runtime')
       }
 
-      const shaderCode = params.shaderCode ?? LOTUS_OG_WGSL
       const iterations = params.iterations ?? MINER_DEFAULTS.DEFAULT_ITERATIONS
-      const workgroupSize =
-        params.workgroupSize ?? MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE
+      const workgroupSize = params.workgroupSize ?? {
+        x: MINER_DEFAULTS.DEFAULT_WORKGROUP_SIZE,
+      }
+      const shaderCode = params.shaderCode ?? createLotusOgWgsl(workgroupSize)
       const outputU32Length = Math.max(
         params.outputU32Length ?? MINER_DEFAULTS.DEFAULT_OUTPUT_U32_LENGTH,
         MINER_DEFAULTS.FOUND_INDEX + 1,
@@ -106,21 +109,27 @@ export class WebGpuMiner {
       }
       this.diagnostics.adapterAvailable = true
 
-      if (adapter.limits.maxComputeWorkgroupSizeX < workgroupSize) {
+      if (adapter.limits.maxComputeWorkgroupSizeX < workgroupSize.x) {
         throw new Error(
-          `Requested workgroupSizeX=${workgroupSize} exceeds adapter limit maxComputeWorkgroupSizeX=${adapter.limits.maxComputeWorkgroupSizeX}`,
+          `Requested workgroupSizeX=${workgroupSize.x} exceeds adapter limit maxComputeWorkgroupSizeX=${adapter.limits.maxComputeWorkgroupSizeX}`,
         )
       }
-      if (adapter.limits.maxComputeInvocationsPerWorkgroup < workgroupSize) {
+      const invocationsPerWorkgroup = workgroupSize.x
+      if (
+        adapter.limits.maxComputeInvocationsPerWorkgroup <
+        invocationsPerWorkgroup
+      ) {
         throw new Error(
-          `Requested workgroupSize=${workgroupSize} exceeds adapter limit maxComputeInvocationsPerWorkgroup=${adapter.limits.maxComputeInvocationsPerWorkgroup}`,
+          `Requested invocationsPerWorkgroup=${invocationsPerWorkgroup} exceeds adapter limit maxComputeInvocationsPerWorkgroup=${adapter.limits.maxComputeInvocationsPerWorkgroup}`,
         )
       }
 
       const device = await adapter.requestDevice({
         requiredLimits: {
-          maxComputeWorkgroupSizeX: workgroupSize,
-          maxComputeInvocationsPerWorkgroup: workgroupSize,
+          maxComputeWorkgroupSizeX: workgroupSize.x,
+          maxComputeWorkgroupSizeY: 1,
+          maxComputeWorkgroupSizeZ: 1,
+          maxComputeInvocationsPerWorkgroup: workgroupSize.x,
         },
       })
       this.diagnostics.deviceReady = true
@@ -277,7 +286,7 @@ export class WebGpuMiner {
       runtime.zeroOutput as GPUAllowSharedBufferSource,
     )
 
-    const noncesPerWorkgroup = runtime.workgroupSize * runtime.iterations
+    const noncesPerWorkgroup = runtime.workgroupSize.x * runtime.iterations
     if (job.nonceCount % noncesPerWorkgroup !== 0) {
       throw new Error(
         `nonceCount (${job.nonceCount}) must be a multiple of noncesPerWorkgroup (${noncesPerWorkgroup})`,

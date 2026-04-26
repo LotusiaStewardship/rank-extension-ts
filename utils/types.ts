@@ -4,12 +4,8 @@
  * License: MIT
  */
 import type { MinerGpuPreference } from '@/entrypoints/background/stores'
-/**
- * Interface for mutator classes that process various types of Twitter DOM elements.
- * Each method is responsible for handling a specific type of element mutation,
- * such as posts, notifications, conversations, profile popups, and UI components.
- * Implementations may mutate the DOM, update caches, or trigger UI changes.
- */
+import type { LotusRpcSettings } from '@/utils/miner-network-rpc'
+
 export interface Mutator {
   /**
    * Processes a post element, e.g., timeline or feed post.
@@ -89,13 +85,11 @@ export interface Mutator {
   processGrokElements(element: JQuery<HTMLElement>): Promise<void>
 }
 
-// ==================================================
-// WebGPU
-// ==================================================
+/** Compute workgroup size X used by the miner pipeline. */
+export type MinerWebGpuWorkgroupSize = {
+  x: number
+}
 
-/**
- * Initialization options for {@link WebGpuMiner}.
- */
 export type MinerInitParams = {
   /** WGSL source code for the compute kernel (`search` entrypoint required). */
   shaderCode?: string
@@ -104,7 +98,7 @@ export type MinerInitParams = {
   /** OpenCL-style ITERATIONS override constant. */
   iterations?: number
   /** Must match `@workgroup_size` in the shader. */
-  workgroupSize?: number
+  workgroupSize?: MinerWebGpuWorkgroupSize
   /** Output storage u32 length. Minimum 129 (`output[0x80]` found flag + nonce slots). */
   outputU32Length?: number
 }
@@ -178,7 +172,7 @@ export type LotusMiningSettings = {
   /** Optional GPU adapter preference order. */
   gpuPreferences?: MinerGpuPreference[]
   /** Selected workgroup size for the active WebGPU profile. */
-  workgroupSize?: number
+  workgroupSize?: MinerWebGpuWorkgroupSize
   /** Poll interval for fetching fresh block templates. */
   rpcPollIntervalMs?: number
   /** Kernel iterations override. */

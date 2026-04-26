@@ -13,7 +13,8 @@
  *   (`hash[7] == 0`) and does not perform a full target compare. The host
  *   verifies against the full 256-bit target before submission.
  */
-export const LOTUS_OG_WGSL = /* wgsl */ `
+export function createLotusOgWgsl(workgroupSize: { x: number }): string {
+  return /* wgsl */ `
 alias num_t = u32;
 
 override ITERATIONS: u32 = 1u;
@@ -203,7 +204,7 @@ fn hash_below_target(hash: ptr<function, array<u32, 8>>) -> bool {
     return (*hash)[7] == 0u;
 }
 
-@compute @workgroup_size(256, 1, 1)
+@compute @workgroup_size(${workgroupSize.x}, 1, 1)
 fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
     var pow_layer: array<u32, 64>;
     var chain_layer: array<u32, 64>;
@@ -258,3 +259,4 @@ fn search(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 }
 `
+}

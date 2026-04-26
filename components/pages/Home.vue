@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { FwbButton, FwbHeading, FwbP } from 'flowbite-vue'
+import { FwbTab, FwbTabs } from 'flowbite-vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 import HomeMinerPanel from './home/HomeMinerPanel.vue'
@@ -35,6 +35,7 @@ const myStats: Ref<MyStats | null> = ref(null)
 const loadingMessage: Ref<string> = ref('Loading your activity...')
 const interval: Ref<number> = ref(0)
 const instanceId: ShallowRef<string> = shallowRef('')
+const activeTab = ref<'rank' | 'mining'>('rank')
 const authorizationHeader = ref('')
 const walletScriptPayload = inject(
   'wallet-script-payload',
@@ -113,6 +114,7 @@ async function createAuthorizationHeader(
 onMounted(async () => {
   instanceId.value = await instanceStore.getInstanceId()
   authorizationHeader.value = await instanceStore.getAuthorizationHeader()
+  activeTab.value = (await instanceStore.getHomeActiveTab()) as 'rank' | 'mining'
 
   watchers.set(
     'instanceId',
@@ -123,6 +125,10 @@ onMounted(async () => {
   )
 
   await hydrateHomePage()
+
+  watch(activeTab, next => {
+    void instanceStore.setHomeActiveTab(next)
+  }, { immediate: true })
 
   if (!interval.value) {
     interval.value = setInterval(hydrateHomePage, 15_000)
@@ -136,45 +142,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-4 px-4 py-3">
-    <section
-      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gradient-to-r from-pink-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-4"
-    >
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <FwbHeading tag="h5">Lotus Mining Dashboard</FwbHeading>
-          <FwbP class="text-sm text-gray-600 dark:text-gray-300 pt-1">
-            Start mining, monitor hashrate, and manage settings from one place.
-          </FwbP>
-        </div>
-        <a
-          href="https://app.lotusia.org/feed"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="shrink-0"
-        >
-          <FwbButton color="purple" size="xs">Open Lotusia Feed</FwbButton>
-        </a>
-      </div>
-    </section>
-
-    <section
-      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
-    >
-      <div class="flex items-center justify-between mb-3">
-        <FwbHeading tag="h6">Your Stats</FwbHeading>
-        <FwbP class="text-xs text-gray-500 dark:text-gray-400"
-          >Auto-refresh: 15s</FwbP
-        >
-      </div>
-      <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
-      <HomeMyStats v-else :data="myStats" />
-    </section>
-
-    <section
-      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
-    >
-      <HomeMinerPanel />
-    </section>
+  <div class="py-2 px-6 space-y-6">
+    <FwbTabs v-model="activeTab">
+      <FwbTab name="rank" title="RANK">
+        <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
+        <HomeMyStats v-else :data="myStats" />
+      </FwbTab>
+      <FwbTab name="mining" title="Mining">
+        <HomeMinerPanel />
+      </FwbTab>
+    </FwbTabs>
   </div>
 </template>

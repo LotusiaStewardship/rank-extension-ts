@@ -31,7 +31,10 @@ export interface MinerConfig {
   /** Probe-derived high-performance GPU limits used as the source of truth. */
   webgpuHighPerformanceLimits: MinerWebGpuLimits | null
   /** Derived profile settings based on the probed limits. */
-  webgpuProfiles: Record<'low-power' | 'balanced' | 'high-power', MinerWebGpuProfileConfig>
+  webgpuProfiles: Record<
+    'low-power' | 'balanced' | 'high-power',
+    MinerWebGpuProfileConfig
+  >
   rpcPollIntervalMs: number
   iterations: number
   kernelSize: number
@@ -66,7 +69,7 @@ export const DefaultMinerConfig: MinerConfig = {
   webgpuHighPerformanceLimits: null,
   webgpuProfiles: {
     'low-power': { workgroupSizePct: 0.1, workgroupSizeX: 0 },
-    balanced: { workgroupSizePct: 0.35, workgroupSizeX: 0 },
+    'balanced': { workgroupSizePct: 0.35, workgroupSizeX: 0 },
     'high-power': { workgroupSizePct: 0.9, workgroupSizeX: 0 },
   },
   rpcPollIntervalMs: MINER_DEFAULTS.DEFAULT_RPC_POLL_MS,

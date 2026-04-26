@@ -118,7 +118,7 @@ export function mapConfigToMiningSettings(
       rpcPassword: config.rpcPassword,
     },
     gpuPreferences: config.gpuPreferences,
-    workgroupSize: profile?.workgroupSizeX,
+    workgroupSize: profile ? { x: profile.workgroupSizeX } : undefined,
     rpcPollIntervalMs: config.rpcPollIntervalMs,
     iterations: config.iterations,
     kernelSize: config.kernelSize,

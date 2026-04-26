@@ -46,6 +46,7 @@ export type ExtensionInstance = {
   nonce: number
   registered: boolean
   authorizationHeader?: string
+  homeActiveTab?: string
 }
 
 class InstanceStore {
@@ -86,10 +87,19 @@ class InstanceStore {
           init: () => '',
         },
       ),
+      homeActiveTab: defineItem<WxtStorageValueString>(
+        'local:instance:homeActiveTab',
+        {
+          init: () => 'rank',
+        },
+      ),
     }
   }
   get instanceIdStorageItem(): WxtStorageItemString {
     return this.wxtStorageItems.instanceId as WxtStorageItemString
+  }
+  get homeActiveTabStorageItem(): WxtStorageItemString {
+    return this.wxtStorageItems.homeActiveTab as WxtStorageItemString
   }
   /**
    * Used by popup to watch changes to opt-in status
@@ -121,6 +131,18 @@ class InstanceStore {
       ).setValue(authorizationHeader)
     } catch (e) {
       console.error(`setAuthorizationHeader: ${authorizationHeader}:`, e)
+    }
+  }
+  async getHomeActiveTab(): Promise<string> {
+    return await (
+      this.wxtStorageItems.homeActiveTab as WxtStorageItemString
+    ).getValue()
+  }
+  async setHomeActiveTab(homeActiveTab: string): Promise<void> {
+    try {
+      await (this.wxtStorageItems.homeActiveTab as WxtStorageItemString).setValue(homeActiveTab)
+    } catch (e) {
+      console.error(`setHomeActiveTab: ${homeActiveTab}:`, e)
     }
   }
   /**
