@@ -1,7 +1,9 @@
 import { WebGpuMiner } from './webgpu-miner'
 import { LotusRpcClient } from './rpc'
+import { MinerGpuPreference } from '@/entrypoints/background/stores/miner'
+import type { MinerWebGpuWorkgroupSize } from './webgpu-miner'
 
-type MiningTelemetryWindow = {
+interface MiningTelemetryWindow {
   windowStartMs: number
   testedNonces: bigint
   dispatches: number
@@ -22,6 +24,58 @@ type MiningTelemetryWindow = {
   candidateHashMs: number
   submitCount: number
   submitMs: number
+}
+
+/**
+ * High-level settings used to run the mining service.
+ */
+export interface LotusMiningSettings {
+  /** Lotus payout address used with `getrawunsolvedblock`. */
+  mineToAddress: string
+  /** RPC connectivity/authentication details. */
+  rpc: LotusRpcSettings
+  /** Optional GPU adapter preference order. */
+  gpuPreferences?: MinerGpuPreference[]
+  /** Selected workgroup size for the active WebGPU profile. */
+  workgroupSize?: MinerWebGpuWorkgroupSize
+  /** Poll interval for fetching fresh block templates. */
+  rpcPollIntervalMs?: number
+  /** Kernel iterations override. */
+  iterations?: number
+  /** Reference miner kernel size equivalent. */
+  kernelSize?: number
+  /** Window used for periodic hashrate logs. */
+  hashrateWindowMs?: number
+  /** Enable verbose per-window telemetry logs for bottleneck analysis. */
+  telemetryEnabled?: boolean
+  /** Window for telemetry aggregation + reporting. */
+  telemetryWindowMs?: number
+}
+
+/**
+ * Runtime mining metrics snapshot.
+ */
+export interface MiningStats {
+  /** Current estimated hashes/nonces per second. */
+  hashrate: number
+  /** Total tested nonces during current accounting window. */
+  testedNonces: bigint
+}
+
+/**
+ * In-memory work packet currently being mined.
+ */
+interface MiningWork {
+  /** 160-byte mutable header (nonce bytes are mutated in place). */
+  header: Uint8Array
+  /** Block body appended unchanged when submitting solved block. */
+  body: Uint8Array
+  /** Little-endian 256-bit target threshold. */
+  target: Uint8Array
+  /** Cached SHA-256(tx-layer) for header bytes [52..160] (constant per template). */
+  txLayerHash: Uint8Array
+  /** Monotonic dispatch counter within the current template. */
+  nonceIdx: number
 }
 
 /**
@@ -50,7 +104,7 @@ export class LotusMiningService {
   /** Miner lifecycle flag toggled by `start`/`stop`. */
   private running = false
   /** Background polling timer for block template refresh. */
-  private blockPollTimer: ReturnType<typeof setInterval> | null = null
+  private blockPollTimer: NodeJS.Timeout | null = null
   /** Last error message observed in the mining loop. */
   private latestError = ''
 
@@ -104,7 +158,7 @@ export class LotusMiningService {
 
       const pollMs =
         this.settings.rpcPollIntervalMs ?? MINER_DEFAULTS.DEFAULT_RPC_POLL_MS
-      this.blockPollTimer = globalThis.setInterval(() => {
+      this.blockPollTimer = setInterval(() => {
         void this.updateNextBlock().catch(err =>
           console.error('updateNextBlock error', err),
         )
@@ -315,7 +369,10 @@ export class LotusMiningService {
 
       console.info('Block hash below target with nonce:', foundNonce.toString())
 
-      const solvedBlockHex = this.serializeSolvedBlockHex(work.header, work.body)
+      const solvedBlockHex = this.serializeSolvedBlockHex(
+        work.header,
+        work.body,
+      )
 
       // Match reference miner flow: stop mining this template immediately after
       // finding a valid candidate, regardless of submission result.
@@ -339,7 +396,8 @@ export class LotusMiningService {
       return
     }
 
-    this.telemetryWindow.candidateScanMs += performance.now() - candidateScanStart
+    this.telemetryWindow.candidateScanMs +=
+      performance.now() - candidateScanStart
   }
 
   /**
@@ -445,7 +503,9 @@ export class LotusMiningService {
       hashrateMhs: hashrate / 1_000_000,
       effectiveDispatchesPerSec: window.dispatches / elapsedSec,
       effectiveMNoncesPerDispatch:
-        window.dispatches === 0 ? 0 : testedNonces / window.dispatches / 1_000_000,
+        window.dispatches === 0
+          ? 0
+          : testedNonces / window.dispatches / 1_000_000,
       stageTotalsMs: {
         templateFetch: window.templateFetchMs,
         noncePrep: window.noncePrepMs,

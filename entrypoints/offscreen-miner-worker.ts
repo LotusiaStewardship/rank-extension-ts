@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 import { LotusMiningService } from './offscreen-miner/service'
+import type { LotusMiningSettings } from './offscreen-miner/service'
 import type { MinerStatus } from './background/stores'
+import { WebGpuDiagnostics } from './offscreen-miner/webgpu-miner'
 
 /** Active mining service instance for this worker runtime. */
 let miningService: LotusMiningService | null = null

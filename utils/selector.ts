@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 The Lotusia Stewardship
+ * Copyright 2025-2026 The Lotusia Stewardship
  * Github: https://github.com/LotusiaStewardship
  * License: MIT
  */

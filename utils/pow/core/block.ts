@@ -1,5 +1,5 @@
 /** Raw RPC shape from `getrawunsolvedblock`. */
-export type RawUnsolvedBlockAndTarget = {
+export interface RawUnsolvedBlockAndTarget {
   /** Full block bytes (header + body) as hex. */
   blockhex: string
   /** Target threshold in big-endian hex (32 bytes). */
@@ -9,7 +9,7 @@ export type RawUnsolvedBlockAndTarget = {
 /**
  * Parsed mining template used by host and GPU code.
  */
-export type LotusBlock = {
+export interface LotusBlock {
   /** Fixed-size 160-byte header used for nonce mutation and hashing. */
   header: Uint8Array
   /** Remaining block bytes after the header (transactions / body). */

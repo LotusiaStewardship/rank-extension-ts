@@ -7,6 +7,7 @@ import {
   instanceStore,
   minerStore,
   type ExtensionInstance,
+  type MinerConfig,
   type MinerStatus,
   type MinerWebGpuLimits,
   type MinerWebGpuProfileConfig,
@@ -38,7 +39,7 @@ export default defineBackground({
         await minerStore.setStatus(status)
       },
     })
-    await initializeWebGpuMinerDefaults()
+    await ensureWebGpuMinerDefaults()
 
     /**
      *
@@ -77,7 +78,7 @@ export default defineBackground({
 
     minerMessaging.onMessage('popup:minerLoadConfig', async ({ sender }) => {
       validateMessageSender(sender.id)
-      const config = await minerStore.getConfig()
+      const config = await ensureWebGpuMinerDefaults()
       if (!config.mineToAddress) {
         const walletState = walletManager.uiWalletState
         if (walletState?.address) {
@@ -119,7 +120,7 @@ export default defineBackground({
     minerMessaging.onMessage('popup:minerStart', async ({ sender }) => {
       console.log('[MESSAGE] popup:minerStart received')
       validateMessageSender(sender.id)
-      const config = await minerStore.getConfig()
+      const config = await ensureWebGpuMinerDefaults()
       if (!config.mineToAddress) {
         const next = await minerStore.patchStatus({
           running: false,
@@ -390,22 +391,27 @@ export default defineBackground({
       return await result.json()
     }
 
-    async function initializeWebGpuMinerDefaults(): Promise<void> {
+    async function ensureWebGpuMinerDefaults(): Promise<MinerConfig> {
       const config = await minerStore.getConfig()
-      if (config.webgpuHighPerformanceLimits && config.webgpuProfiles) {
-        return
+      const needsRefresh =
+        !config.webgpuHighPerformanceLimits ||
+        !isValidWebGpuProfiles(config.webgpuProfiles)
+
+      if (!needsRefresh) {
+        return config
       }
 
       const limits = await fetchWebGpuLimits()
       if (!limits) {
-        return
+        return config
       }
 
       const profiles = buildWebGpuProfiles(limits)
-      await minerStore.patchConfig({
+      const next = await minerStore.patchConfig({
         webgpuHighPerformanceLimits: limits,
         webgpuProfiles: profiles,
       })
+      return next
     }
 
     async function fetchWebGpuLimits(): Promise<MinerWebGpuLimits | null> {
@@ -449,18 +455,22 @@ export default defineBackground({
       limits: MinerWebGpuLimits,
       pct: number,
     ): MinerWebGpuProfileConfig {
-      const workgroupSizeX = Math.max(
-        1,
-        Math.floor(limits.maxComputeWorkgroupSizeX * pct),
-      )
+      const workgroupSizeX = Math.max(1, Math.floor(limits.maxComputeWorkgroupSizeX * pct))
       return {
         workgroupSizePct: pct,
-        workgroupSizeX: Math.min(
-          workgroupSizeX,
-          limits.maxComputeWorkgroupSizeX,
-          limits.maxComputeInvocationsPerWorkgroup,
-        ),
+        workgroupSizeX: Math.min(workgroupSizeX, limits.maxComputeWorkgroupSizeX),
       }
+    }
+
+    function isValidWebGpuProfiles(
+      profiles: MinerConfig['webgpuProfiles'] | undefined,
+    ): profiles is MinerConfig['webgpuProfiles'] {
+      return Boolean(
+        profiles &&
+          profiles['low-power']?.workgroupSizeX > 0 &&
+          profiles.balanced?.workgroupSizeX > 0 &&
+          profiles['high-power']?.workgroupSizeX > 0,
+      )
     }
   },
 })

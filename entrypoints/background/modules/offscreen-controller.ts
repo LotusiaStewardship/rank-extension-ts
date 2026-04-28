@@ -95,7 +95,7 @@ export class OffscreenMinerController {
     }
 
     if (await this.hasOffscreenDocument()) {
-      await chrome.offscreen.closeDocument()
+      await browser.offscreen.closeDocument()
     }
   }
 
@@ -202,7 +202,7 @@ export class OffscreenMinerController {
     const offscreenUrl = browser.runtime.getURL(
       this.offscreenPath as PublicPath,
     )
-    const runtimeWithContexts = chrome.runtime as typeof chrome.runtime & {
+    const runtimeWithContexts = browser.runtime as typeof browser.runtime & {
       getContexts?: (filter: {
         contextTypes: string[]
         documentUrls: string[]

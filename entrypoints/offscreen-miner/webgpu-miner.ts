@@ -1,13 +1,17 @@
 /// <reference types="@webgpu/types" />
 
-import { createLotusOgWgsl } from '@/utils/lotus-og-kernel'
-import type { MinerWebGpuWorkgroupSize } from '@/utils/types'
+import { createLotusOgWgsl } from '@/utils/pow/lotus-og-kernel'
 import type { MinerGpuPreference } from '../background/stores'
+
+/** Compute workgroup size X used by the miner pipeline. */
+export interface MinerWebGpuWorkgroupSize {
+  x: number
+}
 
 /**
  * Internal runtime resources allocated after `init()`.
  */
-type WebGpuMinerRuntime = {
+interface WebGpuMinerRuntime {
   /** Logical device used for compute pipeline + buffers. */
   device: GPUDevice
   /** GPU queue used for uploads, dispatch submission, and readback scheduling. */
@@ -42,6 +46,74 @@ type WebGpuMinerRuntime = {
   targetScratch: Uint32Array
   /** Reused CPU-side output snapshot buffer. */
   rawScratch: Uint32Array
+}
+
+export interface MinerInitParams {
+  /** WGSL source code for the compute kernel (`search` entrypoint required). */
+  shaderCode?: string
+  /** Ordered adapter preference list tried during adapter discovery. */
+  gpuPreferences?: Array<'high-performance' | 'low-power'>
+  /** OpenCL-style ITERATIONS override constant. */
+  iterations?: number
+  /** Must match `@workgroup_size` in the shader. */
+  workgroupSize?: MinerWebGpuWorkgroupSize
+  /** Output storage u32 length. Minimum 129 (`output[0x80]` found flag + nonce slots). */
+  outputU32Length?: number
+}
+
+/** One GPU dispatch request. */
+export interface MinerJob {
+  /** First nonce offset for this dispatch. */
+  offset: number
+  /** Number of candidate nonces requested for this dispatch. */
+  nonceCount: number
+}
+
+/**
+ * GPU dispatch result payload.
+ */
+export interface MinerRunTelemetry {
+  /** Workgroups dispatched along X dimension for this batch. */
+  dispatchX: number
+  /** Requested nonce coverage for this batch. */
+  nonceCount: number
+  /** CPU time spent preparing params/output uploads and command recording. */
+  hostEncodeMs: number
+  /** Time from queue submit until readback buffer became mappable. */
+  submitToReadbackMs: number
+  /** Time to copy mapped bytes into reusable CPU scratch + unmap. */
+  readbackCopyMs: number
+  /** CPU time spent scanning output buffer for candidate slots. */
+  parseMs: number
+  /** End-to-end wall-clock time for `run()`. */
+  totalMs: number
+}
+
+export type MinerBatchResult = {
+  /** True when kernel set output[0] == 1. */
+  found: boolean
+  /** First non-zero candidate low 32-bit nonce word (kernel-endian) from nonce slots. */
+  nonceLow: number
+  /** Full output buffer snapshot from GPU readback. */
+  raw: Uint32Array
+  /** Per-dispatch runtime timings for bottleneck analysis. */
+  telemetry: MinerRunTelemetry
+}
+
+/**
+ * Staged WebGPU capability diagnostics captured during miner initialization.
+ */
+export type WebGpuDiagnostics = {
+  /** WebGPU API is exposed in this runtime (`navigator.gpu`). */
+  apiAvailable: boolean
+  /** A GPU adapter was discovered for the requested power preferences. */
+  adapterAvailable: boolean
+  /** Logical GPU device creation succeeded. */
+  deviceReady: boolean
+  /** Compute pipeline compilation/linking succeeded. */
+  pipelineReady: boolean
+  /** Last initialization-stage WebGPU error, if any. */
+  lastError: string
 }
 
 /**

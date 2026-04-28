@@ -150,9 +150,7 @@ export type OffscreenWorkerCommandPayloadMap = {
 }
 
 /** Offscreen document -> worker command envelope. */
-export type OffscreenWorkerCommand<
-  T extends OffscreenWorkerCommandType = OffscreenWorkerCommandType,
-> = {
+export type OffscreenWorkerCommand<T extends OffscreenWorkerCommandType> = {
   channel: typeof OFFSCREEN_WORKER_CHANNEL
   kind: 'command'
   requestId: string
