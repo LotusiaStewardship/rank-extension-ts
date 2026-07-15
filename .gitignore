@@ -27,3 +27,6 @@ web-ext.config.ts
 
 # Custom
 test**/*
+
+# Fusion
+.fusion/
