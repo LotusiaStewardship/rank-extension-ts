@@ -196,6 +196,16 @@ export default defineBackground({
         throw new Error(`error during 'popup:loadSeedPhrase': ${e.message}`)
       }
     })
+    // Initialize wallet on browser startup
+    chrome.runtime.onStartup.addListener(() => {
+      walletManager.init().catch(console.error)
+    })
+    // Periodically reconcile wallet state (30-minute alarm backup)
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === 'wallet-reconcile') {
+        walletManager.reconcile()
+      }
+    })
     // Load wallet state, or open popup ui to generate seed for new wallet state
     walletManager
       .init()
@@ -205,11 +215,6 @@ export default defineBackground({
       .catch(async () => {
         browser.action.openPopup()
       })
-    /*
-    browser.runtime.onSuspend.addListener(() => {
-      console.log('browser.runtime.onSuspend triggered')
-    })
-    */
     /**
      *
      *  Function Definitions

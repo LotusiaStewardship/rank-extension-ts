@@ -222,7 +222,6 @@ class WalletManager {
   private ws!: WsEndpoint
   private scriptEndpoint!: ScriptEndpoint
   private wallet!: Wallet
-  private wsPingInterval!: NodeJS.Timeout
   public queue: EventQueue
   /** */
   constructor() {
@@ -398,10 +397,6 @@ class WalletManager {
       onConnect: () =>
         console.log(`chronik websocket connected`, this.ws.ws?.url),
       onMessage: this.handleWsMessage,
-      onError: async e => {
-        console.error('chronik websocket error', e)
-        //await this.resetUtxoCache()
-      },
       onEnd: async e => {
         console.error('chronik websocket ended abruptly', e)
         //await this.resetUtxoCache()
@@ -420,39 +415,41 @@ class WalletManager {
     // Save mutable wallet state
     await saveMutableWalletState(this.mutableWalletState)
     // await WebSocket online state and set up subscription for wallet script
-    await this.ws.waitForOpen()
+    await this.waitForWsOpenWithTimeout()
     this.wsSubscribeP2PKH(this.scriptPayload)
-    // Set up WebSocket ping interval to keep background service-worker alive
-    this.wsPingInterval = setInterval(async () => {
-      const connected = await this.ws.connected
-      // check to make sure Chronik WebSocket is connected
-      if (
-        connected?.target &&
-        (connected.target.readyState === WebSocket.CLOSED ||
-          connected.target.readyState === WebSocket.CLOSING)
-      ) {
-        this.ws.close()
-        await this.ws.waitForOpen()
-        console.warn(
-          `chronik websocket reconnected after state "${connected.target.readyState}"`,
-        )
-      }
-      if (!this.queue.busy && this.queue.pending.length < 1) {
-        this.queue.pending.push([this.reconcileWalletState, undefined])
-        return this.processEventQueue()
-      }
-      /* // always reconcile wallet state after websocket ping interval
-      this.queue.pending.push([this.reconcileWalletState, undefined])
-      if (!this.queue.busy) {
-        return this.processEventQueue()
-      } */
-    }, 5000)
+    // Set up periodic wallet reconciliation alarm (30-minute interval)
+    chrome.alarms.create('wallet-reconcile', { periodInMinutes: 30 })
   }
   /** Shutdown all active sockets and listeners */
   deinit = async () => {
-    clearInterval(this.wsPingInterval)
+    chrome.alarms.clear('wallet-reconcile')
     this.wsUnsubscribeP2PKH(this.scriptPayload)
     this.ws.close()
+  }
+  /**
+   * Wait for WebSocket to open with a configurable timeout.
+   * Logs a warning on timeout but does not throw, allowing the service worker
+   * to continue in a degraded state.
+   */
+  private waitForWsOpenWithTimeout = async (timeoutMs = 15000): Promise<void> => {
+    const timeoutPromise = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error(`WebSocket connection timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+    try {
+      await Promise.race([this.ws.waitForOpen(), timeoutPromise])
+    } catch (e) {
+      console.warn('WebSocket waitForOpen timed out, continuing in degraded mode', e)
+    }
+  }
+  /**
+   * Trigger wallet reconciliation via the event queue.
+   * Called by the alarm handler for periodic reconciliation.
+   */
+  public reconcile = async (): Promise<void> => {
+    if (!this.queue.busy && this.queue.pending.length < 1) {
+      this.queue.pending.push([this.reconcileWalletState, undefined])
+      return this.processEventQueue()
+    }
   }
   /** Update the wallet's chain state from the Chronik API */
   private updateChainState = async () => {

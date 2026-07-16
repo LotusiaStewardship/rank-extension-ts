@@ -24,7 +24,7 @@ export default defineConfig({
       '*://rank.lotusia.org/api/v1/*',
       '*://chronik.lotusia.org/*',
     ],
-    permissions: ['storage', 'notifications'],
+    permissions: ['storage', 'notifications', 'alarms'],
   },
   vite: () => ({
     css: {
