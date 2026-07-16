@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /** Vue components */
 import QRCode from 'qrcode-vue3'
-import { FwbP, FwbHeading } from 'flowbite-vue'
+// Flowbite components removed
 /** Modules and types */
 import options from '@/assets/qroptions.json'
 /** Vue props and emits */
@@ -42,21 +42,21 @@ async function copyAddressToClipboard() {
 </script>
 <template>
   <div class="py-2 px-6">
-    <FwbHeading class="pb-2" tag="h4">
+    <h4 class="pb-2">
       Receive Lotus
-    </FwbHeading>
-    <FwbP>
+    </h4>
+    <p>
       This QR code is your Lotus address. Friends can scan this code to give you
       Lotus directly to your wallet. They cannot use this code to take your
       Lotus without your consent.
-    </FwbP>
-    <FwbP>You can also click/tap the QR code to copy your Lotus address to share
-      via email, text, etc.</FwbP>
-    <FwbP class="text-yellow-600 dark:text-yellow-300">
+    </p>
+    <p>You can also click/tap the QR code to copy your Lotus address to share
+      via email, text, etc.</p>
+    <p class="text-yellow-600 dark:text-yellow-300">
       BE ADVISED: Sharing your address with others will allow them to see how
       you vote in Lotusia. Use discretion when sharing your address if privacy
       is a concern.
-    </FwbP>
+    </p>
     <div class="relative flex justify-center">
       <div id="qr-code-wrapper" @click="copyAddressToClipboard">
         <QRCode class="qr-code" :value="props.address" :height="options.height" :width="options.width"

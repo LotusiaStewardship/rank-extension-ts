@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /** Vue components */
-import { FwbHeading, FwbP, FwbTab, FwbTabs } from 'flowbite-vue'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
@@ -245,65 +245,67 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <FwbTabs v-model="activeTab" variant="underline">
-    <!--
-      Only show myStats if registered
-      5/20/25: Registration is currently disabled
-      8/3/25: Registration is enabled
-    -->
-    <FwbTab name="myStats" title="My Stats">
+  <Tabs v-model="activeTab" class="w-full">
+    <TabsList class="w-full justify-start border-b border-gray-200 dark:border-gray-700 rounded-none bg-transparent h-auto p-0">
+      <TabsTrigger tab-value="myStats"
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
+        My Stats
+      </TabsTrigger>
+      <TabsTrigger tab-value="topProfiles"
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
+        Trending Profiles
+      </TabsTrigger>
+      <TabsTrigger tab-value="topPosts"
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
+        Trending Posts
+      </TabsTrigger>
+    </TabsList>
+
+    <TabsContent tab-value="myStats" class="mt-0">
       <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
       <HomeMyStats v-else :data="myStats" />
-    </FwbTab>
-    <FwbTab name="topProfiles" title="Trending Profiles">
+    </TabsContent>
+    <TabsContent tab-value="topProfiles" class="mt-0">
       <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow items-start text-left">
             <a :href="Twitter.profileUrl(profileId)" target="_blank">
-              <FwbHeading tag="h6" :title="profileId">{{
-                profileId
-              }}</FwbHeading>
+              <h6>{{ profileId }}</h6>
             </a>
-            <fwb-p>{{ platform }}</fwb-p>
+            <p>{{ platform }}</p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
+            <h6>+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
+              }}&nbsp;XPI</h6>
+            <p class="text-pink-600 dark:text-pink-300">{{
               toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+              }}&nbsp;XPI</p>
           </div>
         </div>
       </template>
-    </FwbTab>
-    <FwbTab name="topPosts" title="Trending Posts">
+    </TabsContent>
+    <TabsContent tab-value="topPosts" class="mt-0">
       <template v-for="(
 { profileId, postId, changed, total, platform }, index
         ) in topPosts" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow justify-start">
             <a :href="Twitter.postUrl(profileId, postId)" target="_blank">
-              <FwbHeading tag="h6" :title="profileId">
-                {{ profileId }}</FwbHeading>
+              <h6>{{ profileId }}</h6>
             </a>
-            <fwb-p>{{ platform }}&nbsp;<span class="text-xs">post</span></fwb-p>
+            <p>{{ platform }}&nbsp;<span class="text-xs">post</span></p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
+            <h6>+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
+              }}&nbsp;XPI</h6>
+            <p class="text-pink-600 dark:text-pink-300">{{
               toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+              }}&nbsp;XPI</p>
           </div>
         </div>
       </template>
-    </FwbTab>
-  </FwbTabs>
+    </TabsContent>
+  </Tabs>
 </template>
-<style lang="css" scoped>
-.text-right {
-  text-align: right;
-}
-</style>

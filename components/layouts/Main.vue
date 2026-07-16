@@ -157,38 +157,57 @@ async function initialize(seedPhrase?: string): Promise<void> {
   Vue template
 -->
 <template>
-
-  <header class="shrink-0">
-    <Header :total-balance="walletBalance.total" />
-  </header>
-  <main class="grow overflow-y-auto hidden-scrollbar">
-    <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
-    <template v-else>
-      <div class="container">
-        <HomePage v-if="activePage === 'home'" />
-        <ReceiveLotusPage :address="walletAddress" v-else-if="activePage == 'receive'" />
-        <GiveLotusPage :spendable-balance="walletBalance.spendable" v-else-if="activePage == 'give'" />
-        <SettingsPage @restore-seed-phrase="initialize" v-else-if="activePage == 'settings'" />
-      </div>
-    </template>
-  </main>
-  <footer class="shrink-0">
-    <Footer v-show="initialized" @active-page="activePage = $event" />
-  </footer>
+  <div class="flex flex-col h-full">
+    <header class="shrink-0">
+      <Header :total-balance="walletBalance.total" />
+    </header>
+    <main class="flex-1 overflow-y-auto min-h-0">
+      <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
+      <template v-else>
+        <Transition name="page" mode="out-in">
+          <div :key="activePage" class="p-3">
+            <HomePage v-if="activePage === 'home'" />
+            <ReceiveLotusPage :address="walletAddress" v-else-if="activePage === 'receive'" />
+            <GiveLotusPage :spendable-balance="walletBalance.spendable" v-else-if="activePage === 'give'" />
+            <SettingsPage @restore-seed-phrase="initialize" v-else-if="activePage === 'settings'" />
+          </div>
+        </Transition>
+      </template>
+    </main>
+    <footer class="shrink-0">
+      <Footer v-show="initialized" :active-page="activePage" @active-page="activePage = $event" />
+    </footer>
+  </div>
 </template>
 <!--
   Vue style
 -->
 <style lang="css">
-.hidden-scrollbar {
-  scrollbar-width: none;
+/* Page transition animations */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.hidden-scrollbar::-webkit-scrollbar {
-  display: none;
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
-textarea {
-  resize: none !important;
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition: none;
+  }
+  .page-enter-from,
+  .page-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

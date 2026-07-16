@@ -1,24 +1,42 @@
 <script setup lang="ts">
-import HomeIcon from '@/components/icons/Home.vue'
-import ReceiveIcon from '@/components/icons/Receive.vue'
-import SendIcon from '@/components/icons/Send.vue'
-import SettingsIcon from '@/components/icons/Settings.vue'
-/** Vue definitions */
-const { icon, color: propsColor } = defineProps<{
+import { Home, ArrowDownToLine, ArrowUpFromLine, Settings } from 'lucide-vue-next'
+import { computed } from 'vue'
+
+const props = defineProps<{
   icon: 'home' | 'receive' | 'give' | 'settings'
-  color?: 'pink'
+  active?: boolean
 }>()
-const color = computed(() => {
-  return propsColor ?? 'pink'
+
+const emit = defineEmits<{
+  click: []
+}>()
+
+const iconComponent = computed(() => {
+  switch (props.icon) {
+    case 'home': return Home
+    case 'receive': return ArrowDownToLine
+    case 'give': return ArrowUpFromLine
+    case 'settings': return Settings
+    default: return Home
+  }
 })
 </script>
 
 <template>
   <button
-    :class="`border border-${color}-700 hover:text-white focus:ring-2 focus:outline-none focus:ring-${color}-300 font-medium rounded-lg text-sm p-2.5 text-center inline-flex items-center me-2 dark:border-${color}-500 dark:text-${color}-500 dark:hover:text-white dark:focus:ring-${color}-800`">
-    <HomeIcon v-if="icon == 'home'" />
-    <ReceiveIcon v-else-if="icon == 'receive'" />
-    <SendIcon v-else-if="icon == 'give'" />
-    <SettingsIcon v-else-if="icon == 'settings'" />
+    class="relative flex flex-col items-center justify-center gap-0.5 w-12 h-10 rounded-lg transition-colors duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+    @click="emit('click')"
+  >
+    <Component
+      :is="iconComponent"
+      :size="22"
+      :stroke-width="active ? 2.5 : 1.8"
+      :class="active ? 'text-primary' : 'text-muted-foreground'"
+    />
+    <!-- Active indicator dot -->
+    <span
+      v-if="active"
+      class="absolute bottom-0.5 w-1 h-1 rounded-full bg-primary"
+    />
   </button>
 </template>

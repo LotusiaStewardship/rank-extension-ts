@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Vue components */
-import { FwbButton, FwbInput, FwbHeading } from 'flowbite-vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import GiveLotusResult from '@/components/pages/give/GiveLotusResult.vue'
 import GiveLotusEmptyWallet from '@/components/pages/give/GiveLotusEmptyWallet.vue'
@@ -113,50 +114,51 @@ async function openScanner() {
 
 <template>
   <div class="py-2 px-6">
-    <FwbHeading color="dark:text-white" tag="h4">Give Lotus</FwbHeading>
+    <h4 class="dark:text-white">Give Lotus</h4>
     <GiveLotusEmptyWallet v-if="spendableBalance === '0'" />
     <!-- <GiveLotusConsolidateWallet v-else-if="needsUtxoConsolidation" /> -->
     <template v-else>
       <!-- Friend's Lotus address -->
       <div class="py-2 flex">
         <div class="flex-grow">
-          <FwbInput v-model="outAddress" :disabled="processing" :validation-status="outAddressValidationStatus"
-            label="Friend's Lotus address">
-            <template #helper>
-              Copy and paste your friend's Lotus address here
-              <!--, or click/tap the
-            camera button to scan their QR code-->
-            </template>
-            <!--
-          <template #suffix>
-            <div class="flex-grow right-0">
-              <AddressScanButton @click="openScanner" />
-            </div>
-          </template>
-          -->
-          </FwbInput>
+          <div class="space-y-1">
+            <label class="text-sm font-medium text-gray-900 dark:text-white">Friend's Lotus address</label>
+            <Input v-model="outAddress" :disabled="processing"
+              :class="{
+                'border-red-500 dark:border-red-400': outAddressValidationStatus === 'error',
+                'border-green-500 dark:border-green-400': outAddressValidationStatus === 'success'
+              }"
+              placeholder="Copy and paste your friend's Lotus address here" />
+          </div>
         </div>
       </div>
       <!-- Amount of Lotus to Give -->
       <div class="py-2 flex">
         <div class="flex-grow">
-          <FwbInput v-model="outValue" :disabled="processing" :validation-status="outValueValidationStatus"
-            label="Amount of Lotus to Give" type="number">
-            <template #suffix>
-              <FwbButton disabled color="pink" :outline="true" size="md"
-                class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400">
+          <div class="space-y-1">
+            <label class="text-sm font-medium text-gray-900 dark:text-white">Amount of Lotus to Give</label>
+            <div class="flex gap-2 items-start">
+              <Input v-model="outValue" :disabled="processing" type="number"
+                :class="{
+                  'border-red-500 dark:border-red-400': outValueValidationStatus === 'error',
+                  'border-green-500 dark:border-green-400': outValueValidationStatus === 'success'
+                }"
+                class="flex-1" />
+              <Button disabled variant="outline" size="default"
+                class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400 border-pink-500">
                 Give All
-              </FwbButton>
-            </template>
-          </FwbInput>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Give Now button and spendable balance -->
       <div class="py-2 flex justify-between items-center">
         <div>
-          <FwbButton color="pink" size="sm" :disabled="!isInputDataValid || processing" :outline="true"
+          <Button variant="outline" size="sm" :disabled="!isInputDataValid || processing"
+            class="text-pink-600 border-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:border-pink-400 dark:hover:bg-pink-950"
             @click="giveLotus">
-            Give Now</FwbButton>
+            Give Now</Button>
         </div>
         <div class="text-pink-500 dark:text-pink-300">
           <span class="text-sm">

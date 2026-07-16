@@ -4959,3 +4959,107 @@ video {
     border-color: rgb(55 65 81 / var(--tw-border-opacity, 1));
   }
 }
+
+/* shadcn-vue CSS variables — Lotusia Brand Theme */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 224 71.4% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71.4% 4.1%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71.4% 4.1%;
+  --primary: 333 100% 39%;           /* #c6005c Lotusia pink */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 270 76% 53%;          /* #7c3aed purple */
+  --secondary-foreground: 0 0% 100%;
+  --muted: 220 14.3% 95.9%;
+  --muted-foreground: 220 8.9% 46.1%;
+  --accent: 333 78% 94%;             /* light pink bg */
+  --accent-foreground: 333 100% 39%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 20% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 333 100% 39%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 224 71.4% 4.1%;      /* near-black, matches ~#0d1117 */
+  --foreground: 210 20% 98%;
+  --card: 224 71.4% 4.1%;
+  --card-foreground: 210 20% 98%;
+  --popover: 224 71.4% 4.1%;
+  --popover-foreground: 210 20% 98%;
+  --primary: 340 100% 76%;            /* #ff88b0 Lotusia pink (light) */
+  --primary-foreground: 224 71.4% 4.1%;
+  --secondary: 270 95% 76%;           /* #a78bfa purple light */
+  --secondary-foreground: 224 71.4% 4.1%;
+  --muted: 224 71.4% 12%;
+  --muted-foreground: 224 71.4% 65%;
+  --accent: 340 70% 12%;
+  --accent-foreground: 340 100% 76%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 20% 98%;
+  --border: 224 71.4% 12%;
+  --input: 224 71.4% 22%;            /* FIX: visible against 4.1% background */
+  --ring: 340 100% 76%;
+}
+
+/* ===== Global Style Scaffold ===== */
+
+/* Thin, subtle scrollbar */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+/* Firefox thin scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* Consistent focus-visible ring (backup for browser default) */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+/* Remove focus ring for mouse clicks — keep only keyboard focus */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Smooth transitions for theme-aware elements */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+/* But disable transitions for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+  }
+}
+
+/* Ensure text uses foreground variable where possible */
+body {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

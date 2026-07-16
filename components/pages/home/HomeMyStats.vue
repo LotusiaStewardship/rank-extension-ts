@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FwbHeading, FwbCard, FwbBadge } from 'flowbite-vue'
+// Flowbite imports removed — all components unused in template
 /**
  * Local types
  */

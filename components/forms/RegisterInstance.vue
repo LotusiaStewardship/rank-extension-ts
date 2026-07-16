@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FwbButton } from 'flowbite-vue'
+import { Button } from '@/components/ui/button'
 const emit = defineEmits(['register-instance'])
 </script>
 <template>
@@ -12,10 +12,10 @@ const emit = defineEmits(['register-instance'])
   </div>
   <div class="flex">
     <div class="block">
-      <FwbButton @click="emit('register-instance', true)">Yes</FwbButton>
+      <Button @click="emit('register-instance', true)">Yes</Button>
     </div>
     <div class="block">
-      <FwbButton @click="emit('register-instance', false)">No</FwbButton>
+      <Button @click="emit('register-instance', false)">No</Button>
     </div>
   </div>
 </template>

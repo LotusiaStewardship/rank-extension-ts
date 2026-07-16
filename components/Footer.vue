@@ -1,32 +1,36 @@
-<script lang="ts" setup>
-/** Vue components */
+<script setup lang="ts">
 import FooterButton from '@/components/buttons/FooterButton.vue'
-const emit = defineEmits(['active-page'])
+
+defineProps<{
+  activePage: 'home' | 'receive' | 'give' | 'settings'
+}>()
+
+const emit = defineEmits<{
+  'active-page': [page: 'home' | 'receive' | 'give' | 'settings']
+}>()
 </script>
-<!--
-  Vue template
--->
+
 <template>
-  <div class="flex items-center py-4">
-    <!-- Home Button -->
-    <div class="flex-grow text-center">
-      <FooterButton @click="emit('active-page', 'home')" icon="home" />
-    </div>
-    <!-- Receive Lotus Button -->
-    <div class="flex-grow text-center">
-      <FooterButton @click="emit('active-page', 'receive')" icon="receive" />
-    </div>
-    <!-- Send Lotus Button -->
-    <div class="flex-grow text-center">
-      <FooterButton @click="emit('active-page', 'give')" icon="give" />
-    </div>
-    <!-- Settings Button -->
-    <div class="flex-grow text-center">
-      <FooterButton @click="emit('active-page', 'settings')" icon="settings" />
-    </div>
-  </div>
+  <nav class="flex items-center justify-center gap-1 py-2 px-2 border-t border-border bg-background">
+    <FooterButton
+      icon="home"
+      :active="activePage === 'home'"
+      @click="emit('active-page', 'home')"
+    />
+    <FooterButton
+      icon="receive"
+      :active="activePage === 'receive'"
+      @click="emit('active-page', 'receive')"
+    />
+    <FooterButton
+      icon="give"
+      :active="activePage === 'give'"
+      @click="emit('active-page', 'give')"
+    />
+    <FooterButton
+      icon="settings"
+      :active="activePage === 'settings'"
+      @click="emit('active-page', 'settings')"
+    />
+  </nav>
 </template>
-<!--
-  Vue style
--->
-<style lang="css"></style>
