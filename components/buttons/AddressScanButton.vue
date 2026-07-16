@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import CameraIcon from '@/components/icons/Camera.vue'
-const props = defineProps<{
+
+defineProps<{
+  /** @deprecated Color is now fixed to primary (pink). Kept for backward compatibility. */
   color?: 'pink'
 }>()
-const color = shallowRef(props.color ?? 'pink')
 </script>
+
 <template>
   <button
-    :class="`text-${color}-700 border border-${color}-700 hover:text-white focus:ring-2 focus:outline-none focus:ring-${color}-300 font-medium rounded-lg text-sm p-1 text-center dark:border-${color}-500 dark:text-${color}-500 dark:hover:text-white dark:focus:ring-${color}-800`"
+    class="inline-flex items-center justify-center rounded-lg border border-primary p-1.5 text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 transition-colors"
+    aria-label="Scan QR code"
   >
     <CameraIcon />
   </button>

@@ -1,0 +1,1 @@
+Removed `components/HelloWorld.vue` — a legacy Vite/Vue demo template component that was no longer imported or used anywhere in the application. It was leftover scaffolding from the initial project setup.

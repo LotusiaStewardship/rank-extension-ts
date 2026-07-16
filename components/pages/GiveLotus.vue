@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import GiveLotusResult from '@/components/pages/give/GiveLotusResult.vue'
 import GiveLotusEmptyWallet from '@/components/pages/give/GiveLotusEmptyWallet.vue'
-import AddressScanButton from '../buttons/AddressScanButton.vue'
 /** Modules and type imports */
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { WalletTools } from '@/entrypoints/background/modules/wallet'
@@ -114,7 +113,7 @@ async function openScanner() {
 
 <template>
   <div class="py-2 px-6">
-    <h4 class="dark:text-white">Give Lotus</h4>
+    <h4 class="text-foreground">Give Lotus</h4>
     <GiveLotusEmptyWallet v-if="spendableBalance === '0'" />
     <!-- <GiveLotusConsolidateWallet v-else-if="needsUtxoConsolidation" /> -->
     <template v-else>
@@ -122,11 +121,11 @@ async function openScanner() {
       <div class="py-2 flex">
         <div class="flex-grow">
           <div class="space-y-1">
-            <label class="text-sm font-medium text-gray-900 dark:text-white">Friend's Lotus address</label>
+            <label class="text-sm font-medium text-foreground">Friend's Lotus address</label>
             <Input v-model="outAddress" :disabled="processing"
               :class="{
-                'border-red-500 dark:border-red-400': outAddressValidationStatus === 'error',
-                'border-green-500 dark:border-green-400': outAddressValidationStatus === 'success'
+                'border-destructive': outAddressValidationStatus === 'error',
+                'border-emerald-500 dark:border-emerald-400': outAddressValidationStatus === 'success'
               }"
               placeholder="Copy and paste your friend's Lotus address here" />
           </div>
@@ -136,18 +135,20 @@ async function openScanner() {
       <div class="py-2 flex">
         <div class="flex-grow">
           <div class="space-y-1">
-            <label class="text-sm font-medium text-gray-900 dark:text-white">Amount of Lotus to Give</label>
+            <label class="text-sm font-medium text-foreground">Amount of Lotus to Give</label>
             <div class="flex gap-2 items-start">
               <Input v-model="outValue" :disabled="processing" type="number"
                 :class="{
-                  'border-red-500 dark:border-red-400': outValueValidationStatus === 'error',
-                  'border-green-500 dark:border-green-400': outValueValidationStatus === 'success'
+                  'border-destructive': outValueValidationStatus === 'error',
+                  'border-emerald-500 dark:border-emerald-400': outValueValidationStatus === 'success'
                 }"
                 class="flex-1" />
-              <Button disabled variant="outline" size="default"
-                class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400 border-pink-500">
+              <button
+                disabled
+                class="text-xs font-medium text-pink-500 dark:text-pink-400 underline underline-offset-2 decoration-pink-300 dark:decoration-pink-700 hover:text-pink-700 dark:hover:text-pink-200 disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed transition-colors shrink-0 self-start mt-1"
+              >
                 Give All
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -156,15 +157,15 @@ async function openScanner() {
       <div class="py-2 flex justify-between items-center">
         <div>
           <Button variant="outline" size="sm" :disabled="!isInputDataValid || processing"
-            class="text-pink-600 border-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:border-pink-400 dark:hover:bg-pink-950"
+            class="text-primary border-primary hover:bg-primary/10 dark:hover:bg-primary/20"
             @click="giveLotus">
             Give Now</Button>
         </div>
-        <div class="text-pink-500 dark:text-pink-300">
-          <span class="text-sm">
-            {{ spendableBalanceXPI }}.<span class="text-xs">{{ spendableBalanceDecimal }}</span>
-            XPI spendable
-          </span>
+        <div class="text-right">
+          <p class="text-lg font-semibold text-primary">
+            {{ spendableBalanceXPI }}.<span class="text-sm">{{ spendableBalanceDecimal }}</span>
+          </p>
+          <p class="text-xs text-muted-foreground leading-tight">XPI spendable</p>
         </div>
       </div>
       <!-- Loading spinner and result -->

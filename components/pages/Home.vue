@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /** Vue components */
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
 import type { Ref, ShallowRef } from 'vue'
@@ -245,69 +246,66 @@ onBeforeUnmount(() => {
 
 <template>
   <Tabs v-model="activeTab" class="w-full">
-    <TabsList class="w-full justify-start border-b border-gray-200 dark:border-gray-700 rounded-none bg-transparent h-auto p-0 gap-0">
+    <TabsList class="w-full justify-start border-b border-gray-200 dark:border-gray-700 rounded-none bg-transparent h-auto p-0">
       <TabsTrigger tab-value="myStats"
-        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2.5 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
         My Stats
       </TabsTrigger>
       <TabsTrigger tab-value="topProfiles"
-        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2.5 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
         Trending Profiles
       </TabsTrigger>
       <TabsTrigger tab-value="topPosts"
-        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2.5 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-
+        class="rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-none pb-2 px-4">
         Trending Posts
       </TabsTrigger>
     </TabsList>
 
     <TabsContent tab-value="myStats" class="mt-0">
-      <div v-if="!myStats" class="flex justify-center items-center py-8">
-        <div class="h-5 w-5 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-        <span class="text-sm text-gray-500 dark:text-gray-400 ml-2">{{ loadingMessage }}</span>
-      </div>
+      <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
       <HomeMyStats v-else :data="myStats" />
     </TabsContent>
     <TabsContent tab-value="topProfiles" class="mt-0">
-      <div class="divide-y divide-gray-100 dark:divide-gray-800">
-        <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
-          <div class="flex items-center justify-between py-2.5 px-0">
-            <div class="min-w-0 flex-1">
-              <a :href="Twitter.profileUrl(profileId)" target="_blank"
-                class="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-pink-600 dark:hover:text-pink-300 transition-colors truncate block">
-                {{ profileId }}
-              </a>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ platform }}</p>
-            </div>
-            <div class="text-right ml-4 shrink-0">
-              <p class="text-sm font-semibold text-pink-600 dark:text-pink-300">+{{ toMinifiedNumber(changed.ranking, 1_000_000) }}&nbsp;XPI</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ toMinifiedNumber(total.ranking, 1_000_000) }}&nbsp;XPI</p>
-            </div>
+      <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
+        <div class="flex py-2 px-6">
+          <div class="flex-grow items-start text-left">
+            <a :href="Twitter.profileUrl(profileId)" target="_blank">
+              <h6>{{ profileId }}</h6>
+            </a>
+            <p>{{ platform }}</p>
           </div>
-        </template>
-      </div>
-      <p v-if="topProfiles.length === 0" class="text-sm text-gray-400 dark:text-gray-500 text-center py-6">No trending profiles available</p>
+          <div class="flex-grow items-end text-right">
+            <h6>+{{
+              toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</h6>
+            <p class="text-pink-600 dark:text-pink-300">{{
+              toMinifiedNumber(total.ranking, 1_000_000)
+              }}&nbsp;XPI</p>
+          </div>
+        </div>
+      </template>
     </TabsContent>
     <TabsContent tab-value="topPosts" class="mt-0">
-      <div class="divide-y divide-gray-100 dark:divide-gray-800">
-        <template v-for="({ profileId, postId, changed, total, platform }, index) in topPosts" :key="index">
-          <div class="flex items-center justify-between py-2.5 px-0">
-            <div class="min-w-0 flex-1">
-              <a :href="Twitter.postUrl(profileId, postId)" target="_blank"
-                class="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-pink-600 dark:hover:text-pink-300 transition-colors truncate block">
-                {{ profileId }}
-              </a>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ platform }} <span class="text-gray-400 dark:text-gray-500">· post</span></p>
-            </div>
-            <div class="text-right ml-4 shrink-0">
-              <p class="text-sm font-semibold text-pink-600 dark:text-pink-300">+{{ toMinifiedNumber(changed.ranking, 1_000_000) }}&nbsp;XPI</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ toMinifiedNumber(total.ranking, 1_000_000) }}&nbsp;XPI</p>
-            </div>
+      <template v-for="(
+{ profileId, postId, changed, total, platform }, index
+        ) in topPosts" :key="index">
+        <div class="flex py-2 px-6">
+          <div class="flex-grow justify-start">
+            <a :href="Twitter.postUrl(profileId, postId)" target="_blank">
+              <h6>{{ profileId }}</h6>
+            </a>
+            <p>{{ platform }}&nbsp;<span class="text-xs">post</span></p>
           </div>
-        </template>
-      </div>
-      <p v-if="topPosts.length === 0" class="text-sm text-gray-400 dark:text-gray-500 text-center py-6">No trending posts available</p>
-
+          <div class="flex-grow items-end text-right">
+            <h6>+{{
+              toMinifiedNumber(changed.ranking, 1_000_000)
+              }}&nbsp;XPI</h6>
+            <p class="text-pink-600 dark:text-pink-300">{{
+              toMinifiedNumber(total.ranking, 1_000_000)
+              }}&nbsp;XPI</p>
+          </div>
+        </div>
+      </template>
     </TabsContent>
   </Tabs>
 </template>

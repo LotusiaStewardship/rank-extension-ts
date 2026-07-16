@@ -3,47 +3,39 @@
 </script>
 
 <template>
-  <div class="py-2 space-y-6">
+  <div class="py-2 space-y-4">
     <!-- Main message -->
     <div>
-      <p class="dark:text-white">
+      <p class="text-sm text-muted-foreground">
         Your wallet is currently empty, but there are several ways to get Lotus:
       </p>
     </div>
 
     <!-- Cards with links -->
-    <div class="py-2 flex flex-row gap-2 w-full">
+    <div class="flex flex-row gap-2 w-full">
       <!-- Mining Lotus Card -->
       <a href="https://burnlotus.org" target="_blank" class="block flex-1">
-        <div class="text-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 hover:shadow-lg transition-shadow h-full w-full">
-          <div class="p-2">
-            <div class="text-3xl font-bold text-pink-500 dark:text-pink-300 mb-2">
-              ⛏️
-            </div>
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">
-              Mine Lotus
-            </h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Convert electricity into Lotus
-            </p>
-          </div>
+        <div class="text-center rounded-xl border border-border bg-card text-card-foreground p-3 hover:shadow-elevation-3 transition-shadow h-full w-full">
+          <div class="text-4xl mb-2">⛏️</div>
+          <h3 class="text-base font-semibold text-card-foreground mb-1">
+            Mine Lotus
+          </h3>
+          <p class="text-sm text-muted-foreground leading-relaxed">
+            Convert electricity into Lotus
+          </p>
         </div>
       </a>
 
       <!-- Telegram Group Card -->
       <a href="https://t.me/LotusiaDiscourse" target="_blank" class="block flex-1">
-        <div class="text-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 hover:shadow-lg transition-shadow h-full w-full">
-          <div class="p-2">
-            <div class="text-3xl font-bold text-blue-500 dark:text-blue-300 mb-2">
-              💬
-            </div>
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">
-              Join Community
-            </h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Connect with other Lotus users
-            </p>
-          </div>
+        <div class="text-center rounded-xl border border-border bg-card text-card-foreground p-3 hover:shadow-elevation-3 transition-shadow h-full w-full">
+          <div class="text-4xl mb-2">💬</div>
+          <h3 class="text-base font-semibold text-card-foreground mb-1">
+            Join Community
+          </h3>
+          <p class="text-sm text-muted-foreground leading-relaxed">
+            Connect with other Lotus users
+          </p>
         </div>
       </a>
     </div>

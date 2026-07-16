@@ -1,13 +1,13 @@
 <script lang="ts" setup>
 import AppSpinner from '@/components/AppSpinner.vue'
 
-const props = defineProps<{
+defineProps<{
   message: string
 }>()
 </script>
+
 <template>
-  <div class="flex justify-center items-center py-4">
-    <AppSpinner />
-    <span class="font-medium text-xl text-gray-800 dark:text-gray-300 ml-2">{{ props.message }}</span>
+  <div class="flex justify-center items-center py-6">
+    <AppSpinner :message="message" />
   </div>
 </template>

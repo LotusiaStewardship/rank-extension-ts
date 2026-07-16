@@ -9,13 +9,13 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex justify-center items-center py-4">
+  <div class="flex items-center justify-center gap-2">
     <div
-      class="h-6 w-6 animate-spin rounded-full border-2 border-pink-500 border-t-transparent"
+      class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"
     />
     <span
       v-if="message"
-      class="font-medium text-xl text-gray-800 dark:text-gray-300 ml-2"
+      class="text-sm text-muted-foreground"
     >
       {{ message }}
     </span>
