@@ -7,12 +7,14 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex h-10 items-center justify-between px-3 border-b border-border">
-    <img :src="logoUrl" class="h-6 w-auto" alt="Lotusia" />
-    <span
-      class="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-foreground/80"
-    >
-      {{ toMinifiedNumber(totalBalance, 1_000_000) }}&nbsp;XPI
-    </span>
+  <div class="flex h-12 py-8 items-center">
+    <div class="flex-grow absolute left-3">
+      <img :src="logoUrl" class="w-36" alt="Lotusia Logo" />
+    </div>
+    <div class="flex-grow absolute right-0 balance">
+      <span
+        class="bg-gray-100 text-pink-600 text-md font-bold me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300">{{
+          toMinifiedNumber(totalBalance, 1_000_000) }}&nbsp;XPI</span>
+    </div>
   </div>
 </template>

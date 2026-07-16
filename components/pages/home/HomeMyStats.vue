@@ -59,74 +59,31 @@ const activityDuration = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <!-- Main Stats Cards -->
-    <div class="flex flex-row gap-4">
-      <!-- Burned Today Card -->
-      <div class="rounded-xl p-4 flex-1">
-        <div class="text-center">
-          <div class="text-3xl font-bold text-pink-600 dark:text-pink-300 mb-1">
-            {{ formattedTotalSats }} XPI
-          </div>
-          <div class="text-sm">
-            Burned Today
-          </div>
-        </div>
+  <div>
+    <!-- Stat blocks as clean key-value rows with subtle dividers -->
+    <div class="divide-y divide-gray-100 dark:divide-gray-800">
+      <div class="flex items-center justify-between py-3">
+        <span class="text-sm text-gray-500 dark:text-gray-400">XPI Burned Today</span>
+        <span class="text-lg font-semibold text-pink-600 dark:text-pink-300">{{ formattedTotalSats }} XPI</span>
       </div>
-
-      <!-- Total Votes Card -->
-      <div class="rounded-xl p-4 flex-1">
-        <div class="text-center">
-          <div class="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-1">
-            {{ data?.totalVotes?.toLocaleString() || 0 }}
-          </div>
-          <div class="text-sm">
-            Total Votes
-          </div>
-        </div>
+      <div class="flex items-center justify-between py-3">
+        <span class="text-sm text-gray-500 dark:text-gray-400">Total Votes</span>
+        <span class="text-lg font-semibold text-purple-600 dark:text-purple-300">{{ data?.totalVotes?.toLocaleString() || 0 }}</span>
       </div>
     </div>
 
-    <!-- Activity Timeline -->
-    <div class="rounded-xl p-6">
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            First Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ formattedFirstSeen }}
-          </div>
+    <!-- Activity Timeline as compact key-value rows -->
+    <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+      <div class="divide-y divide-gray-100 dark:divide-gray-800">
+        <div class="flex items-center justify-between py-2">
+          <span class="text-sm text-gray-500 dark:text-gray-400">First Seen</span>
+          <span class="text-sm text-gray-900 dark:text-gray-100">{{ formattedFirstSeen }}</span>
         </div>
-
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            Last Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ formattedLastSeen }}
-          </div>
+        <div class="flex items-center justify-between py-2">
+          <span class="text-sm text-gray-500 dark:text-gray-400">Last Seen</span>
+          <span class="text-sm text-gray-900 dark:text-gray-100">{{ formattedLastSeen }}</span>
         </div>
-
-        <!-- <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            Activity Duration
-          </span>
-          <div class="bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ activityDuration }} days
-          </div>
-        </div> -->
       </div>
     </div>
-
-    <!-- Summary --><!-- 
-    <div class="text-center py-2 px-6">
-      <div class="text-sm leading-relaxed">
-        You've been active for {{ activityDuration }} days with
-        <span class="font-medium text-pink-500 dark:text-pink-300">{{ formattedTotalSats }}</span> total sats
-        and <span class="font-medium text-purple-500 dark:text-purple-300">{{ totalVotes.toLocaleString() }}</span>
-        votes cast.
-      </div>
-    </div> -->
   </div>
 </template>
