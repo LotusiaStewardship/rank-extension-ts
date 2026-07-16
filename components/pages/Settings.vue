@@ -516,6 +516,8 @@ onMounted(() => {
             </div>
           </div>
         </div>
+        </div>
+        </div>
       </div>
 
       <!-- Wallet Management Section -->
