@@ -5,14 +5,15 @@
  */
 import assert from 'assert'
 import { toSatoshiUnits } from '@/utils/functions'
+import type { WxtStorageItem } from 'wxt/storage'
 const { defineItem, setItem, setItems, getItem, getItems } = storage
 // Storage value types
 type WxtStorageValueString = string
 type WxtStorageValueObject = Setting
 // Storage item definition types
-type WxtStorageItemString = ReturnType<typeof defineItem<WxtStorageValueString>>
-type WxtStorageItemObject = ReturnType<typeof defineItem<WxtStorageValueObject>>
-type WxtStorageItem = WxtStorageItemString | WxtStorageItemObject
+type WxtStorageItemString = WxtStorageItem<WxtStorageValueString, Record<string, unknown>>
+type WxtStorageItemObject = WxtStorageItem<WxtStorageValueObject, Record<string, unknown>>
+type WxtStorageItemUnion = WxtStorageItemString | WxtStorageItemObject
 // Local types
 export type SettingLocale = {
   name: SettingName
@@ -84,7 +85,7 @@ export const DefaultExtensionSettings: Record<SettingName, Setting> = {
  *
  */
 class SettingsStore {
-  private wxtStorageItems: Record<SettingName, WxtStorageItem>
+  private wxtStorageItems: Record<SettingName, WxtStorageItemUnion>
   /**
    * Constructor for the SettingsStore
    */

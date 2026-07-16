@@ -1,5 +1,6 @@
-import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import type { ScriptChunkPlatformUTF8 } from 'xpi-ts/lib/lokad'
 import assert from 'assert'
+import type { WxtStorageItem } from 'wxt/storage'
 import { AuthorizationHeader } from '../modules/instance'
 const { defineItem, setItem, setItems, getItem, getItems } = storage
 // Storage value types
@@ -9,14 +10,12 @@ type WxtStorageValueBoolean = boolean
 type WxtStorageValueDate = Date
 type WxtStorageValueObject = BlockDataSig
 // Storage item definition types
-type WxtStorageItemString = ReturnType<typeof defineItem<WxtStorageValueString>>
-type WxtStorageItemNumber = ReturnType<typeof defineItem<WxtStorageValueNumber>>
-type WxtStorageItemBoolean = ReturnType<
-  typeof defineItem<WxtStorageValueBoolean>
->
-type WxtStorageItemDate = ReturnType<typeof defineItem<WxtStorageValueDate>>
-type WxtStorageItemObject = ReturnType<typeof defineItem<WxtStorageValueObject>>
-type WxtStorageItem =
+type WxtStorageItemString = WxtStorageItem<WxtStorageValueString, Record<string, unknown>>
+type WxtStorageItemNumber = WxtStorageItem<WxtStorageValueNumber, Record<string, unknown>>
+type WxtStorageItemBoolean = WxtStorageItem<WxtStorageValueBoolean, Record<string, unknown>>
+type WxtStorageItemDate = WxtStorageItem<WxtStorageValueDate, Record<string, unknown>>
+type WxtStorageItemObject = WxtStorageItem<WxtStorageValueObject, Record<string, unknown>>
+type WxtStorageItemUnion =
   | WxtStorageItemString
   | WxtStorageItemNumber
   | WxtStorageItemBoolean
@@ -49,7 +48,7 @@ export type ExtensionInstance = {
 }
 
 class InstanceStore {
-  private wxtStorageItems: Record<keyof ExtensionInstance, WxtStorageItem>
+  private wxtStorageItems: Record<keyof ExtensionInstance, WxtStorageItemUnion>
   /** Key is in format: <platform>:<profileId>:<postId> */
   private postMetaCache: Map<string, PostMeta>
   /** Key is in format: <platform>:<profileId> */
