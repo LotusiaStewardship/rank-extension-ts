@@ -358,352 +358,212 @@ onMounted(() => {
 })
 </script>
 <template>
-  <div class="py-2 px-6">
-    <!-- Extension Settings Section -->
-    <h4 class="pb-2 dark:text-white">
-      Settings
-    </h4>
-    <p>
-      Customize your Lotusia experience and manage your Lotus wallet
-    </p>
-
+  <div class="p-4 space-y-6">
     <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
     <template v-else>
-      <!-- Lotusia Reputation Section -->
-      <div class="mb-4">
-        <h5 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Social Media</h5>
-        <hr class="border-gray-200 dark:border-gray-600 mb-2">
+      <!-- Social Media Section -->
+      <div class="bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 space-y-4">
+        <div>
+          <h4 class="text-base font-semibold text-gray-900 dark:text-white">Social Media</h4>
+          <div class="border-t border-gray-200 dark:border-gray-700 mt-1.5" />
+        </div>
 
         <!-- Vote Amount Setting -->
-        <div class="py-2">
-          <div class="flex items-center gap-2 mb-2">
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-gray-900 dark:text-white">Vote Amount (XPI)</label>
-            <!-- Saved indicator -->
             <span v-if="showVoteAmountSaved"
-              class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-              Saved</span>
+              class="saved-indicator text-xs"
+              style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
           </div>
           <Input id="vote-amount" v-model="voteAmount" type="number" min="1" step="1"
             placeholder="Enter vote amount in XPI" class="h-9"
-            :class="{ 'border-red-500 dark:border-red-400': voteAmountError }"
+            :class="{ 'border-red-500 dark:border-red-400 ring-red-500/20': voteAmountError }"
             @blur="saveVoteAmount" />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
             How much Lotus do you want to burn with each vote? (Default: 100 XPI)
           </p>
-          <p v-show="voteAmountError" class="text-red-500 dark:text-red-400">
+          <p v-show="voteAmountError" class="text-xs text-red-500 dark:text-red-400 font-medium">
             {{ voteAmountError }}
           </p>
         </div>
 
         <!-- Auto Blur Posts Setting -->
-        <div class="py-2">
-          <div class="flex items-center justify-between">
-            <div class="pr-4">
-              <div class="flex items-center gap-2 mb-1">
-                <label class="text-sm font-medium text-gray-900 dark:text-white">Blur Low-Value Content</label>
-                <!-- Saved indicator -->
-                <span v-if="showAutoBlurPostsSaved"
-                  class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-                  Saved</span>
-              </div>
-              <p class="text-gray-500 dark:text-gray-400">
-                If enabled, will blur content that is ranked below 0 XPI (Default: On)
-              </p>
+        <div class="flex items-center justify-between py-1">
+          <div class="flex-1 pr-4 space-y-0.5">
+            <div class="flex items-center gap-2">
+              <label class="text-sm font-medium text-gray-900 dark:text-white">Blur Low-Value Content</label>
+              <span v-if="showAutoBlurPostsSaved"
+                class="saved-indicator text-xs"
+                style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
             </div>
-            <Switch v-model="autoBlurPosts" @update:model-value="saveAutoBlurPosts" class="data-[state=checked]:bg-purple-600" />
+            <p class="text-xs text-gray-500 dark:text-gray-400">If enabled, will blur content that is ranked below 0 XPI (Default: On)</p>
           </div>
+          <Switch v-model="autoBlurPosts" @update:model-value="saveAutoBlurPosts"
+            class="shrink-0 switch-purple" />
         </div>
 
         <!-- Auto Hide Profiles Setting -->
-        <div class="py-2">
-          <div class="flex items-center justify-between">
-            <div class="pr-4">
-              <div class="flex items-center gap-2 mb-1">
-                <label class="text-sm font-medium text-gray-900 dark:text-white">Hide Low-Value Creators</label>
-                <!-- Saved indicator -->
-                <span v-if="showAutoHideProfilesSaved"
-                  class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-                  Saved</span>
-              </div>
-              <p class="text-gray-500 dark:text-gray-400">
-                If enabled, content from creators will automatically be hidden if their reputation is below the
-                specified threshold (Default: On)
-              </p>
+        <div class="flex items-center justify-between py-1">
+          <div class="flex-1 pr-4 space-y-0.5">
+            <div class="flex items-center gap-2">
+              <label class="text-sm font-medium text-gray-900 dark:text-white">Hide Low-Value Creators</label>
+              <span v-if="showAutoHideProfilesSaved"
+                class="saved-indicator text-xs"
+                style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
             </div>
-            <Switch v-model="autoHideProfiles" @update:model-value="saveAutoHideProfiles" class="data-[state=checked]:bg-purple-600" />
+            <p class="text-xs text-gray-500 dark:text-gray-400">If enabled, content from creators will automatically be hidden if their reputation is below the specified threshold (Default: On)</p>
           </div>
+          <Switch v-model="autoHideProfiles" @update:model-value="saveAutoHideProfiles"
+            class="shrink-0 switch-purple" />
         </div>
 
-        <!-- Auto Hide Threshold Setting (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
-          <div class="pl-3">
-            <div class="flex items-center gap-2 mb-1">
+        <!-- Auto Hide Sub-settings (only shown when auto hide profiles is enabled) -->
+        <div v-show="autoHideProfiles" class="ml-4 pl-3 border-l border-gray-200 dark:border-gray-700 space-y-4">
+          <!-- Auto Hide Threshold Setting -->
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
               <label class="text-sm font-medium text-gray-900 dark:text-white">Rank Threshold (XPI)</label>
-              <!-- Saved indicator -->
               <span v-if="showAutoHideThresholdSaved"
-                class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-                Saved</span>
+                class="saved-indicator text-xs"
+                style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
             </div>
             <Input id="auto-hide-threshold" v-model="autoHideThreshold" type="number"
               placeholder="Enter threshold amount in XPI" class="h-9" @blur="saveAutoHideThreshold" />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Creators will be considered low-value if their XPI ranking is below this threshold (Default:
-              -5,000 XPI)
-            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Creators will be considered low-value if their XPI ranking is below this threshold (Default: -5,000 XPI)</p>
           </div>
-        </div>
 
-        <!-- Auto Hide Threshold for Positive Vote Ratio (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
-          <div class="pl-3">
-            <div class="flex items-center justify-between">
-              <div class="pr-4 pb-2">
-                <div class="flex items-center gap-2 mb-1">
+          <!-- Auto Hide Positive Vote Toggle & Threshold -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between py-1">
+              <div class="flex-1 pr-4 space-y-0.5">
+                <div class="flex items-center gap-2">
                   <label class="text-sm font-medium text-gray-900 dark:text-white">Reputation Threshold</label>
-                  <!-- Saved indicator -->
-                  <span v-if="showAutoHidePositiveVoteThresholdSaved"
-                    class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-                    Saved</span>
+                  <span v-if="showAutoHidePositiveVoteToggleSaved"
+                    class="saved-indicator text-xs"
+                    style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  If enabled, creators will be considered low-value if their reputation is below the selected
-                  threshold
-                  (Default: On)
-                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">If enabled, creators will be considered low-value if their reputation is below the selected threshold (Default: On)</p>
               </div>
               <Switch v-model="autoHidePositiveVoteToggle"
-                @update:model-value="saveAutoHidePositiveVoteToggle" class="data-[state=checked]:bg-purple-600" />
+                @update:model-value="saveAutoHidePositiveVoteToggle"
+                class="shrink-0 switch-purple" />
             </div>
-            <div class="p-2">
-              <div class="flex justify-between items-start">
-                <!-- Template profile avatars with sentiment badges - clickable selection -->
-                <div v-for="threshold in [50, 60, 70, 80, 90]" :key="threshold"
-                  class="template-avatar-container flex flex-col items-center">
-                  <div class="template-avatar avatar-reputation cursor-pointer transition-all duration-200"
-                    :class="{ 'avatar-selected': autoHidePositiveVoteThreshold === threshold, 'greyed-out': !autoHidePositiveVoteToggle }"
-                    :data-vote-ratio="threshold.toString()"
-                    @click="updateAutoHidePositiveVoteThreshold(threshold.toString())">
-                    <div class="template-avatar-image flex items-center justify-center">
-                      <span class="text-xs font-semibold text-white dark:text-white ">
-                        {{ threshold }}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+
+            <!-- Threshold selection pills -->
+            <div class="flex gap-2 flex-wrap items-center">
+              <button v-for="threshold in [50, 60, 70, 80, 90]" :key="threshold"
+                type="button"
+                :class="[
+                  'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+                  autoHidePositiveVoteThreshold === threshold
+                    ? 'text-white border-transparent'
+                    : 'text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-400 hover:text-gray-900 dark:hover:text-white',
+                  !autoHidePositiveVoteToggle ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
+                ]"
+                :style="autoHidePositiveVoteThreshold === threshold ? { backgroundColor: 'hsl(var(--secondary))', borderColor: 'hsl(var(--secondary))' } : {}"
+                @click="updateAutoHidePositiveVoteThreshold(threshold.toString())">
+                {{ threshold }}%
+              </button>
+              <span v-if="showAutoHidePositiveVoteThresholdSaved"
+                class="saved-indicator text-xs"
+                style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
             </div>
           </div>
-        </div>
 
-        <!-- Auto Hide If Downvoted Setting (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
-          <div class="pl-3">
-            <div class="flex items-center justify-between">
-              <div class="pr-4">
-                <div class="flex items-center gap-2 mb-1">
-                  <label class="text-sm font-medium text-gray-900 dark:text-white">Only Hide if We
-                    Downvoted</label>
-                  <!-- Saved indicator -->
-                  <span v-if="showAutoHideIfDownvotedSaved"
-                    class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
-                    Saved</span>
-                </div>
-                <p class="text-gray-500 dark:text-gray-400">
-                  Low-value creators will only be hidden if we have downvoted them with this Lotus wallet
-                </p>
+          <!-- Auto Hide If Downvoted Setting -->
+          <div class="flex items-center justify-between py-1">
+            <div class="flex-1 pr-4 space-y-0.5">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-900 dark:text-white">Only Hide if We Downvoted</label>
+                <span v-if="showAutoHideIfDownvotedSaved"
+                  class="saved-indicator text-xs"
+                  style="color: hsl(var(--secondary)); animation: fadeInOut 500ms ease-in-out;">✓ Saved</span>
               </div>
-              <Switch v-model="autoHideIfDownvoted"
-                @update:model-value="saveAutoHideIfDownvoted" class="data-[state=checked]:bg-purple-600" />
+              <p class="text-xs text-gray-500 dark:text-gray-400">Low-value creators will only be hidden if we have downvoted them with this Lotus wallet</p>
             </div>
+            <Switch v-model="autoHideIfDownvoted"
+              @update:model-value="saveAutoHideIfDownvoted"
+              class="shrink-0 switch-purple" />
           </div>
         </div>
       </div>
 
       <!-- Wallet Management Section -->
-      <div class="mb-4">
-        <h5 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Wallet Management</h5>
-        <hr class="border-gray-200 dark:border-gray-600 mb-2">
+      <div class="bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 space-y-4">
+        <div>
+          <h4 class="text-base font-semibold text-gray-900 dark:text-white">Wallet Management</h4>
+          <div class="border-t border-gray-200 dark:border-gray-700 mt-1.5" />
+        </div>
 
-        <!-- Wallet Section -->
-        <div class="py-2">
+        <!-- Seed phrase reveal area -->
+        <div class="space-y-1.5">
           <label class="text-sm font-medium text-gray-900 dark:text-white">Reveal / Hide Wallet Password</label>
           <Textarea :rows="2" placeholder="" v-model="existingSeedPhrase" readonly class="mt-1" />
-          <p class="text-red-500 dark:text-red-300 text-sm mt-1">IMPORTANT: This password is your Lotus wallet. YOU CANNOT
-            RECOVER
-            THIS PASSWORD IF YOU LOSE IT. Keep it safe; memorize it. DO NOT share
-            with anyone you would not trust with your bank account.
+        </div>
+
+        <div class="rounded-md border p-3"
+          style="border-color: hsla(var(--destructive), 0.3); background-color: hsla(var(--destructive), 0.05);">
+          <p class="text-xs font-medium" style="color: hsl(var(--destructive));">
+            IMPORTANT: This password is your Lotus wallet. YOU CANNOT RECOVER THIS PASSWORD IF YOU LOSE IT.
+            Keep it safe; memorize it. DO NOT share with anyone you would not trust with your bank account.
           </p>
         </div>
-        <div class="py-2">
+
+        <div>
           <Button variant="outline" size="sm"
-            class="text-pink-600 border-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:border-pink-400 dark:hover:bg-pink-950"
+            style="color: hsl(var(--secondary)); border-color: hsl(var(--secondary));"
             @click="toggleExistingSeedPhrase">
-            {{
-              existingSeedPhrase ? 'Hide wallet password' : 'Reveal wallet password'
-            }}
+            {{ existingSeedPhrase ? 'Hide wallet password' : 'Reveal wallet password' }}
           </Button>
         </div>
-        <div class="py-2">
+
+        <div class="space-y-1.5">
           <label class="text-sm font-medium text-gray-900 dark:text-white">Restore Lotus Wallet</label>
           <Textarea :rows="2" placeholder="Input your wallet password here and click Restore Wallet"
             v-model="restoreSeedPhrase" class="mt-1" />
         </div>
-        <div class="py-2 flex justify-between items-center gap-2">
+
+        <div class="flex justify-between items-center gap-2">
           <Button :disabled="!isRestoreFormDataValid" variant="outline" size="sm"
-            class="text-pink-600 border-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:border-pink-400 dark:hover:bg-pink-950"
+            style="color: hsl(var(--secondary)); border-color: hsl(var(--secondary));"
             @click="handleRestoreSeedPhrase">Restore&nbsp;Wallet</Button>
           <div class="flex items-center gap-2" v-show="isRestoreSeedPhraseValid">
-            <input type="checkbox" id="overwrite-seed-phrase" v-model="overwriteSeedPhrase" />
-            <label for="overwrite-seed-phrase" class="text-red-500 dark:text-red-300">WARNING: This will
+            <input type="checkbox" id="overwrite-seed-phrase" v-model="overwriteSeedPhrase"
+              style="accent-color: hsl(var(--secondary));" />
+            <label for="overwrite-seed-phrase" style="color: hsl(var(--destructive));" class="text-xs font-medium">WARNING: This will
               overwrite your existing wallet. Proceed?</label>
           </div>
         </div>
       </div>
-
     </template>
   </div>
 </template>
-<style lang="css">
-.pb-2 {
-  padding-bottom: 0.5rem;
-}
 
-.greyed-out {
-  opacity: 0.5;
-  pointer-events: none;
-  filter: grayscale(100%);
-  cursor: not-allowed;
-}
-
-.saved-indicator {
-  display: inline-block !important;
-  animation: fadeInOut 500ms ease-in-out;
-}
-
+<style lang="css" scoped>
 @keyframes fadeInOut {
   0% {
     opacity: 1;
   }
-
   80% {
     opacity: 1;
   }
-
   100% {
     opacity: 0;
   }
 }
 
-/* Template avatar styles */
-.template-avatar-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Ensure Switch checked state uses purple accent via CSS variable */
+.switch-purple[data-state="checked"] {
+  background-color: hsl(var(--secondary)) !important;
 }
 
-.template-avatar {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  /* overflow: hidden; */
+/* Style unchecked track to be visible in dark mode */
+.switch-purple[data-state="unchecked"] {
+  background-color: hsl(var(--input));
 }
 
-.template-avatar-image {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-}
-
-/* Avatar selection indicator */
-.template-avatar.avatar-selected:not(.greyed-out) {
-  transform: scale(1.15);
-  cursor: default;
-}
-
-.template-avatar.avatar-selected:not(.greyed-out) .template-avatar-image {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-}
-
-/* Avatar reputation badge colors for template avatars */
-.template-avatar.avatar-reputation {
-  position: relative;
-}
-
-.template-avatar.avatar-reputation::after {
-  content: '';
-  position: absolute;
-  left: 0%;
-  top: 0%;
-  height: 25%;
-  width: 25%;
-  border-radius: 50%;
-  outline: 0.15rem solid;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --sentiment-90: rgb(5 223 114);
-    --sentiment-80: rgb(154 230 0);
-    --sentiment-70: rgb(253 199 0);
-    --sentiment-60: rgb(255 185 0);
-    --sentiment-50: rgb(255 137 4);
-  }
-
-  .template-avatar.avatar-reputation::after {
-    outline-color: rgb(31 41 55);
-  }
-
-  .template-avatar.avatar-selected:not(.greyed-out) {
-    box-shadow: 0 0 0 0.1rem rgba(236, 202, 235, 0.5);
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --sentiment-90: rgb(0 201 80);
-    --sentiment-80: rgb(124 207 0);
-    --sentiment-70: rgb(240 177 0);
-    --sentiment-60: rgb(254 154 0);
-    --sentiment-50: rgb(255 105 0);
-  }
-
-  .template-avatar.avatar-reputation::after {
-    outline-color: white;
-  }
-
-  .template-avatar.avatar-selected:not(.greyed-out) {
-    box-shadow: 0 0 0 0.1rem rgba(237, 53, 203, 0.5);
-  }
-}
-
-div[class*='avatar-reputation'] {
-  position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-  }
-
-  &[data-vote-ratio='50']::after {
-    background: var(--sentiment-50);
-  }
-
-  &[data-vote-ratio='60']::after {
-    background: var(--sentiment-60);
-  }
-
-  &[data-vote-ratio='70']::after {
-    background: var(--sentiment-70);
-  }
-
-  &[data-vote-ratio='80']::after {
-    background: var(--sentiment-80);
-  }
-
-  &[data-vote-ratio='90']::after {
-    background: var(--sentiment-90);
-  }
-}
-</style>
+/* Saved indicator inline animation */
+.saved-indicator {
+  display: inline-block;
+}</style>
