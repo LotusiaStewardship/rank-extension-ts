@@ -5,7 +5,7 @@ import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
 import type { Ref, ShallowRef } from 'vue'
 import type { Unwatch as UnwatchFunction } from 'wxt/utils/storage'
-import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
+import type { ScriptChunkPlatformUTF8 } from 'xpi-ts/lib/lokad'
 import type { AuthorizationHeader, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
 /** Modules */
 import { InstanceTools } from '@/entrypoints/background/modules/instance'

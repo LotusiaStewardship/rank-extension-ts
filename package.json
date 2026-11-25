@@ -12,6 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "vue-tsc --noEmit",
+    "typecheck": "node scripts/typecheck.mjs",
     "postinstall": "wxt prepare"
   },
   "dependencies": {

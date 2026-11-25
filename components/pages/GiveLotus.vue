@@ -47,9 +47,10 @@ const outValueValidationStatus = computed(() => {
   if (outValueStr.includes('.')) {
     // split float precision
     const [int, float] = outValueStr.split('.')
-    if (float.length > WALLET_LOTUS_DECIMAL_PRECISION) {
+    // `float` is defined: the `includes('.')` guard means `split('.')` returned two parts
+    if (float!.length > WALLET_LOTUS_DECIMAL_PRECISION) {
       // truncate input field value
-      const floatTrunc = float.slice(0, WALLET_LOTUS_DECIMAL_PRECISION)
+      const floatTrunc = float!.slice(0, WALLET_LOTUS_DECIMAL_PRECISION)
       outValue.value = `${int}.${floatTrunc}`
       return
     }

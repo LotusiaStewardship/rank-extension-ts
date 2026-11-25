@@ -1,0 +1,32 @@
+{
+  "allowlist": [
+    {
+      "file": "entrypoints/twitter.content/index.ts",
+      "code": "TS2532",
+      "message": "Object is possibly 'undefined'.",
+      "count": 1,
+      "reason": "index.ts:440 reads `row[0]` after only warning on an empty `row`: the `!row.length` guard logs and continues instead of returning, so the element is not provably defined and today a missing row still crashes on `cloneNode`. Whether to bail out cleanly the way the DEV-400 page-root fix does, or keep the current crash, is a behaviour decision that has not been made."
+    },
+    {
+      "file": "entrypoints/twitter.content/index.ts",
+      "code": "TS2769",
+      "message": "No overload matches this call.",
+      "count": 1,
+      "reason": "index.ts:918 calls `$(downvoteButton)` where only `voteButtons[0]` is guaranteed by the `voteButtons.length < 1` guard; `voteButtons[1]` is not provably defined (a row could carry a single button). Today `$(undefined)` builds an empty jQuery set and `.attr` is a no-op; deciding between keeping that silent no-op and handling a missing downvote button explicitly is a behaviour decision that has not been made."
+    },
+    {
+      "file": "entrypoints/twitter.content/index.ts",
+      "code": "TS2339",
+      "message": "Property 'attr' does not exist on type 'JQueryStatic'.",
+      "count": 1,
+      "reason": "Same site as the TS2769 entry: because no `$()` overload accepts the possibly-undefined `voteButtons[1]` (index.ts:918), the call falls back to type `JQueryStatic` and loses `.attr`. Fixing it requires the same missing-downvote-button behaviour decision described there."
+    },
+    {
+      "file": "entrypoints/twitter.content/index.ts",
+      "code": "TS2345",
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.",
+      "count": 9,
+      "reason": "profileId and postId are parsed positionally out of page URLs: `avatarLink.attr('href')!.split('/')[1]` (index.ts:~1015, sites at 1025 and 1029) and the `[, profileId, , postId]` destructure of an href or `window.location.pathname` split (index.ts:~1090, sites at 1103, 1109, 1115, 1116, 1117, 1147, 1148). A malformed URL makes any part undefined, and the code itself defers the question with 'TODO: validate the data we parsed'. What should happen when a part is missing is that pending validation decision, so the nine argument errors stay exempt until it is made."
+    }
+  ]
+}

@@ -198,7 +198,7 @@ export default defineContentScript({
      *  been found (see the Runtime Activation section); the closures below all execute after
      *  that assignment.
      */
-    let DOCUMENT_ROOT: JQuery<HTMLElement>
+    let DOCUMENT_ROOT: JQuery<Element>
     /**
      *  Host-page effects
      */
@@ -905,7 +905,8 @@ export default defineContentScript({
           }
           const [upvoteButton, downvoteButton] = voteButtons
           if (postMeta?.hasWalletUpvoted) {
-            $(upvoteButton).attr('aria-label', 'Upvoted')
+            // `upvoteButton` is defined: the `voteButtons.length < 1` guard above returned otherwise
+            $(upvoteButton!).attr('aria-label', 'Upvoted')
           }
           if (votesPositive > 0) {
             const upvoteSpan = $('span', upvoteButton).last()
@@ -945,8 +946,9 @@ export default defineContentScript({
      * @returns
      */
     function setProfileAvatarBadge(avatar: JQuery<HTMLElement>) {
+      // `avatar[0]` is defined below: every caller passes a jQuery set built from an element that exists
       const elementWidth = Number(
-        avatar?.css('width').replace('px', '') ?? `${avatar[0].offsetWidth}`,
+        avatar?.css('width').replace('px', '') ?? `${avatar[0]!.offsetWidth}`,
       )
       // find the available element width in the style or the div element
       //const elementWidth = avatar?.style?.width || `${avatar?.offsetWidth}px`
@@ -982,8 +984,9 @@ export default defineContentScript({
         newClassName = `profile-avatar-reputation`
       }
       // set or replace the badge class on the avatar element
+      // `avatar[0]` is defined for the same reason as above
       return className.length
-        ? avatar[0].classList.replace(className[0], newClassName)
+        ? avatar[0]!.classList.replace(className[0], newClassName)
         : avatar?.addClass(newClassName)
     }
     /**
