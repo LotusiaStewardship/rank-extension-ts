@@ -1,0 +1,8 @@
+/*
+ * The documented plain-Vue consumption chain, and nothing else. Tailwind first so the theme's
+ * `@theme` mapping and the ui package's `@source` registration land in the same pass, then the
+ * token contract, then the component stylesheet entry (branding README, install path).
+ */
+@import "tailwindcss";
+@import "@lotusia/theme";
+@import "@lotusia/ui/base.css";

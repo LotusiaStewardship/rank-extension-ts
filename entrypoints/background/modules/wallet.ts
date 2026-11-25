@@ -1174,4 +1174,5 @@ class WalletManager {
   }
 }
 
-export { WalletManager, WalletBuilder, WalletTools, UtxoCache }
+export { WalletManager, WalletBuilder, WalletTools }
+export type { UtxoCache }

@@ -1,4 +1,4 @@
-import { AuthorizationHeader } from '@/entrypoints/background/modules/instance'
+import type { AuthorizationHeader } from '@/entrypoints/background/modules/instance'
 import type { UtxoCache } from '@/entrypoints/background/modules/wallet'
 import type {
   ExtensionInstance,
