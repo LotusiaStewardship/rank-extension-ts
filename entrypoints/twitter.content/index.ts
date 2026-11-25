@@ -110,6 +110,41 @@ type RankAPIErrorResult = {
 }
 type StateKey = 'postIdBusy' | 'postUpdateTimeout' | 'postUpdateInterval'
 type AvatarElementType = 'message' | 'other'
+/**
+ * Wait for `selector` to appear in the document, bounded by `timeoutMs`.
+ *
+ * The content script runs at `document_end`, which guarantees the DOM has finished parsing but
+ * not that the page's root element exists yet: on a live timeline `$('div#react-root')` has been
+ * observed to return an empty set, and the old startup path then called
+ * `MutationObserver.observe(undefined, ...)`, which crashed the entire content script (DEV-400).
+ * Returns the element, or `null` when the timeout expires, so the caller can bail out with a
+ * diagnosable error instead.
+ */
+function waitForSelector(
+  selector: string,
+  timeoutMs = 15_000
+): Promise<Element | null> {
+  return new Promise(resolve => {
+    const existing = document.querySelector(selector)
+    if (existing) {
+      resolve(existing)
+      return
+    }
+    const observer = new MutationObserver(() => {
+      const match = document.querySelector(selector)
+      if (match) {
+        observer.disconnect()
+        clearTimeout(timer)
+        resolve(match)
+      }
+    })
+    observer.observe(document.documentElement, { childList: true, subtree: true })
+    const timer = setTimeout(() => {
+      observer.disconnect()
+      resolve(null)
+    }, timeoutMs)
+  })
+}
 /** Browser runs this when the configured `runAt` stage is reached */
 export default defineContentScript({
   matches: ['https://*.x.com/*', 'https://x.com/*'],
@@ -158,8 +193,12 @@ export default defineContentScript({
     const OVERLAY_UIS = new WeakMap<HTMLElement, OverlayUi>()
     /** Id of the `<style>` element carrying the host-page effects stylesheet in `document.head` */
     const HOST_EFFECTS_STYLE_ID = 'lotusia-rank-host-effects'
-    /** Primary document root where mutations are observed */
-    const DOCUMENT_ROOT = $(SELECTOR.Container.div.root)
+    /**
+     *  Primary document root where mutations are observed. Assigned once the root element has
+     *  been found (see the Runtime Activation section); the closures below all execute after
+     *  that assignment.
+     */
+    let DOCUMENT_ROOT: JQuery<HTMLElement>
     /**
      *  Host-page effects
      */
@@ -572,8 +611,20 @@ export default defineContentScript({
       added: new AddedMutator(),
       removed: new RemovedMutator(),
     }
+    // The root element is not guaranteed to exist at `document_end` (see `waitForSelector`),
+    // and every step below depends on it. Wait bounded for it; when it never appears, leave
+    // the page untouched and exit cleanly rather than crashing on `observe(undefined, ...)`
+    // (DEV-400). The selector is named in the error so a stale selector is diagnosable.
+    const rootNode = await waitForSelector(SELECTOR.Container.div.root)
+    if (!rootNode) {
+      console.error(
+        `[rank] the page root (${SELECTOR.Container.div.root}) never appeared; the content script cannot attach to this page`
+      )
+      return
+    }
+    DOCUMENT_ROOT = $(rootNode)
     console.log('connecting react-root observer')
-    new MutationObserver(handleRootMutations).observe(DOCUMENT_ROOT[0], {
+    new MutationObserver(handleRootMutations).observe(rootNode, {
       childList: true,
       subtree: true,
       attributeFilter: ['data-ranking', 'data-testid', 'href'],
