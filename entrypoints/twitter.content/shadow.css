@@ -1,0 +1,25 @@
+/**
+ * Copyright 2025 The Lotusia Stewardship
+ * Github: https://github.com/LotusiaStewardship
+ * License: MIT
+ */
+
+/**
+ * The overlay widget's shadow stylesheet (Shadow Overlay context, ADR-006).
+ *
+ * This is the only stylesheet the content entrypoint imports, so with `cssInjectionMode: 'ui'`
+ * WXT compiles everything from here into the content script's CSS bundle and injects it INTO
+ * the shadow root at mount, rewriting document-root selectors to `:host` on the way in.
+ * Nothing from this file reaches the host document, which is what makes Tailwind's Preflight
+ * safe here: the reset applies inside the boundary only (ADR-006). Host-page effects live in
+ * `host-effects.css`, which is injected into `document.head` as a plain string instead.
+ *
+ * The chain is the documented plain-Vue consumption chain, the same one
+ * `entrypoints/popup/app.css` carries: Tailwind first so the theme's `@theme` mapping and the
+ * ui package's `@source` registration land in the same pass, then the token contract, then the
+ * component stylesheet entry. Tokens resolve inside the boundary because `@lotusia/theme`
+ * emits them on the shadow host as well as the document root (ADR-003).
+ */
+@import "tailwindcss";
+@import "@lotusia/theme";
+@import "@lotusia/ui/base.css";

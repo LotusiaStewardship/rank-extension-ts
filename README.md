@@ -33,7 +33,7 @@ Posts that have accummulated a negative reputation (i.e. more downvotes than upv
 
 ## Styling
 
-The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotusia/ui`, both pinned at exactly `0.3.0`. `entrypoints/popup/app.css` carries the documented plain-Vue import chain and nothing else:
+The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotusia/ui`, both pinned at exactly `0.4.0`. `entrypoints/popup/app.css` carries the documented plain-Vue import chain and nothing else:
 
 ```css
 @import "tailwindcss";
@@ -42,3 +42,16 @@ The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotus
 ```
 
 Tailwind v4 (via `@tailwindcss/vite` in `wxt.config.ts`) needs no config file, and the old committed `entrypoints/popup/style.css` build artifact is gone: the build writes compiled CSS into `.output/` only. Flowbite and flowbite-vue have been removed; the popup uses plain markup, the model's semantic roles (`bg-surface`, `text-content`, `text-primary-text`, and friends), and the `L*` primitives (`LApp`, `LBadge`, `LCard`, `LKeyValue`, `LStat`, `LPageHeader`, `LContainer`, `LLink`) imported from `@lotusia/ui`.
+
+## Overlay
+
+The blurred-post widget on x.com is injected UI, a bounded context with inverted rules (branding ADR-006). It is mounted inside its own shadow root through WXT's `createShadowRootUi` with `cssInjectionMode: 'ui'` and `isolateEvents: true`, one mount per blurred post. The shadow root guarantees isolation in both directions: no style of ours reaches the host page (Tailwind's Preflight, carried by the chain below, applies inside the boundary only), and no style of the host page reaches the widget. Tokens resolve inside the boundary because `@lotusia/theme` emits them on the shadow host as well as the document root (ADR-003), and `overlayTeleportTarget()` creates one sanctioned portal destination inside the boundary per mount, though nothing portals today.
+
+The content script's stylesheets have two jobs with opposite rules, so there are two files in `entrypoints/twitter.content/`:
+
+- `shadow.css` is the only stylesheet the entrypoint imports. With `cssInjectionMode: 'ui'` its compiled output is injected into the shadow root, never into the document. It carries the same chain as the popup: `@import "tailwindcss"`, `@import "@lotusia/theme"`, and `@import "@lotusia/ui/base.css"`.
+- `host-effects.css` styles x.com's own DOM (post hiding, post blur, vote button colouring, avatar reputation badges), so it cannot live inside the shadow root. It is injected into `document.head` as a plain string at startup, guarded by an element id so a re-entered content script does not add a second copy. It is deliberately not a normal import, because with `cssInjectionMode: 'ui'` every imported stylesheet goes into the shadow root instead. It carries no Tailwind, no Preflight, and no reset.
+
+Because the host page owns its own variable names, `host-effects.css` declares nothing on the document root: every custom property is prefixed `--rank-` and is declared on the extension-owned rules that consume it. The model's token names (`--surface`, `--content`, `--border`) stay inside the boundary.
+
+The widget (`BlurredPostOverlay.vue`) composes only components from `OVERLAY_SUBSET` of `@lotusia/ui` (today `LBadge`) over a plain `<button>` element, themed with the model's semantic roles and radii; the base contract's focus ring comes from `@lotusia/ui/base.css` in the same shadow root. Its click routes to the same reveal handler as before, so unblurring works exactly as it did.
