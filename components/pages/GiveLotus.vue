@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** Vue components */
-import { FwbButton, FwbInput, FwbHeading } from 'flowbite-vue'
+import { LPageHeader } from '@lotusia/ui'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import GiveLotusResult from '@/components/pages/give/GiveLotusResult.vue'
 import GiveLotusEmptyWallet from '@/components/pages/give/GiveLotusEmptyWallet.vue'
@@ -113,52 +113,64 @@ async function openScanner() {
 
 <template>
   <div class="py-2 px-6">
-    <FwbHeading color="dark:text-white" tag="h4">Give Lotus</FwbHeading>
+    <LPageHeader>
+      <template #title>
+        <h4>Give Lotus</h4>
+      </template>
+    </LPageHeader>
     <GiveLotusEmptyWallet v-if="spendableBalance === '0'" />
     <!-- <GiveLotusConsolidateWallet v-else-if="needsUtxoConsolidation" /> -->
     <template v-else>
       <!-- Friend's Lotus address -->
       <div class="py-2 flex">
         <div class="flex-grow">
-          <FwbInput v-model="outAddress" :disabled="processing" :validation-status="outAddressValidationStatus"
-            label="Friend's Lotus address">
-            <template #helper>
-              Copy and paste your friend's Lotus address here
-              <!--, or click/tap the
-            camera button to scan their QR code-->
-            </template>
-            <!--
-          <template #suffix>
-            <div class="flex-grow right-0">
-              <AddressScanButton @click="openScanner" />
-            </div>
-          </template>
-          -->
-          </FwbInput>
+          <label for="give-address" class="block text-sm font-medium text-content">Friend's Lotus address</label>
+          <input id="give-address" v-model="outAddress" type="text" :disabled="processing"
+            class="mt-1 w-full rounded-lg border bg-surface px-3 py-1.5 text-sm text-content disabled:opacity-50"
+            :class="outAddressValidationStatus === 'success'
+              ? 'border-success'
+              : outAddressValidationStatus === 'error'
+                ? 'border-danger'
+                : 'border-border-strong'" />
+          <p class="mt-1 text-xs text-content-muted">
+            Copy and paste your friend's Lotus address here
+            <!--, or click/tap the
+          camera button to scan their QR code-->
+          </p>
+          <!--
+        <div class="flex-grow right-0">
+          <AddressScanButton @click="openScanner" />
+        </div>
+        -->
         </div>
       </div>
       <!-- Amount of Lotus to Give -->
       <div class="py-2 flex">
         <div class="flex-grow">
-          <FwbInput v-model="outValue" :disabled="processing" :validation-status="outValueValidationStatus"
-            label="Amount of Lotus to Give" type="number">
-            <template #suffix>
-              <FwbButton disabled color="pink" :outline="true" size="md"
-                class="text-xs font-medium text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 dark:text-pink-400">
-                Give All
-              </FwbButton>
-            </template>
-          </FwbInput>
+          <label for="give-amount" class="block text-sm font-medium text-content">Amount of Lotus to Give</label>
+          <div class="relative mt-1">
+            <input id="give-amount" v-model="outValue" type="number" :disabled="processing"
+              class="w-full rounded-lg border bg-surface px-3 py-1.5 pr-24 text-sm text-content disabled:opacity-50"
+              :class="outValueValidationStatus === 'success'
+                ? 'border-success'
+                : outValueValidationStatus === 'error'
+                  ? 'border-danger'
+                  : 'border-border-strong'" />
+            <button type="button" disabled
+              class="absolute right-1 top-1 bottom-1 rounded-md border border-border-strong px-2 text-xs font-medium text-primary-text">
+              Give All
+            </button>
+          </div>
         </div>
       </div>
       <!-- Give Now button and spendable balance -->
       <div class="py-2 flex justify-between items-center">
         <div>
-          <FwbButton color="pink" size="sm" :disabled="!isInputDataValid || processing" :outline="true"
-            @click="giveLotus">
-            Give Now</FwbButton>
+          <button type="button" :disabled="!isInputDataValid || processing" @click="giveLotus"
+            class="rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-primary-text transition-colors hover:bg-surface-sunken disabled:pointer-events-none disabled:opacity-50">
+            Give Now</button>
         </div>
-        <div class="text-pink-500 dark:text-pink-300">
+        <div class="text-primary-text">
           <span class="text-sm">
             {{ spendableBalanceXPI }}.<span class="text-xs">{{ spendableBalanceDecimal }}</span>
             XPI spendable

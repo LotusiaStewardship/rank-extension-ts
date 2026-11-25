@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { FwbButton } from 'flowbite-vue'
 const emit = defineEmits(['register-instance'])
 </script>
 <template>
@@ -12,10 +11,14 @@ const emit = defineEmits(['register-instance'])
   </div>
   <div class="flex">
     <div class="block">
-      <FwbButton @click="emit('register-instance', true)">Yes</FwbButton>
+      <button type="button"
+        class="rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-primary-text transition-colors hover:bg-surface-sunken"
+        @click="emit('register-instance', true)">Yes</button>
     </div>
     <div class="block">
-      <FwbButton @click="emit('register-instance', false)">No</FwbButton>
+      <button type="button"
+        class="rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-primary-text transition-colors hover:bg-surface-sunken"
+        @click="emit('register-instance', false)">No</button>
     </div>
   </div>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LLink } from '@lotusia/ui'
 const props = defineProps<{
   txid: string | null
   error: string | null
@@ -10,9 +11,9 @@ const props = defineProps<{
   <div class="py-2">
     <template v-if="txid">
       <div
-        class="flex items-center p-4 mb-4 text-sm text-purple-800 border border-purple-5400 rounded bg-purple-50 dark:bg-gray-800 dark:text-purple-300 dark:border-purple-400"
+        class="flex items-center p-4 mb-4 text-sm text-content border border-success rounded bg-surface"
         role="alert">
-        <svg class="shrink-0 inline w-4 h-4 me-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+        <svg class="shrink-0 inline w-4 h-4 me-3 text-success" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
           fill="currentColor" viewBox="0 0 20 20">
           <path
             d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
@@ -20,13 +21,12 @@ const props = defineProps<{
         <span class="sr-only">Info</span>
         <div>
           <span class="font-medium">Lotus given successfully!</span>&nbsp;
-          <span>
-            (<a target="_blank" class="text-pink-500 dark:text-pink-300"
-              :href="DEFAULT_EXPLORER_URL + '/tx/' + txid">View technical details</a>)
+          <span class="text-content-muted">
+            (<LLink :href="DEFAULT_EXPLORER_URL + '/tx/' + txid" external>View technical details</LLink>)
           </span>
         </div>
         <button type="button"
-          class="ms-auto -mx-1.5 -my-1.5 bg-purple-50 text-purple-500 rounded focus:ring-2 focus:ring-purple-400 p-1.5 hover:bg-purple-200 inline-flex items-center justify-center h-8 w-8 dark:bg-gray-800 dark:text-purple-300"
+          class="ms-auto -mx-1.5 -my-1.5 text-content-muted hover:text-content rounded p-1.5 inline-flex items-center justify-center h-8 w-8"
           @click="$emit('reset')" aria-label="Close">
           <span class="sr-only">Close</span>
           <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
@@ -38,9 +38,9 @@ const props = defineProps<{
     </template>
     <template v-else-if="error">
       <div
-        class="flex items-center p-4 mb-4 text-sm text-purple-800 border border-purple-5400 rounded bg-purple-50 dark:bg-gray-800 dark:text-purple-300 dark:border-purple-400"
+        class="flex items-center p-4 mb-4 text-sm text-content border border-danger rounded bg-surface"
         role="alert">
-        <svg class="shrink-0 inline w-4 h-4 me-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+        <svg class="shrink-0 inline w-4 h-4 me-3 text-danger" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
           fill="currentColor" viewBox="0 0 20 20">
           <path
             d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
@@ -53,7 +53,7 @@ const props = defineProps<{
           </span>
         </div>
         <button type="button"
-          class="ms-auto -mx-1.5 -my-1.5 bg-purple-50 text-purple-500 rounded focus:ring-2 focus:ring-purple-400 p-1.5 hover:bg-purple-200 inline-flex items-center justify-center h-8 w-8 dark:bg-gray-800 dark:text-purple-300"
+          class="ms-auto -mx-1.5 -my-1.5 text-content-muted hover:text-content rounded p-1.5 inline-flex items-center justify-center h-8 w-8"
           @click="$emit('reset')" aria-label="Close">
           <span class="sr-only">Close</span>
           <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">

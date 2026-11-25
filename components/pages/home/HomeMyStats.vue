@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FwbHeading, FwbCard, FwbBadge } from 'flowbite-vue'
+import { LKeyValue, LStat } from '@lotusia/ui'
 /**
  * Local types
  */
@@ -23,6 +23,10 @@ const props = defineProps<{
  */
 const formattedTotalSats = computed(() => {
   return toMinifiedNumber(props.data?.totalSats || 0, 1_000_000)
+})
+
+const formattedTotalVotes = computed(() => {
+  return props.data?.totalVotes?.toLocaleString() || '0'
 })
 
 const formattedFirstSeen = computed(() => {
@@ -56,70 +60,28 @@ const activityDuration = computed(() => {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   return diffDays
 })
+
+/** The activity timeline rows, terms and descriptions as data */
+const activityItems = computed(() => [
+  { term: 'First Seen', description: formattedFirstSeen.value },
+  { term: 'Last Seen', description: formattedLastSeen.value },
+])
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- Main Stats Cards -->
     <div class="flex flex-row gap-4">
-      <!-- Burned Today Card -->
-      <div class="rounded-xl p-4 flex-1">
-        <div class="text-center">
-          <div class="text-3xl font-bold text-pink-600 dark:text-pink-300 mb-1">
-            {{ formattedTotalSats }} XPI
-          </div>
-          <div class="text-sm">
-            Burned Today
-          </div>
-        </div>
-      </div>
-
-      <!-- Total Votes Card -->
-      <div class="rounded-xl p-4 flex-1">
-        <div class="text-center">
-          <div class="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-1">
-            {{ data?.totalVotes?.toLocaleString() || 0 }}
-          </div>
-          <div class="text-sm">
-            Total Votes
-          </div>
-        </div>
-      </div>
+      <!-- Burned Today -->
+      <LStat class="flex-1" label="Burned Today" :value="formattedTotalSats" unit="XPI" />
+      <!-- Total Votes -->
+      <LStat class="flex-1" label="Total Votes" :value="formattedTotalVotes" />
     </div>
 
     <!-- Activity Timeline -->
-    <div class="rounded-xl p-6">
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            First Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ formattedFirstSeen }}
-          </div>
-        </div>
+    <LKeyValue :items="activityItems" />
 
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            Last Seen
-          </span>
-          <div class="bg-blue-200 dark:bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ formattedLastSeen }}
-          </div>
-        </div>
-
-        <!-- <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">
-            Activity Duration
-          </span>
-          <div class="bg-blue-600 text-xs px-3 py-1 rounded-lg">
-            {{ activityDuration }} days
-          </div>
-        </div> -->
-      </div>
-    </div>
-
-    <!-- Summary --><!-- 
+    <!-- Summary --><!--
     <div class="text-center py-2 px-6">
       <div class="text-sm leading-relaxed">
         You've been active for {{ activityDuration }} days with
