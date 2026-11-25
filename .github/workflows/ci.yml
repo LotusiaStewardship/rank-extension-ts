@@ -29,3 +29,24 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: npm run build
       - run: npm run build:firefox
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The design packages (@lotusia/*) are restricted npm packages (ADR-0005).
+      # setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
+      # into ~/.npmrc; npm expands it when the env var is set on the install
+      # step. The credential is the organization-level NPM_TOKEN, scoped to
+      # read access for the @lotusia registry; this workflow only references it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm run typecheck
