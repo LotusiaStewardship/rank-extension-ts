@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The design packages (@lotusia/*) are restricted npm packages (ADR-0005).
+      # The design packages (@lotusia/*) are restricted npm packages (branding ADR-0005).
       # setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
       # into ~/.npmrc; npm expands it when the env var is set on the install
       # step. The credential is the organization-level NPM_TOKEN, scoped to
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The design packages (@lotusia/*) are restricted npm packages (ADR-0005).
+      # The design packages (@lotusia/*) are restricted npm packages (branding ADR-0005).
       # setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
       # into ~/.npmrc; npm expands it when the env var is set on the install
       # step. The credential is the organization-level NPM_TOKEN, scoped to

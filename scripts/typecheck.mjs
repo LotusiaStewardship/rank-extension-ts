@@ -19,6 +19,9 @@
  *   node scripts/typecheck.mjs --self-test-unparseable
  *     feeds the verifier a fixture that exits non-zero with a foreign format
  *     and asserts the gate refuses to pass on it
+ *   node scripts/typecheck.mjs --self-test-incomplete
+ *     feeds the verifier a run that was killed after reporting only allowlisted
+ *     errors, and asserts the gate refuses to pass on it
  */
 
 import { spawnSync } from 'node:child_process'
@@ -39,6 +42,8 @@ const vueTscBin = path.join(root, 'node_modules', '.bin', 'vue-tsc')
 const DIAGNOSTIC = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
 /** vue-tsc's own total, e.g. `Found 12 errors in 3 files.` */
 const SUMMARY = /Found (\d+) error/
+/** A crash rather than a diagnostic: V8's fatal banners, or a frame inside Node itself. */
+const CRASH = /FATAL ERROR:|heap out of memory|^\s+at\s.*node:internal\//
 
 function fail(messages) {
   for (const message of messages) {
@@ -72,10 +77,11 @@ const keyOf = (file, code, message) => `${file}|${code}|${message}`
 
 /**
  * The single verifier for one vue-tsc run. Shared by the real gate and the
- * unparseable-output self-test so the refusal logic cannot drift apart.
- * Returns an array of failure messages (empty means pass).
+ * self-tests so the refusal logic cannot drift apart. Returns an array of
+ * failure messages (empty means pass). `killedBy` is the signal that ended the
+ * process, or null when it exited on its own.
  */
-function verify(diagnostics, exitCode, rawOutput, allowlist) {
+function verify(diagnostics, exitCode, rawOutput, allowlist, killedBy = null) {
   const failures = []
   const parsedCounts = new Map()
   const examples = new Map()
@@ -85,6 +91,22 @@ function verify(diagnostics, exitCode, rawOutput, allowlist) {
     if (!examples.has(key)) examples.set(key, [])
     examples.get(key).push(d)
   }
+  const lastLines = rawOutput.trimEnd().split('\n').slice(-5).join('\n')
+
+  // A run that did not finish must never pass (the gate must be able to
+  // fail). A killed run can have printed every allowlisted error before it
+  // died and never reached the file that holds a new one.
+  if (killedBy) {
+    failures.push(
+      `vue-tsc was killed by ${killedBy} before it finished; refusing to pass on an incomplete run. Last lines:\n${lastLines}`,
+    )
+  }
+  const crash = rawOutput.split('\n').find(line => CRASH.test(line))
+  if (crash) {
+    failures.push(
+      `vue-tsc did not finish cleanly; refusing to pass on a run that ended in a crash: ${crash.trim()}`,
+    )
+  }
 
   // A run whose output we could not read must never pass (the gate must be
   // able to fail).
@@ -92,7 +114,7 @@ function verify(diagnostics, exitCode, rawOutput, allowlist) {
   const summaryCount = summaryMatch ? Number(summaryMatch[1]) : null
   if (exitCode !== 0 && diagnostics.length === 0) {
     failures.push(
-      `vue-tsc exited ${exitCode} but no diagnostic could be parsed; refusing to pass on unreadable output. Last lines:\n${rawOutput.trimEnd().split('\n').slice(-5).join('\n')}`,
+      `vue-tsc exited ${exitCode} but no diagnostic could be parsed; refusing to pass on unreadable output. Last lines:\n${lastLines}`,
     )
   }
   if (exitCode === 0 && diagnostics.length > 0) {
@@ -211,6 +233,7 @@ function checkAliasTable() {
 }
 
 const selfTestUnparseable = process.argv.includes('--self-test-unparseable')
+const selfTestIncomplete = process.argv.includes('--self-test-incomplete')
 
 const aliasFailures = checkAliasTable()
 if (aliasFailures.length > 0) {
@@ -231,6 +254,31 @@ if (selfTestUnparseable) {
   process.exit(0)
 }
 
+if (selfTestIncomplete) {
+  // A run that printed exactly the allowlisted errors and was then killed
+  // before it could reach any other file. Every comparison against the
+  // allowlist passes, so only the killed-run refusal stands in the way.
+  const allowlist = loadAllowlist()
+  const diagnostics = allowlist.flatMap(entry =>
+    Array.from({ length: entry.count }, () => ({
+      file: entry.file,
+      line: 1,
+      code: entry.code,
+      message: entry.message,
+    })),
+  )
+  const output = diagnostics.map(d => `${d.file}(1,1): error ${d.code}: ${d.message}`).join('\n')
+  const refusals = verify(diagnostics, null, output, allowlist, 'SIGKILL')
+  if (refusals.length === 0) {
+    fail(['self-test failed: a killed run was NOT refused; the gate could vouch for a run that never finished.'])
+  }
+  console.log('self-test passed: a killed run was refused:')
+  for (const refusal of refusals) {
+    console.log(`  ${refusal.split('\n')[0]}`)
+  }
+  process.exit(0)
+}
+
 const allowlist = loadAllowlist()
 const run = spawnSync(vueTscBin, ['--noEmit', '--pretty', 'false'], {
   cwd: root,
@@ -238,9 +286,10 @@ const run = spawnSync(vueTscBin, ['--noEmit', '--pretty', 'false'], {
 })
 const output = (run.stdout ?? '') + (run.stderr ?? '')
 const exitCode = run.status ?? -1
+const killedBy = run.signal ?? null
 const diagnostics = parseDiagnostics(output)
 
-const failures = verify(diagnostics, exitCode, output, allowlist)
+const failures = verify(diagnostics, exitCode, output, allowlist, killedBy)
 if (failures.length > 0) {
   fail(failures)
 }
