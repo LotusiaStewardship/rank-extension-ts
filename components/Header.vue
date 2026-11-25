@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { FwbImg } from 'flowbite-vue'
+import { LBadge } from '@lotusia/ui'
 import logoUrl from '~/assets/Lotusia-Logo.png'
 /**
  * Constants
@@ -12,12 +12,10 @@ const props = defineProps<{
 <template>
   <div class="flex h-12 py-8 items-center">
     <div class="flex-grow absolute left-3">
-      <fwb-img :src="logoUrl" size="w-36"></fwb-img>
+      <img :src="logoUrl" alt="" class="w-36" />
     </div>
     <div class="flex-grow absolute right-0 balance">
-      <span
-        class="bg-gray-100 text-pink-600 text-md font-bold me-2 px-2.5 py-2 rounded dark:bg-gray-900 dark:text-pink-300">{{
-          toMinifiedNumber(props.totalBalance, 1_000_000) }}&nbsp;XPI</span>
+      <LBadge tone="primary">{{ toMinifiedNumber(props.totalBalance, 1_000_000) }}&nbsp;XPI</LBadge>
     </div>
   </div>
 </template>

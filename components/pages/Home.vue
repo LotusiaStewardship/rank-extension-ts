@@ -1,11 +1,10 @@
 <script lang="ts" setup>
 /** Vue components */
-import { FwbHeading, FwbP, FwbTab, FwbTabs } from 'flowbite-vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 import HomeMyStats from './home/HomeMyStats.vue'
 /** Types */
 import type { Ref, ShallowRef } from 'vue'
-import type { Unwatch as UnwatchFunction } from 'wxt/storage'
+import type { Unwatch as UnwatchFunction } from 'wxt/utils/storage'
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
 import type { AuthorizationHeader, AuthenticateHeader } from '@/entrypoints/background/modules/instance'
 /** Modules */
@@ -51,6 +50,12 @@ type TopPost = TopProfile & {
 }
 /**  */
 type Tab = 'myStats' | 'topProfiles' | 'topPosts'
+/** Tab strip entries; the titles are the existing tab labels */
+const tabs: { name: Tab; title: string }[] = [
+  { name: 'myStats', title: 'My Stats' },
+  { name: 'topProfiles', title: 'Trending Profiles' },
+  { name: 'topPosts', title: 'Trending Posts' },
+]
 /** Twitter URL generator */
 const Twitter = {
   url: 'https://x.com',
@@ -245,65 +250,76 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <FwbTabs v-model="activeTab" variant="underline">
+  <div>
+    <div class="flex border-b border-border" role="tablist">
+      <button
+        v-for="tab in tabs"
+        :key="tab.name"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.name"
+        class="px-4 py-2 -mb-px text-sm font-medium border-b-2 transition-colors"
+        :class="activeTab === tab.name
+          ? 'border-primary text-primary-text'
+          : 'border-transparent text-content-muted hover:text-content'"
+        @click="activeTab = tab.name"
+      >
+        {{ tab.title }}
+      </button>
+    </div>
     <!--
       Only show myStats if registered
       5/20/25: Registration is currently disabled
       8/3/25: Registration is enabled
     -->
-    <FwbTab name="myStats" title="My Stats">
+    <div v-show="activeTab === 'myStats'" role="tabpanel">
       <LoadingSpinnerMessage v-if="!myStats" :message="loadingMessage" />
       <HomeMyStats v-else :data="myStats" />
-    </FwbTab>
-    <FwbTab name="topProfiles" title="Trending Profiles">
+    </div>
+    <div v-show="activeTab === 'topProfiles'" role="tabpanel">
       <template v-for="({ profileId, changed, total, platform }, index) in topProfiles" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow items-start text-left">
-            <a :href="Twitter.profileUrl(profileId)" target="_blank">
-              <FwbHeading tag="h6" :title="profileId">{{
+            <a :href="Twitter.profileUrl(profileId)" target="_blank" rel="noopener noreferrer">
+              <h6 class="text-sm font-semibold text-content" :title="profileId">{{
                 profileId
-              }}</FwbHeading>
+              }}</h6>
             </a>
-            <fwb-p>{{ platform }}</fwb-p>
+            <p class="text-sm text-content-muted">{{ platform }}</p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
+            <h6 class="text-sm font-semibold text-content" title="total">+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
+              }}&nbsp;XPI</h6>
+            <p class="text-sm text-primary-text">{{
               toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+              }}&nbsp;XPI</p>
           </div>
         </div>
       </template>
-    </FwbTab>
-    <FwbTab name="topPosts" title="Trending Posts">
+    </div>
+    <div v-show="activeTab === 'topPosts'" role="tabpanel">
       <template v-for="(
 { profileId, postId, changed, total, platform }, index
         ) in topPosts" :key="index">
         <div class="flex py-2 px-6">
           <div class="flex-grow justify-start">
-            <a :href="Twitter.postUrl(profileId, postId)" target="_blank">
-              <FwbHeading tag="h6" :title="profileId">
-                {{ profileId }}</FwbHeading>
+            <a :href="Twitter.postUrl(profileId, postId)" target="_blank" rel="noopener noreferrer">
+              <h6 class="text-sm font-semibold text-content" :title="profileId">
+                {{ profileId }}</h6>
             </a>
-            <fwb-p>{{ platform }}&nbsp;<span class="text-xs">post</span></fwb-p>
+            <p class="text-sm text-content-muted">{{ platform }}&nbsp;<span class="text-xs">post</span></p>
           </div>
           <div class="flex-grow items-end text-right">
-            <FwbHeading tag="h6" title="total">+{{
+            <h6 class="text-sm font-semibold text-content" title="total">+{{
               toMinifiedNumber(changed.ranking, 1_000_000)
-              }}&nbsp;XPI</FwbHeading>
-            <fwb-p class="text-pink-600 dark:text-pink-300">{{
+              }}&nbsp;XPI</h6>
+            <p class="text-sm text-primary-text">{{
               toMinifiedNumber(total.ranking, 1_000_000)
-              }}&nbsp;XPI</fwb-p>
+              }}&nbsp;XPI</p>
           </div>
         </div>
       </template>
-    </FwbTab>
-  </FwbTabs>
+    </div>
+  </div>
 </template>
-<style lang="css" scoped>
-.text-right {
-  text-align: right;
-}
-</style>

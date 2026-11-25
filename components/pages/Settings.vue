@@ -5,7 +5,7 @@
  -->
 <script setup lang="ts">
 /** Vue components */
-import { FwbTextarea, FwbButton, FwbP, FwbInput, FwbToggle, FwbHeading, FwbRadio } from 'flowbite-vue'
+import { LPageHeader } from '@lotusia/ui'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 /** Modules and types */
 import type { ShallowRef } from 'vue'
@@ -357,40 +357,40 @@ onMounted(() => {
 <template>
   <div class="py-2 px-6">
     <!-- Extension Settings Section -->
-    <FwbHeading class="pb-2" color="dark:text-white" tag="h4">
-      Settings
-    </FwbHeading>
-    <FwbP>
-      Customize your Lotusia experience and manage your Lotus wallet
-    </FwbP>
+    <LPageHeader>
+      <template #title>
+        <h4>Settings</h4>
+      </template>
+      <template #description>
+        Customize your Lotusia experience and manage your Lotus wallet
+      </template>
+    </LPageHeader>
 
     <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
     <template v-else>
       <!-- Lotusia Reputation Section -->
       <div class="mb-4">
-        <h5 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Social Media</h5>
-        <hr class="border-gray-200 dark:border-gray-600 mb-2">
+        <h5 class="text-lg font-semibold text-content mb-2">Social Media</h5>
+        <hr class="border-border mb-2">
 
         <!-- Vote Amount Setting -->
         <div class="py-2">
           <div class="flex items-center gap-2 mb-2">
-            <label class="text-sm font-medium text-gray-900 dark:text-white">Vote Amount (XPI)</label>
+            <label class="text-sm font-medium text-content">Vote Amount (XPI)</label>
             <!-- Saved indicator -->
             <span v-if="showVoteAmountSaved"
-              class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+              class="saved-indicator text-xs text-success font-medium">✓
               Saved</span>
           </div>
-          <fwb-input id="vote-amount" v-model="voteAmount" type="number" size="sm" min="1" step="1"
-            placeholder="Enter vote amount in XPI" @blur="saveVoteAmount">
-            <template #helper>
-              <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
-                How much Lotus do you want to burn with each vote? (Default: 100 XPI)
-              </fwb-p>
-            </template>
-          </fwb-input>
-          <fwb-p v-show="voteAmountError" class="text-red-500 dark:text-red-400">
+          <input id="vote-amount" v-model="voteAmount" type="number" min="1" step="1"
+            placeholder="Enter vote amount in XPI" @blur="saveVoteAmount"
+            class="w-full rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-sm text-content" />
+          <p class="text-xs text-content-muted">
+            How much Lotus do you want to burn with each vote? (Default: 100 XPI)
+          </p>
+          <p v-show="voteAmountError" class="text-danger">
             {{ voteAmountError }}
-          </fwb-p>
+          </p>
         </div>
 
         <!-- Auto Blur Posts Setting -->
@@ -398,17 +398,17 @@ onMounted(() => {
           <div class="flex items-center justify-between">
             <div class="pr-4">
               <div class="flex items-center gap-2 mb-1">
-                <label class="text-sm font-medium text-gray-900 dark:text-white">Blur Low-Value Content</label>
+                <label class="text-sm font-medium text-content">Blur Low-Value Content</label>
                 <!-- Saved indicator -->
                 <span v-if="showAutoBlurPostsSaved"
-                  class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+                  class="saved-indicator text-xs text-success font-medium">✓
                   Saved</span>
               </div>
-              <fwb-p class="text-gray-500 dark:text-gray-400">
+              <p class="text-content-muted">
                 If enabled, will blur content that is ranked below 0 XPI (Default: On)
-              </fwb-p>
+              </p>
             </div>
-            <fwb-toggle color="purple" v-model="autoBlurPosts" @change="saveAutoBlurPosts" />
+            <input type="checkbox" v-model="autoBlurPosts" @change="saveAutoBlurPosts" class="h-4 w-4 accent-primary" />
           </div>
         </div>
 
@@ -417,64 +417,62 @@ onMounted(() => {
           <div class="flex items-center justify-between">
             <div class="pr-4">
               <div class="flex items-center gap-2 mb-1">
-                <label class="text-sm font-medium text-gray-900 dark:text-white">Hide Low-Value Creators</label>
+                <label class="text-sm font-medium text-content">Hide Low-Value Creators</label>
                 <!-- Saved indicator -->
                 <span v-if="showAutoHideProfilesSaved"
-                  class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+                  class="saved-indicator text-xs text-success font-medium">✓
                   Saved</span>
               </div>
-              <fwb-p class="text-gray-500 dark:text-gray-400">
+              <p class="text-content-muted">
                 If enabled, content from creators will automatically be hidden if their reputation is below the
                 specified threshold (Default: On)
-              </fwb-p>
+              </p>
             </div>
-            <fwb-toggle color="purple" v-model="autoHideProfiles" @change="saveAutoHideProfiles" />
+            <input type="checkbox" v-model="autoHideProfiles" @change="saveAutoHideProfiles" class="h-4 w-4 accent-primary" />
           </div>
         </div>
 
         <!-- Auto Hide Threshold Setting (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
+        <div class="py-2 border-l border-border" v-show="autoHideProfiles">
           <div class="pl-3">
             <div class="flex items-center gap-2 mb-1">
-              <label class="text-sm font-medium text-gray-900 dark:text-white">Rank Threshold (XPI)</label>
+              <label class="text-sm font-medium text-content">Rank Threshold (XPI)</label>
               <!-- Saved indicator -->
               <span v-if="showAutoHideThresholdSaved"
-                class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+                class="saved-indicator text-xs text-success font-medium">✓
                 Saved</span>
             </div>
-            <fwb-input id="auto-hide-threshold" v-model="autoHideThreshold" type="number"
-              placeholder="Enter threshold amount in XPI" size="sm" @blur="saveAutoHideThreshold">
-              <template #helper>
-                <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
-                  Creators will be considered low-value if their XPI ranking is below this threshold (Default:
-                  -5,000 XPI)
-                </fwb-p>
-              </template>
-            </fwb-input>
+            <input id="auto-hide-threshold" v-model="autoHideThreshold" type="number"
+              placeholder="Enter threshold amount in XPI" @blur="saveAutoHideThreshold"
+              class="w-full rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-sm text-content" />
+            <p class="text-xs text-content-muted">
+              Creators will be considered low-value if their XPI ranking is below this threshold (Default:
+              -5,000 XPI)
+            </p>
           </div>
         </div>
 
         <!-- Auto Hide Threshold for Positive Vote Ratio (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
+        <div class="py-2 border-l border-border" v-show="autoHideProfiles">
           <div class="pl-3">
             <div class="flex items-center justify-between">
 
               <div class="pr-4 pb-2">
                 <div class="flex items-center gap-2 mb-1">
-                  <label class="text-sm font-medium text-gray-900 dark:text-white">Reputation Threshold</label>
+                  <label class="text-sm font-medium text-content">Reputation Threshold</label>
                   <!-- Saved indicator -->
                   <span v-if="showAutoHidePositiveVoteThresholdSaved"
-                    class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+                    class="saved-indicator text-xs text-success font-medium">✓
                     Saved</span>
                 </div>
-                <fwb-p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-xs text-content-muted">
                   If enabled, creators will be considered low-value if their reputation is below the selected
                   threshold
                   (Default: On)
-                </fwb-p>
+                </p>
               </div>
-              <fwb-toggle color="purple" v-model="autoHidePositiveVoteToggle"
-                @change="saveAutoHidePositiveVoteToggle" />
+              <input type="checkbox" v-model="autoHidePositiveVoteToggle" @change="saveAutoHidePositiveVoteToggle"
+                class="h-4 w-4 accent-primary" />
             </div>
             <div class="p-2">
               <div class="flex justify-between items-start">
@@ -498,23 +496,24 @@ onMounted(() => {
         </div>
 
         <!-- Auto Hide If Downvoted Setting (only shown when auto hide profiles is enabled) -->
-        <div class="py-2 border-l border-gray-200 dark:border-gray-600" v-show="autoHideProfiles">
+        <div class="py-2 border-l border-border" v-show="autoHideProfiles">
           <div class="pl-3">
             <div class="flex items-center justify-between">
               <div class="pr-4">
                 <div class="flex items-center gap-2 mb-1">
-                  <label class="text-sm font-medium text-gray-900 dark:text-white">Only Hide if We
+                  <label class="text-sm font-medium text-content">Only Hide if We
                     Downvoted</label>
                   <!-- Saved indicator -->
                   <span v-if="showAutoHideIfDownvotedSaved"
-                    class="saved-indicator text-xs text-purple-600 dark:text-purple-400 font-medium">✓
+                    class="saved-indicator text-xs text-success font-medium">✓
                     Saved</span>
                 </div>
-                <fwb-p class="text-gray-500 dark:text-gray-400">
+                <p class="text-content-muted">
                   Low-value creators will only be hidden if we have downvoted them with this Lotus wallet
-                </fwb-p>
+                </p>
               </div>
-              <fwb-toggle color="purple" v-model="autoHideIfDownvoted" @change="saveAutoHideIfDownvoted" />
+              <input type="checkbox" v-model="autoHideIfDownvoted" @change="saveAutoHideIfDownvoted"
+                class="h-4 w-4 accent-primary" />
             </div>
           </div>
         </div>
@@ -522,40 +521,41 @@ onMounted(() => {
 
       <!-- Wallet Management Section -->
       <div class="mb-4">
-        <h5 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Wallet Management</h5>
-        <hr class="border-gray-200 dark:border-gray-600 mb-2">
+        <h5 class="text-lg font-semibold text-content mb-2">Wallet Management</h5>
+        <hr class="border-border mb-2">
 
         <!-- Wallet Section -->
         <div class="py-2">
-          <fwb-textarea :rows="2" placeholder="" label="Reveal / Hide Wallet Password" v-model="existingSeedPhrase"
-            readonly>
-            <template #footer>
-              <FwbP class="text-red-500 dark:text-red-300">IMPORTANT: This password is your Lotus wallet. YOU CANNOT
-                RECOVER
-                THIS PASSWORD IF YOU LOSE IT. Keep it safe; memorize it. DO NOT share
-                with anyone you would not trust with your bank account.
-              </FwbP>
-            </template>
-          </fwb-textarea>
+          <label for="existing-seed-phrase" class="block text-sm font-medium text-content">Reveal / Hide Wallet
+            Password</label>
+          <textarea id="existing-seed-phrase" :rows="2" placeholder="" v-model="existingSeedPhrase" readonly
+            class="w-full rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-sm text-content"></textarea>
+          <p class="text-danger">IMPORTANT: This password is your Lotus wallet. YOU CANNOT
+            RECOVER
+            THIS PASSWORD IF YOU LOSE IT. Keep it safe; memorize it. DO NOT share
+            with anyone you would not trust with your bank account.
+          </p>
         </div>
         <div class="py-2">
-          <fwb-button :outline="true" color="pink" size="sm" @click="toggleExistingSeedPhrase">
+          <button type="button" @click="toggleExistingSeedPhrase"
+            class="rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-primary-text transition-colors hover:bg-surface-sunken">
             {{
               existingSeedPhrase ? 'Hide wallet password' : 'Reveal wallet password'
             }}
-          </fwb-button>
+          </button>
         </div>
         <div class="py-2">
-          <fwb-textarea :rows="2" placeholder="Input your wallet password here and click Restore Wallet"
-            label="Restore Lotus Wallet" v-model="restoreSeedPhrase">
-          </fwb-textarea>
+          <label for="restore-seed-phrase" class="block text-sm font-medium text-content">Restore Lotus Wallet</label>
+          <textarea id="restore-seed-phrase" :rows="2"
+            placeholder="Input your wallet password here and click Restore Wallet" v-model="restoreSeedPhrase"
+            class="w-full rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-sm text-content"></textarea>
         </div>
         <div class="py-2 flex justify-between items-center gap-2">
-          <fwb-button :disabled="!isRestoreFormDataValid" :outline="true" color="pink" size="sm"
-            @click="handleRestoreSeedPhrase">Restore&nbsp;Wallet</fwb-button>
+          <button type="button" :disabled="!isRestoreFormDataValid" @click="handleRestoreSeedPhrase"
+            class="rounded-lg border border-border-strong px-3 py-1.5 text-sm font-medium text-primary-text transition-colors hover:bg-surface-sunken disabled:pointer-events-none disabled:opacity-50">Restore&nbsp;Wallet</button>
           <div class="flex items-center gap-2" v-show="isRestoreSeedPhraseValid">
             <input type="checkbox" id="overwrite-seed-phrase" v-model="overwriteSeedPhrase" />
-            <label for="overwrite-seed-phrase" class="text-red-500 dark:text-red-300">WARNING: This will
+            <label for="overwrite-seed-phrase" class="text-danger">WARNING: This will
               overwrite your existing wallet. Proceed?</label>
           </div>
         </div>

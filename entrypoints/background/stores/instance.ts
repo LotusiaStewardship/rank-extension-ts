@@ -1,6 +1,6 @@
 import type { ScriptChunkPlatformUTF8 } from '@/utils/rank-lib'
 import assert from 'assert'
-import { AuthorizationHeader } from '../modules/instance'
+import type { AuthorizationHeader } from '../modules/instance'
 const { defineItem, setItem, setItems, getItem, getItems } = storage
 // Storage value types
 type WxtStorageValueString = string

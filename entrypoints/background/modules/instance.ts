@@ -1,4 +1,4 @@
-import { AuthorizationData } from 'xpi-ts/lib/rank/api'
+import type { AuthorizationData } from 'xpi-ts/lib/rank/api'
 import { Util } from '@/utils/functions'
 import type { BlockDataSig } from '@/entrypoints/background/stores/instance'
 import type { ChainState } from '@/entrypoints/background/stores/wallet'

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /** Vue components */
+import { LContainer } from '@lotusia/ui'
 import Header from '@/components/Header.vue'
 import Footer from '@/components/Footer.vue'
 import HomePage from '@/components/pages/Home.vue'
@@ -8,14 +9,14 @@ import GiveLotusPage from '@/components/pages/GiveLotus.vue'
 import SettingsPage from '@/components/pages/Settings.vue'
 import LoadingSpinnerMessage from '@/components/LoadingSpinnerMessage.vue'
 /** Types */
-import type { Unwatch as UnwatchFunction } from 'wxt/storage'
+import type { Unwatch as UnwatchFunction } from 'wxt/utils/storage'
 import type { UIWalletState } from '@/entrypoints/background/stores/wallet'
 /** Modules */
 import {
   walletMessaging,
 } from '@/entrypoints/background/messaging'
+import type { WalletBalance } from '@/entrypoints/background/stores/wallet'
 import {
-  WalletBalance,
   walletStore,
 } from '@/entrypoints/background/stores/wallet'
 import {
@@ -164,12 +165,12 @@ async function initialize(seedPhrase?: string): Promise<void> {
   <main class="grow overflow-y-auto hidden-scrollbar">
     <LoadingSpinnerMessage v-if="!initialized" :message="loadingMessage" />
     <template v-else>
-      <div class="container">
+      <LContainer width="app">
         <HomePage v-if="activePage === 'home'" />
         <ReceiveLotusPage :address="walletAddress" v-else-if="activePage == 'receive'" />
         <GiveLotusPage :spendable-balance="walletBalance.spendable" v-else-if="activePage == 'give'" />
         <SettingsPage @restore-seed-phrase="initialize" v-else-if="activePage == 'settings'" />
-      </div>
+      </LContainer>
     </template>
   </main>
   <footer class="shrink-0">

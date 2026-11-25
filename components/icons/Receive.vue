@@ -1,9 +1,6 @@
-<script setup lang="ts">
-const strokeColor = inject('strokeColor') as ComputedRef<string>
-</script>
 <template>
   <svg
-    class="w-6 h-6 text-gray-800 dark:text-white"
+    class="w-6 h-6 text-primary-text"
     aria-hidden="true"
     xmlns="http://www.w3.org/2000/svg"
     width="24"
@@ -12,7 +9,7 @@ const strokeColor = inject('strokeColor') as ComputedRef<string>
     viewBox="0 0 24 24"
   >
     <path
-      :stroke="strokeColor"
+      stroke="currentColor"
       stroke-linecap="round"
       stroke-linejoin="round"
       stroke-width="2"

@@ -5,11 +5,8 @@
  */
 import { Parser } from '@/utils/parser'
 import { Selector } from '@/utils/selector'
-import {
-  PostMeta,
-  ProfileMeta,
-  instanceStore,
-} from '@/entrypoints/background/stores'
+import type { PostMeta, ProfileMeta } from '@/entrypoints/background/stores'
+import { instanceStore } from '@/entrypoints/background/stores'
 import { walletMessaging } from '@/entrypoints/background/messaging'
 import { walletStore } from '@/entrypoints/background/stores/wallet'
 import { settingsStore } from '@/entrypoints/background/stores/settings'

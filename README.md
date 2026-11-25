@@ -30,3 +30,15 @@ Posts that have accummulated a negative reputation (i.e. more downvotes than upv
 ### Safari
 
 #### COMING SOON
+
+## Styling
+
+The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotusia/ui`, both pinned at exactly `0.3.0`. `entrypoints/popup/app.css` carries the documented plain-Vue import chain and nothing else:
+
+```css
+@import "tailwindcss";
+@import "@lotusia/theme";
+@import "@lotusia/ui/base.css";
+```
+
+Tailwind v4 (via `@tailwindcss/vite` in `wxt.config.ts`) needs no config file, and the old committed `entrypoints/popup/style.css` build artifact is gone: the build writes compiled CSS into `.output/` only. Flowbite and flowbite-vue have been removed; the popup uses plain markup, the model's semantic roles (`bg-surface`, `text-content`, `text-primary-text`, and friends), and the `L*` primitives (`LApp`, `LBadge`, `LCard`, `LKeyValue`, `LStat`, `LPageHeader`, `LContainer`, `LLink`) imported from `@lotusia/ui`.
