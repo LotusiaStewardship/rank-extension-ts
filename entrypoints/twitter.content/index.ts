@@ -16,6 +16,13 @@ import type {
 } from 'xpi-ts/lib/lokad'
 import { PlatformConfiguration } from 'xpi-ts/lib/lokad'
 import $ from 'jquery'
+import { createApp } from 'vue'
+import type { App } from 'vue'
+import { overlayTeleportTarget } from '@lotusia/ui'
+import {
+  createShadowRootUi,
+  type ShadowRootContentScriptUi,
+} from 'wxt/utils/content-script-ui/shadow-root'
 import { DEFAULT_RANK_THRESHOLD, DEFAULT_RANK_API } from '@/utils/constants'
 import type { Mutator } from '@/utils/types'
 import {
@@ -29,12 +36,16 @@ import {
   VOTE_ARROW_UP,
   VOTE_ARROW_DOWN,
 } from './constants'
-import './style.css'
+import BlurredPostOverlay from './BlurredPostOverlay.vue'
+import './shadow.css'
+import hostEffectsCss from './host-effects.css?inline'
 /**
  *  Types
  */
 /**  */
 type ProfileSentiment = ScriptChunkSentimentUTF8 | 'neutral'
+/** WXT shadow-root UI wrapper around one mounted overlay widget */
+type OverlayUi = ShadowRootContentScriptUi<App>
 /**  */
 type ParsedPostData = {
   profileId: string
@@ -103,6 +114,10 @@ type AvatarElementType = 'message' | 'other'
 export default defineContentScript({
   matches: ['https://*.x.com/*', 'https://x.com/*'],
   world: 'ISOLATED',
+  // `ui` keeps every stylesheet this entrypoint imports out of the manifest: WXT compiles them
+  // into the content script's CSS bundle, and `createShadowRootUi` injects that bundle into the
+  // overlay's shadow root instead of the host document (Shadow Overlay context, ADR-006)
+  cssInjectionMode: 'ui',
   // https://developer.chrome.com/docs/extensions/reference/api/extensionTypes#type-RunAt
   runAt: 'document_end',
   async main(ctx) {
@@ -139,12 +154,25 @@ export default defineContentScript({
     /** URL match patterns */
     const urlPost = new RegExp(/.*\/status\/[0-9]+/)
     const STATE: Map<StateKey, NodeJS.Timeout | string | null> = new Map()
-    /** Overlay button that is used to reveal blurred posts */
-    const OVERLAY_BUTTON = document.createElement('button')
-    /** Overlay span to put text on the overlay button */
-    const OVERLAY_SPAN = document.createElement('span')
+    /** Overlay widgets mounted per blurred post, keyed by the blurred post's element */
+    const OVERLAY_UIS = new WeakMap<HTMLElement, OverlayUi>()
+    /** Id of the `<style>` element carrying the host-page effects stylesheet in `document.head` */
+    const HOST_EFFECTS_STYLE_ID = 'lotusia-rank-host-effects'
     /** Primary document root where mutations are observed */
     const DOCUMENT_ROOT = $(SELECTOR.Container.div.root)
+    /**
+     *  Host-page effects
+     */
+    // The host-effects stylesheet styles x.com's own DOM (post hiding, post blur, vote button
+    // colouring, avatar reputation badges), so it cannot live inside the overlay's shadow root:
+    // it is injected into `document.head` as plain CSS instead. The id guard keeps a re-entered
+    // content script from adding a second copy.
+    if (!document.getElementById(HOST_EFFECTS_STYLE_ID)) {
+      const hostEffectsStyle = document.createElement('style')
+      hostEffectsStyle.id = HOST_EFFECTS_STYLE_ID
+      hostEffectsStyle.textContent = hostEffectsCss
+      document.head.append(hostEffectsStyle)
+    }
     /**
      *  Mutator classes
      */
@@ -554,24 +582,49 @@ export default defineContentScript({
      *  Functions
      */
     /**
-     * Create a unique button to overlay a blurred post
+     * Mount the blurred-post overlay widget for `element` inside its own shadow root (DEV-245).
+     *
+     * One mount per injected widget: WXT hosts the widget in a custom element appended as the
+     * last child of `element`, the exact position the old `document.createElement` button took,
+     * so the reveal handler's next-sibling traversal is unchanged. `isolateEvents` stops the
+     * widget's keyboard events from bubbling into x.com's global shortcuts, and the sanctioned
+     * teleport target is created inside the boundary so a future `legal-with-target` component
+     * has exactly one legal destination (ADR-006); nothing portals today.
+     * @param element
      * @param postId
      * @returns
      */
-    function createOverlay(postId: string): JQuery<HTMLButtonElement> {
-      // Set up overlay button, span
-      const overlay = $(OVERLAY_BUTTON.cloneNode() as HTMLButtonElement)
-      const span = $(OVERLAY_SPAN.cloneNode() as HTMLSpanElement)
-      // return new overlay button with all required configuration
-      return overlay
-        .on(
-          {
-            click: handleBlurredOverlayButtonClick,
-          },
-          null,
-          postId,
-        )
-        .append(span.html('Post has poor reputation, click to view'))
+    async function mountOverlay(
+      element: HTMLElement,
+      postId: string,
+    ): Promise<OverlayUi> {
+      const ui = await createShadowRootUi(ctx, {
+        name: 'lotusia-blurred-post-overlay',
+        position: 'inline',
+        anchor: element,
+        append: 'last',
+        isolateEvents: true,
+        onMount(uiContainer, shadow, shadowHost) {
+          // the sanctioned portal destination inside this boundary; no subset component needs
+          // a portal yet, but the target exists per mount so the destination is defined
+          overlayTeleportTarget(shadow)
+          const app = createApp(BlurredPostOverlay, {
+            postId,
+            onReveal: () => {
+              // same contract as before: the overlay sits next to the div containing the post
+              // article element, and activation clicks that article
+              handleBlurredOverlayButtonClick.call(shadowHost)
+            },
+          })
+          app.mount(uiContainer)
+          return app
+        },
+        onRemove(mounted) {
+          mounted?.unmount()
+        },
+      })
+      ui.mount()
+      return ui
     }
     /**
      * Fetch ranking statistics for `profileId` from API. If `postId` is provided, then
@@ -1272,20 +1325,53 @@ export default defineContentScript({
      * @param element
      */
     function blurPost(element: JQuery<HTMLElement>, postId: string) {
-      element.addClass('blurred').append(createOverlay(postId))
+      const el = element[0]
+      if (!el) {
+        console.warn(
+          'failed to blur post, no element to attach overlay',
+          postId,
+        )
+        return
+      }
+      element.addClass('blurred')
+      // mount the overlay widget in its shadow root; the blur itself is synchronous, the
+      // widget appears once the shadow UI is ready
+      mountOverlay(el, postId)
+        .then(ui => {
+          OVERLAY_UIS.set(el, ui)
+          // if the post left the DOM while the mount was in flight, drop the widget now
+          if (!el.isConnected) {
+            ui.remove()
+            OVERLAY_UIS.delete(el)
+          }
+        })
+        .catch(e => {
+          console.warn('failed to mount overlay for post', postId, e)
+        })
     }
     /**
      *
      * @param element
      */
     function unblurPost(element: JQuery<HTMLElement>) {
-      element.removeClass('blurred').find('> button').remove()
+      element.removeClass('blurred')
+      const el = element[0]
+      if (!el) {
+        return
+      }
+      // unmount the widget when its host element loses the blur; this is the removal path the
+      // old `find('> button').remove()` covered
+      const ui = OVERLAY_UIS.get(el)
+      if (ui) {
+        ui.remove()
+        OVERLAY_UIS.delete(el)
+      }
     }
     /**
      *
      * @param this
      */
-    async function handleBlurredOverlayButtonClick(this: HTMLButtonElement) {
+    async function handleBlurredOverlayButtonClick(this: HTMLElement) {
       // button overlay is appended as next sibling to div containing the post article element
       $(this).prev().find('article').trigger('click')
     }
