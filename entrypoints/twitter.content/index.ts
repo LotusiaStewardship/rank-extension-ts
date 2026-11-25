@@ -1339,14 +1339,19 @@ export default defineContentScript({
       mountOverlay(el, postId)
         .then(ui => {
           OVERLAY_UIS.set(el, ui)
-          // if the post left the DOM while the mount was in flight, drop the widget now
-          if (!el.isConnected) {
+          // the mount is async, so the post may have changed under it: it can leave the DOM, or
+          // it can be unblurred before the widget lands. Either way the widget is stale and its
+          // unmount path (unblurPost) has already run, so drop it here or it stays on screen.
+          if (!el.isConnected || !el.classList.contains('blurred')) {
             ui.remove()
             OVERLAY_UIS.delete(el)
           }
         })
         .catch(e => {
+          // Fail open. A post left blurred with no reveal control is content the reader cannot
+          // reach at all, so a mount failure shows the post rather than hiding it forever.
           console.warn('failed to mount overlay for post', postId, e)
+          element.removeClass('blurred')
         })
     }
     /**
