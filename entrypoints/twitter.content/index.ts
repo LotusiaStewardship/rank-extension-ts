@@ -615,20 +615,34 @@ export default defineContentScript({
     // and every step below depends on it. Wait bounded for it; when it never appears, leave
     // the page untouched and exit cleanly rather than crashing on `observe(undefined, ...)`
     // (DEV-400). The selector is named in the error so a stale selector is diagnosable.
-    const rootNode = await waitForSelector(SELECTOR.Container.div.root)
+    // Wait for either surface: the logged-in app root, or any rendered guest post. x.com
+    // serves logged-out visitors server-rendered pages with no `#react-root` and no
+    // `data-testid` vocabulary at all (DEV-402), so the wait covers both and the match
+    // decides which pipeline runs. `querySelector` returns the first match in document
+    // order, and the app root wraps everything on logged-in pages, so it wins there.
+    const rootNode = await waitForSelector(
+      `${SELECTOR.Container.div.root}, ${SELECTOR.Guest.div.post}`
+    )
     if (!rootNode) {
       console.error(
-        `[rank] the page root (${SELECTOR.Container.div.root}) never appeared; the content script cannot attach to this page`
+        `[rank] the page root (${SELECTOR.Container.div.root}) and any guest post (${SELECTOR.Guest.div.post}) never appeared; the content script cannot attach to this page`
       )
       return
     }
-    DOCUMENT_ROOT = $(rootNode)
-    console.log('connecting react-root observer')
-    new MutationObserver(handleRootMutations).observe(rootNode, {
-      childList: true,
-      subtree: true,
-      attributeFilter: ['data-ranking', 'data-testid', 'href'],
-    })
+    // Guest pages have no app root to observe, and hydration can replace whole containers,
+    // so the observer watches the document there. The body is small and mostly static on
+    // server-rendered pages, so the wider net costs nothing measurable.
+    const GUEST = !rootNode.matches(SELECTOR.Container.div.root)
+    DOCUMENT_ROOT = $(GUEST ? document.body : rootNode)
+    console.log(`connecting ${GUEST ? 'guest' : 'react-root'} observer`)
+    new MutationObserver(handleRootMutations).observe(
+      GUEST ? document.documentElement : rootNode,
+      {
+        childList: true,
+        subtree: true,
+        attributeFilter: ['data-ranking', 'data-testid', 'href'],
+      }
+    )
     /**
      *  Functions
      */
@@ -662,6 +676,20 @@ export default defineContentScript({
           const app = createApp(BlurredPostOverlay, {
             postId,
             onReveal: () => {
+              if (GUEST) {
+                // guest reveal is the equivalent of the logged-in article click: navigate
+                // to the post's status page, where the focused post renders ungated. The
+                // host is a child of the blurred article, so the article is the parent.
+                const href = $(shadowHost)
+                  .parent()
+                  .find(SELECTOR.Guest.a.postLink)
+                  .first()
+                  .attr('href')
+                if (href) {
+                  window.location.assign(href)
+                }
+                return
+              }
               // same contract as before: the overlay sits next to the div containing the post
               // article element, and activation clicks that article
               handleBlurredOverlayButtonClick.call(shadowHost)
@@ -1562,10 +1590,91 @@ export default defineContentScript({
      * @param mutationType
      * @returns
      */
+    /**
+     * Parse a guest post article from the server-rendered markup (DEV-402). The post's own
+     * timestamp link is the first `/status/` link in the article and names both the handle
+     * and the post id.
+     * @param article
+     * @returns
+     */
+    function parseGuestPost(article: JQuery<HTMLElement>): {
+      profileId: string
+      postId: string
+    } {
+      const href = article.find(SELECTOR.Guest.a.postLink).first().attr('href')
+      const segments = href?.split('/status/') ?? []
+      const postId = segments[1]?.split(/[?#]/)[0] ?? ''
+      const profileId =
+        segments[0]?.replace(/^\//, '').replace(/\/$/, '') ?? ''
+      return { profileId, postId }
+    }
+    /**
+     * Run one guest post through the shared reputation pipeline (DEV-402): fetch and cache
+     * the rank data, then apply the same auto-hide and auto-blur decisions as logged-in.
+     * The focused post on a status page renders ungated, mirroring the logged-in
+     * focused-post guard, so reveal navigates to a page that shows the post.
+     * @param article
+     */
+    async function processGuestPost(article: JQuery<HTMLElement>) {
+      const { profileId, postId } = parseGuestPost(article)
+      if (!profileId || !postId) {
+        return
+      }
+      if (window.location.pathname.includes(`/${postId}`)) {
+        return
+      }
+      // reuse the shared fetch-and-cache flow; failures are warned inside
+      const post = await updateCachedPost(profileId, postId)
+      if (!post) {
+        return
+      }
+      processPostHideAction(article, profileId, postId, post.profileMeta ?? null)
+      processPostBlurAction(article, profileId, postId, post.ranking)
+    }
+    /**
+     * Guest mutation handler (DEV-402): find every rendered post article the mutation
+     * carries and run it through the pipeline above. Deduplication is by a
+     * `data-rank-guest` marker plus a closest-marker check, because hydration can insert
+     * nested containers and re-insert subtrees.
+     * @param element
+     * @param mutationType
+     */
+    async function processGuestElement(
+      element: JQuery<HTMLElement>,
+      mutationType: 'added' | 'removed',
+    ) {
+      if (mutationType === 'removed') {
+        // the overlay unmounts with its element and the shared caches expire on their own,
+        // so removals need no guest-side work
+        return
+      }
+      const articles = element.is(SELECTOR.Guest.div.post)
+        ? element
+        : element.find(SELECTOR.Guest.div.post)
+      articles.each((_index, node) => {
+        const article = $(node)
+        if (
+          article.attr('data-rank-guest') !== undefined ||
+          article.closest('[data-rank-guest]').length > 0 ||
+          article.find(SELECTOR.Guest.a.postLink).length < 1
+        ) {
+          return
+        }
+        article.attr('data-rank-guest', '')
+        void processGuestPost(article)
+      })
+    }
     async function processMutatedElement(
       element: JQuery<HTMLElement>,
       mutationType: 'added' | 'removed',
     ) {
+      // Guest pages run a separate, smaller pipeline (DEV-402): parse the rendered posts,
+      // then reuse the shared rank-fetch, hide, and blur actions. The logged-in mutators are
+      // skipped entirely because their selectors do not exist in the server-rendered DOM.
+      if (GUEST) {
+        await processGuestElement(element, mutationType)
+        return
+      }
       // don't process column/timeline elements or entire sections
       // helps to prevent unnecessary double processing
       if (element.is(`:has(${SELECTOR.Article.div.innerDiv})`)) {
