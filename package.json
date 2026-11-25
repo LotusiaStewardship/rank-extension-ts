@@ -15,8 +15,8 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@lotusia/theme": "0.3.0",
-    "@lotusia/ui": "0.3.0",
+    "@lotusia/theme": "0.4.0",
+    "@lotusia/ui": "0.4.0",
     "vue": "3.5.13"
   },
   "devDependencies": {
