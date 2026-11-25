@@ -22,6 +22,22 @@ export namespace Selector {
         sidebarColumn = `div[${attr.sidebarColumn}]`,
       }
     }
+    /**
+     * Selectors for the server-rendered pages x.com serves to logged-out visitors (DEV-402).
+     * Those pages are not the React app: there is no `#react-root` and no `data-testid`
+     * vocabulary, so the content script branches on this namespace whenever the app root is
+     * absent. Keep every guest selector here, so drift in the live DOM is a one-file edit.
+     */
+    export namespace Guest {
+      /** A rendered post on a guest page */
+      export enum div {
+        post = 'article',
+      }
+      /** The link inside a guest post that names it (`/handle/status/id`) */
+      export enum a {
+        postLink = 'a[href*="/status/"]',
+      }
+    }
     /** Selectors for Tweet DOM elements */
     export namespace Article {
       export enum value {

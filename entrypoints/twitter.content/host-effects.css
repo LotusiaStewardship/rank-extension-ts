@@ -265,3 +265,21 @@
     outline-color: white;
   }
 }
+
+/**
+ * Guest pages (server-rendered, DEV-402): on these pages the article element itself is the
+ * blurred element, not a wrapper div, and the overlay's shadow host is appended into the
+ * article. The blur and pointer lock therefore apply to the article's children while the
+ * article carries the positioning context and the background, and the shadow host is
+ * excluded so the reveal control stays interactive. The `--rank-blurred-background-color`
+ * variable resolves through the `.blurred` media-query declarations above.
+ */
+article.blurred {
+  position: relative;
+  background-color: var(--rank-blurred-background-color);
+}
+article.blurred > *:not(lotusia-blurred-post-overlay) {
+  filter: blur(0.35rem);
+  pointer-events: none;
+  user-select: none;
+}
