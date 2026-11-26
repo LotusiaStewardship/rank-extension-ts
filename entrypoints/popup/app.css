@@ -2,7 +2,16 @@
  * The documented plain-Vue consumption chain, and nothing else. Tailwind first so the theme's
  * `@theme` mapping and the ui package's `@source` registration land in the same pass, then the
  * token contract, then the component stylesheet entry (branding README, install path).
+ *
+ * `source(none)` turns off Tailwind's automatic source detection, which otherwise scans every
+ * file Git does not ignore, so a utility-named word in a comment, a script, or this README
+ * ships as a rule in the built CSS. The `@source` lines below are the allowlist: everything
+ * this popup document renders is authored under `entrypoints/popup/` and `components/`. The
+ * ui package registers itself the same way (`@source "./"` on `dist/base.css`) and its
+ * registration still applies under `source(none)`.
  */
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
+@source "../../components";
 @import "@lotusia/theme";
 @import "@lotusia/ui/base.css";

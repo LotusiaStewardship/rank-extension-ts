@@ -19,7 +19,16 @@
  * ui package's `@source` registration land in the same pass, then the token contract, then the
  * component stylesheet entry. Tokens resolve inside the boundary because `@lotusia/theme`
  * emits them on the shadow host as well as the document root (ADR-003).
+ *
+ * `source(none)` turns off Tailwind's automatic source detection, which otherwise scans every
+ * file Git does not ignore and would add a rule for a utility-named word in prose or a script.
+ * The `@source` below is the allowlist, and this boundary hosts only the widget, so this
+ * directory is the whole of it: `BlurredPostOverlay.vue` authors the widget's classes, and
+ * `index.ts` sets classes only on host DOM that `host-effects.css` styles. The `LBadge` subset
+ * comes from the ui package's own `@source "./"` registration on `dist/base.css`, which still
+ * applies under `source(none)`.
  */
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
 @import "@lotusia/theme";
 @import "@lotusia/ui/base.css";

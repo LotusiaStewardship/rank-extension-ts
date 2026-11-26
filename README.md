@@ -41,7 +41,7 @@ The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotus
 @import "@lotusia/ui/base.css";
 ```
 
-Tailwind v4 (via `@tailwindcss/vite` in `wxt.config.ts`) needs no config file, and the old committed `entrypoints/popup/style.css` build artifact is gone: the build writes compiled CSS into `.output/` only. Flowbite and flowbite-vue have been removed; the popup uses plain markup, the model's semantic roles (`bg-surface`, `text-content`, `text-primary-text`, and friends), and the `L*` primitives (`LApp`, `LBadge`, `LCard`, `LKeyValue`, `LStat`, `LPageHeader`, `LContainer`, `LLink`) imported from `@lotusia/ui`.
+Tailwind v4 (via `@tailwindcss/vite` in `wxt.config.ts`) needs no config file, but the stylesheets do declare its sources: automatic source detection would scan every file Git does not ignore, so each stylesheet turns it off with `source(none)` and names its own sources with `@source` allowlists instead, and a utility-named word in prose or a script cannot add a rule to the built CSS. The old committed `entrypoints/popup/style.css` build artifact is gone: the build writes compiled CSS into `.output/` only. Flowbite and flowbite-vue have been removed; the popup uses plain markup, the model's semantic roles (`bg-surface`, `text-content`, `text-primary-text`, and friends), and the `L*` primitives (`LApp`, `LBadge`, `LCard`, `LKeyValue`, `LStat`, `LPageHeader`, `LContainer`, `LLink`) imported from `@lotusia/ui`.
 
 ## Typecheck
 
