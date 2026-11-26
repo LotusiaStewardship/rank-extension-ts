@@ -16,8 +16,9 @@ export default defineConfig({
     name: 'Lotusia',
     description:
       'A decentralized, community-moderated reputation system for social media, powered by Lotus',
-    version: '1.3.1',
-    version_name: '1.3.1-beta',
+    // version and version_name come from package.json: WXT simplifies the version
+    // to dot-separated integers for `version` and keeps the full string, prerelease
+    // suffix included, as `version_name` on Chrome (Firefox drops `version_name`).
     host_permissions: [
       '*://rank.lotusia.org/api/v1/*',
       '*://chronik.lotusia.org/*',
