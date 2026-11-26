@@ -43,6 +43,10 @@ The popup consumes the Lotusia design model through `@lotusia/theme` and `@lotus
 
 Tailwind v4 (via `@tailwindcss/vite` in `wxt.config.ts`) needs no config file, and the old committed `entrypoints/popup/style.css` build artifact is gone: the build writes compiled CSS into `.output/` only. Flowbite and flowbite-vue have been removed; the popup uses plain markup, the model's semantic roles (`bg-surface`, `text-content`, `text-primary-text`, and friends), and the `L*` primitives (`LApp`, `LBadge`, `LCard`, `LKeyValue`, `LStat`, `LPageHeader`, `LContainer`, `LLink`) imported from `@lotusia/ui`.
 
+## Typecheck
+
+`npm run typecheck` runs `vue-tsc --noEmit` through `scripts/typecheck.mjs` and enforces `typecheck-baseline.json`: every error the typechecker still reports is allowlisted by file, TS code, and message with a count and a reason stating why it is exempt. The list only shrinks: a fix that removes errors makes the gate fail until the entry is reduced or removed, and an entry is never added without a reason. To retire an entry, fix the errors it covers, run `npm run typecheck`, and update the baseline as the failure instructs. `npm run compile` stays the raw, ungated view.
+
 ## Overlay
 
 The blurred-post widget on x.com is injected UI, a bounded context with inverted rules (branding ADR-006). It is mounted inside its own shadow root through WXT's `createShadowRootUi` with `cssInjectionMode: 'ui'` and `isolateEvents: true`, one mount per blurred post. The shadow root guarantees isolation in both directions: no style of ours reaches the host page (Tailwind's Preflight, carried by the chain below, applies inside the boundary only), and no style of the host page reaches the widget. Tokens resolve inside the boundary because `@lotusia/theme` emits them on the shadow host as well as the document root (ADR-003), and `overlayTeleportTarget()` creates one sanctioned portal destination inside the boundary per mount, though nothing portals today.

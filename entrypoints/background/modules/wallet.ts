@@ -9,6 +9,7 @@ import type {
   BlockchainInfo,
   OutPoint,
   ScriptEndpoint,
+  ScriptUtxos,
   SubscribeMsg,
   WsEndpoint,
   Utxo as ChronikUtxo,
@@ -257,7 +258,8 @@ class WalletManager {
       // UTXO is spendable if it is a coinbase and the tip height is 100 blocks or more
       // or it is not a coinbase transaction
       const [txid, outIdx] = outpoint.split('_')
-      if (this.isUtxoSpendable({ txid, outIdx: Number(outIdx) })) {
+      // `txid` is defined: utxo cache keys are always written as `${txid}_${i}`
+      if (this.isUtxoSpendable({ txid: txid!, outIdx: Number(outIdx) })) {
         spendable += value
       }
     }
@@ -275,7 +277,8 @@ class WalletManager {
     const outpoints: OutPoint[] = []
     this.wallet?.utxos?.forEach((_value, outpoint) => {
       const [txid, outIdx] = outpoint.split('_')
-      outpoints.push({ txid, outIdx: Number(outIdx) })
+      // `txid` is defined: utxo cache keys are always written as `${txid}_${i}`
+      outpoints.push({ txid: txid!, outIdx: Number(outIdx) })
     })
     return outpoints
   }
@@ -284,8 +287,9 @@ class WalletManager {
     return Array.from(this.wallet?.utxos?.entries() ?? [])
       .map(([outpoint, utxo]) => {
         const [txid, outIdx] = outpoint.split('_')
+        // `txid` is defined: utxo cache keys are always written as `${txid}_${i}`
         return {
-          outpoint: { txid, outIdx: Number(outIdx) },
+          outpoint: { txid: txid!, outIdx: Number(outIdx) },
           value: BigInt(utxo.value),
         }
       })
@@ -601,7 +605,8 @@ class WalletManager {
     for (let i = 0; i < tx.outputs.length; i++) {
       const outpoint = `${txid}_${i}`
       if (!this.wallet.utxos.has(outpoint)) {
-        const output = tx.outputs[i]
+        // `output` is defined: `i` is indexed inside the `tx.outputs.length` loop bound
+        const output = tx.outputs[i]!
         if (this.scriptHex == output.outputScript) {
           console.log(
             `AddedToMempool: received ${toXPI(output.value)} Lotus, saving utxo to cache`,
@@ -812,7 +817,8 @@ class WalletManager {
         continue
       }
       const { txid, outIdx } = outpoint
-      const { state } = results[i]
+      // `results[i]` is defined: `i` is indexed inside the `results.length` loop bound
+      const { state } = results[i]!
       switch (state) {
         case 'NO_SUCH_OUTPUT':
         case 'NO_SUCH_TX':
@@ -842,7 +848,8 @@ class WalletManager {
       if (!result.length) {
         return
       }
-      const [{ utxos }] = result
+      // `result` has a first element: the `result.length` guard above returned otherwise
+      const [{ utxos }] = result as [ScriptUtxos]
       for (const utxo of utxos) {
         yield utxo
       }
